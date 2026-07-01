@@ -17,7 +17,15 @@ def main():
             print(f"Failed to install dependencies: {e}")
             sys.exit(1)
 
-    # 2. Run collectstatic
+    # 2. Run migrations
+    print("Running database migrations...")
+    try:
+        subprocess.check_call([sys.executable, "manage.py", "migrate", "--noinput"])
+    except subprocess.CalledProcessError as e:
+        print(f"Migrations failed: {e}")
+        sys.exit(1)
+
+    # 3. Run collectstatic
     print("Running collectstatic...")
     try:
         subprocess.check_call([sys.executable, "manage.py", "collectstatic", "--noinput", "--clear"])
