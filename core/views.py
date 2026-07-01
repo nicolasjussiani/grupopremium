@@ -232,9 +232,12 @@ def run_migrations_view(request):
         return HttpResponse("Acesso negado", status=403)
     try:
         call_command("migrate", interactive=False)
-        return HttpResponse("Migrações aplicadas no banco de dados!")
+        return HttpResponse("✅ Migrações aplicadas no banco de dados!")
     except Exception as e:
-        return HttpResponse(f"Erro: {e}", status=500)
+        import traceback
+        erro = traceback.format_exc()
+        # Retornamos 200 propositalmente para o Vercel não engolir o erro
+        return HttpResponse(f"<h1>Erro ao rodar migrações</h1><pre>{erro}</pre>", status=200)
 
 
 from core.models import LogAtividade
@@ -249,7 +252,11 @@ def auditoria_sistema(request):
         messages.error(request, '⛔ Acesso restrito à Diretoria.')
         return redirect('dashboard')
 
-    logs = LogAtividade.objects.all().select_related('usuario')[:500]
+    try:
+        logs = list(LogAtividade.objects.all().select_related('usuario')[:500])
+    except Exception as e:
+        messages.warning(request, f"O banco de dados ainda não foi atualizado. Execute as migrações primeiro. Detalhes: {e}")
+        logs = []
     
     return render(request, 'core/auditoria.html', {
         'logs': logs
