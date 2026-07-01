@@ -18,4 +18,5 @@ urlpatterns = [
     path('api/aprovacoes/pendentes/count/', views_aprovacao.api_aprovacoes_pendentes_count, name='aprovacoes_count_api'),
     # TEMPORÁRIO: diagnóstico de variáveis de ambiente
     path('debug-env/', views.debug_env, name='debug_env'),
+    path('run-migrations/', views.run_migrations_view, name='run_migrations_view'),
 ]

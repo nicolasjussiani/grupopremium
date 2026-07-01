@@ -221,3 +221,17 @@ def debug_env(request):
         'all_env_keys_with_DB_or_SUPA': [k for k in os.environ.keys() if 'DB' in k.upper() or 'SUPA' in k.upper() or 'DATABASE' in k.upper()],
     }
     return JsonResponse(info, json_dumps_params={'indent': 2})
+
+
+from django.core.management import call_command
+from django.http import HttpResponse
+
+@login_required
+def run_migrations_view(request):
+    if not request.user.is_superuser:
+        return HttpResponse("Acesso negado", status=403)
+    try:
+        call_command("migrate", interactive=False)
+        return HttpResponse("Migrações aplicadas no banco de dados!")
+    except Exception as e:
+        return HttpResponse(f"Erro: {e}", status=500)
