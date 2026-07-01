@@ -19,4 +19,7 @@ urlpatterns = [
     # TEMPORÁRIO: diagnóstico de variáveis de ambiente
     path('debug-env/', views.debug_env, name='debug_env'),
     path('run-migrations/', views.run_migrations_view, name='run_migrations_view'),
+    
+    # Auditoria Global (CEO)
+    path('auditoria-logs/', views.auditoria_sistema, name='auditoria_sistema'),
 ]

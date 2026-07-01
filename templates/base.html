@@ -50,6 +50,15 @@
         Dashboard
       </a>
 
+      <!-- Visível Apenas para CEO / Diretoria (Admin ou Luiz) -->
+      {% if request.user.is_superuser or 'luiz' in request.user.username.lower or 'luiz' in request.user.get_full_name.lower %}
+      <div class="nav-section-label">DIRETORIA</div>
+      <a href="{% url 'auditoria_sistema' %}" class="nav-item" style="color: #FCD34D;">
+        <span class="nav-icon">🔍</span>
+        Auditoria Global
+      </a>
+      {% endif %}
+
       <div class="nav-section-label">Módulos</div>
 
       {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}

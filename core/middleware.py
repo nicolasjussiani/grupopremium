@@ -89,3 +89,57 @@ class AcessoModuloMiddleware(MiddlewareMixin):
                 
         return None
 
+class AuditLogMiddleware(MiddlewareMixin):
+    """
+    Middleware para interceptar ações de escrita (POST) e gravar log de auditoria automaticamente.
+    """
+    def process_request(self, request):
+        if request.method == 'POST' and request.user.is_authenticated:
+            path = request.path_info
+            
+            # Ignora ações repetitivas ou irrelevantes para auditoria de negócio
+            if path.startswith('/login') or path.startswith('/logout') or path.startswith('/api/notificacoes'):
+                return None
+            
+            partes = path.strip('/').split('/')
+            modulo = partes[0] if partes else 'sistema'
+            
+            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+            if x_forwarded_for:
+                ip = x_forwarded_for.split(',')[0]
+            else:
+                ip = request.META.get('REMOTE_ADDR')
+
+            # Sanitização dos dados (remove tokens e senhas)
+            dados = request.POST.copy()
+            if 'password' in dados:
+                dados['password'] = '***'
+            if 'csrfmiddlewaretoken' in dados:
+                del dados['csrfmiddlewaretoken']
+
+            # Inferência da ação baseada na URL
+            acao = f"Ação submetida em: {path}"
+            if 'aprovar' in path:
+                acao = "Aprovou um registro/documento"
+            elif 'rejeitar' in path:
+                acao = "Rejeitou um registro/documento"
+            elif 'novo' in path or 'criar' in path:
+                acao = "Criou um novo registro"
+            elif 'editar' in path or 'atualizar' in path:
+                acao = "Editou um registro existente"
+
+            from core.models import LogAtividade
+            try:
+                LogAtividade.objects.create(
+                    usuario=request.user,
+                    acao=acao,
+                    modulo=modulo,
+                    url=path,
+                    ip_address=ip,
+                    detalhes=str(dados.dict())[:1000]
+                )
+            except Exception:
+                pass # Evita quebrar o sistema se o log falhar
+
+        return None
+

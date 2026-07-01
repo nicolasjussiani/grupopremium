@@ -235,3 +235,22 @@ def run_migrations_view(request):
         return HttpResponse("Migrações aplicadas no banco de dados!")
     except Exception as e:
         return HttpResponse(f"Erro: {e}", status=500)
+
+
+from core.models import LogAtividade
+
+@login_required
+def auditoria_sistema(request):
+    """
+    Dashboard de Auditoria Global. Exclusivo para CEO/Admin.
+    """
+    eh_luiz = request.user.username.lower() == 'luiz' or 'luiz' in request.user.get_full_name().lower()
+    if not (request.user.is_superuser or eh_luiz):
+        messages.error(request, '⛔ Acesso restrito à Diretoria.')
+        return redirect('dashboard')
+
+    logs = LogAtividade.objects.all().select_related('usuario')[:500]
+    
+    return render(request, 'core/auditoria.html', {
+        'logs': logs
+    })

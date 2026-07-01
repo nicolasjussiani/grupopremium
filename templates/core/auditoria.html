@@ -1,0 +1,280 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Auditoria Global — ERP Grupo Premium{% endblock %}
+
+{% block extra_css %}
+<style>
+  .auditoria-container {
+    padding: 20px 40px;
+  }
+  .auditoria-header {
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .auditoria-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-color);
+  }
+  .auditoria-subtitle {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-top: 5px;
+  }
+  .auditoria-stats {
+    display: flex;
+    gap: 20px;
+  }
+  .stat-card {
+    background: white;
+    padding: 15px 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    border-left: 4px solid var(--primary-color);
+  }
+  .stat-card .value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--primary-color);
+  }
+  .stat-card .label {
+    font-size: 12px;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  .log-table-wrapper {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    overflow: hidden;
+  }
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .log-table th {
+    background: #F8FAFC;
+    padding: 16px 20px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 2px solid #E2E8F0;
+  }
+  .log-table td {
+    padding: 16px 20px;
+    border-bottom: 1px solid #EDF2F7;
+    font-size: 14px;
+    color: #4A5568;
+    vertical-align: middle;
+  }
+  .log-table tr:hover td {
+    background: #F8FAFC;
+  }
+  .user-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    background: #E2E8F0;
+    color: #4A5568;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .user-name {
+    font-weight: 600;
+    color: var(--text-color);
+  }
+  .tag {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .tag-aprovar { background: #DCFCE7; color: #166534; }
+  .tag-rejeitar { background: #FEE2E2; color: #991B1B; }
+  .tag-criar { background: #FEF3C7; color: #92400E; }
+  .tag-default { background: #E0E7FF; color: #3730A3; }
+  
+  .details-btn {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+    text-decoration: underline;
+  }
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  .modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .modal-content h3 {
+    margin-bottom: 15px;
+    color: var(--text-color);
+  }
+  .payload-box {
+    background: #1E293B;
+    color: #A5B4FC;
+    padding: 15px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .close-modal {
+    margin-top: 20px;
+    padding: 10px 20px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auditoria-container">
+  <div class="auditoria-header">
+    <div>
+      <h1 class="auditoria-title">Auditoria Global (Logs do Sistema)</h1>
+      <p class="auditoria-subtitle">Monitoramento em tempo real de todas as ações de escrita na plataforma.</p>
+    </div>
+    <div class="auditoria-stats">
+      <div class="stat-card">
+        <div class="value">{{ logs|length }}</div>
+        <div class="label">Ações Recentes</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="log-table-wrapper">
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>Data / Hora</th>
+          <th>Usuário</th>
+          <th>Módulo</th>
+          <th>Ação</th>
+          <th>IP Origem</th>
+          <th>Detalhes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td>{{ log.criado_em|date:"d/m/Y H:i:s" }}</td>
+          <td>
+            <div class="user-cell">
+              <div class="user-avatar">
+                {% if log.usuario %}
+                  {{ log.usuario.username|slice:":2"|upper }}
+                {% else %}
+                  S
+                {% endif %}
+              </div>
+              <div class="user-name">
+                {% if log.usuario %}
+                  {{ log.usuario.get_full_name|default:log.usuario.username }}
+                {% else %}
+                  Sistema
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td>
+            <span style="text-transform: capitalize; font-weight: 600; color: #718096;">
+              {{ log.modulo }}
+            </span>
+          </td>
+          <td>
+            {% if 'Aprovou' in log.acao %}
+              <span class="tag tag-aprovar">{{ log.acao }}</span>
+            {% elif 'Rejeitou' in log.acao %}
+              <span class="tag tag-rejeitar">{{ log.acao }}</span>
+            {% elif 'Criou' in log.acao %}
+              <span class="tag tag-criar">{{ log.acao }}</span>
+            {% else %}
+              <span class="tag tag-default">{{ log.acao }}</span>
+            {% endif %}
+            <br>
+            <small style="color: #A0AEC0; margin-top: 4px; display: inline-block;">{{ log.url }}</small>
+          </td>
+          <td>{{ log.ip_address|default:"N/A" }}</td>
+          <td>
+            {% if log.detalhes %}
+            <button class="details-btn" onclick="openModal('{{ log.id }}')">Ver Dados</button>
+            
+            <!-- Modal para este log -->
+            <div class="modal-overlay" id="modal-{{ log.id }}">
+              <div class="modal-content">
+                <h3>Detalhes da Requisição (Payload)</h3>
+                <div class="payload-box">{{ log.detalhes }}</div>
+                <button class="close-modal" onclick="closeModal('{{ log.id }}')">Fechar</button>
+              </div>
+            </div>
+            {% else %}
+            <span style="color: #CBD5E0;">Sem payload</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" style="text-align: center; padding: 40px; color: #718096;">
+            Nenhuma atividade registrada ainda.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  function openModal(id) {
+    document.getElementById('modal-' + id).style.display = 'flex';
+  }
+  function closeModal(id) {
+    document.getElementById('modal-' + id).style.display = 'none';
+  }
+  
+  // Fechar clicando fora
+  window.onclick = function(event) {
+    if (event.target.className === 'modal-overlay') {
+      event.target.style.display = 'none';
+    }
+  }
+</script>
+{% endblock %}

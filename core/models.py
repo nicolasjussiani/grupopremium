@@ -173,3 +173,24 @@ class AprovacaoRegistro(models.Model):
             nivel=nivel,
             solicitado_por=solicitado_por,
         )
+
+
+class LogAtividade(models.Model):
+    """Log geral de todas as ações de escrita (POST) no sistema para auditoria do CEO."""
+    
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='logs_atividade')
+    acao = models.CharField(max_length=255)
+    modulo = models.CharField(max_length=100, default='sistema')
+    url = models.CharField(max_length=500, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    detalhes = models.TextField(blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Log de Atividade'
+        verbose_name_plural = 'Logs de Atividades'
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        nome = self.usuario.username if self.usuario else 'Sistema'
+        return f"[{self.modulo}] {nome} - {self.acao} em {self.criado_em.strftime('%d/%m/%Y %H:%M')}"
