@@ -18,29 +18,38 @@ def painel_financeiro(request):
     )
     # Calcula Orcamento/Budget do Mês
     mes_atual = timezone.now().date().replace(day=1)
-    orcamentos = OrcamentoCentroCusto.objects.filter(competencia=mes_atual)
     
     dashboard_budget = []
-    for orcamento in orcamentos:
-        # Gasto real: Lançamentos finalizados desse centro de custo no mês
-        gasto = LancamentoERP.objects.filter(
-            centro_custo=orcamento.centro_custo,
-            status='finalizado',
-            finalizado_em__month=timezone.now().month
-        ).aggregate(total=Sum('valor'))['total'] or 0
-        
-        economia_valor = orcamento.valor_orcado - gasto
-        meta_valor = orcamento.valor_orcado * (orcamento.meta_reducao_custo / 100)
-        atingiu_meta = economia_valor >= meta_valor
+    try:
+        orcamentos = OrcamentoCentroCusto.objects.filter(competencia=mes_atual)
+        for orcamento in orcamentos:
+            # Gasto real: Lançamentos finalizados desse centro de custo no mês
+            gasto = LancamentoERP.objects.filter(
+                centro_custo=orcamento.centro_custo,
+                status='finalizado',
+                finalizado_em__month=timezone.now().month
+            ).aggregate(total=Sum('valor'))['total'] or 0
+            
+            economia_valor = orcamento.valor_orcado - gasto
+            meta_valor = orcamento.valor_orcado * (orcamento.meta_reducao_custo / 100)
+            atingiu_meta = economia_valor >= meta_valor
 
-        dashboard_budget.append({
-            'centro_custo': orcamento.centro_custo,
-            'orcado': orcamento.valor_orcado,
-            'gasto': gasto,
-            'saldo': orcamento.valor_orcado - gasto,
-            'meta_reducao_percentual': orcamento.meta_reducao_custo,
-            'atingiu_meta': atingiu_meta
-        })
+            dashboard_budget.append({
+                'centro_custo': orcamento.centro_custo,
+                'orcado': orcamento.valor_orcado,
+                'gasto': gasto,
+                'saldo': orcamento.valor_orcado - gasto,
+                'meta_reducao_percentual': orcamento.meta_reducao_custo,
+                'atingiu_meta': atingiu_meta
+            })
+    except Exception as e:
+        # Se a tabela não existir, tenta migrar automaticamente
+        from django.core.management import call_command
+        try:
+            call_command('migrate', interactive=False)
+            messages.info(request, "🔄 Banco de dados atualizado automaticamente. Atualize a página.")
+        except Exception as mig_e:
+            messages.error(request, f"⚠️ Erro ao carregar orçamentos (tabela ausente): {e}")
 
     return render(request, 'financeiro/painel.html', {
         'docs_pendentes': docs_pendentes,
