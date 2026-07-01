@@ -51,12 +51,15 @@
 
       <div class="nav-section-label">Módulos</div>
 
+      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'lista_vagas' %}" class="nav-item mod1 {% block nav_recrutamento %}{% endblock %}">
         <span class="nav-icon">👥</span>
         Recrutamento e Seleção
         {% if nav_vagas_count %}<span class="nav-badge">{{ nav_vagas_count }}</span>{% endif %}
       </a>
+      {% endif %}
       
+      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'banco_talentos' %}" class="nav-item mod1 {% block nav_talentos %}{% endblock %}">
         <span class="nav-icon">🌟</span>
         Banco de Talentos
@@ -67,30 +70,39 @@
         RH / Admissional
         {% if nav_admissoes_count %}<span class="nav-badge">{{ nav_admissoes_count }}</span>{% endif %}
       </a>
+      {% endif %}
 
+      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'lista_demandas' %}" class="nav-item mod3 {% block nav_administrativo %}{% endblock %}">
         <span class="nav-icon">🗂️</span>
         Administrativo
         {% if nav_demandas_count %}<span class="nav-badge">{{ nav_demandas_count }}</span>{% endif %}
       </a>
+      {% endif %}
 
+      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'dashboard_sesmet' %}" class="nav-item mod4 {% block nav_sesmet %}{% endblock %}">
         <span class="nav-icon">🦺</span>
         SESMET / Segurança
         {% if nav_epis_vencidos %}<span class="nav-badge">{{ nav_epis_vencidos }}</span>{% endif %}
       </a>
+      {% endif %}
 
+      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'painel_compras' %}" class="nav-item mod5 {% block nav_compras %}{% endblock %}">
         <span class="nav-icon">🛒</span>
         Compras / Almoxarifado
         {% if nav_compras_count %}<span class="nav-badge">{{ nav_compras_count }}</span>{% endif %}
       </a>
+      {% endif %}
 
+      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'painel_financeiro' %}" class="nav-item mod6 {% block nav_financeiro %}{% endblock %}">
         <span class="nav-icon">💰</span>
         Financeiro / Fiscal
         {% if nav_financeiro_count %}<span class="nav-badge">{{ nav_financeiro_count }}</span>{% endif %}
       </a>
+      {% endif %}
 
       <div class="nav-section-label">Processos</div>
       <a href="{% url 'aprovacoes_pendentes' %}" class="nav-item {% block nav_aprovacoes %}{% endblock %}" id="navAprovacoes">

@@ -1,6 +1,8 @@
 import os
 from django.contrib.auth.models import User, AnonymousUser
 from django.utils.deprecation import MiddlewareMixin
+from django.shortcuts import redirect
+from django.contrib import messages
 
 
 class StatelessDemoMiddleware(MiddlewareMixin):
@@ -46,4 +48,44 @@ class StatelessDemoMiddleware(MiddlewareMixin):
             fake.is_superuser = True
             fake._state.adding = False  # Evita que Django tente salvar
             request.user = fake
+
+
+class AcessoModuloMiddleware(MiddlewareMixin):
+    """
+    Middleware que restringe o acesso aos módulos com base no perfil do usuário.
+    O Admin (superuser) e o usuário Luiz têm acesso irrestrito.
+    """
+    def process_request(self, request):
+        if not request.user.is_authenticated:
+            return None
+            
+        path = request.path_info
+        
+        # Ignorar URLs liberadas ou de sistema
+        if path.startswith('/admin/') or path.startswith('/static/') or path.startswith('/media/') or path == '/' or path.startswith('/login') or path.startswith('/logout') or path.startswith('/api/'):
+            return None
+            
+        # Acesso irrestrito
+        if request.user.is_superuser or request.user.username.lower() == 'luiz':
+            return None
+            
+        perfil = request.user.perfil.perfil if hasattr(request.user, 'perfil') else 'operacional'
+        
+        regras = {
+            '/recrutamento/': ['rh', 'gestor'],
+            '/admissional/': ['rh', 'gestor'],
+            '/administrativo/': ['gestor'],
+            '/sesmet/': ['sesmet', 'gestor'],
+            '/compras/': ['compras', 'gestor'],
+            '/financeiro/': ['financeiro', 'gestor'],
+        }
+        
+        for prefix, perfis_permitidos in regras.items():
+            if path.startswith(prefix):
+                if perfil not in perfis_permitidos:
+                    messages.error(request, '⛔ Acesso negado! Você não tem permissão para acessar este módulo.')
+                    return redirect('dashboard')
+                break
+                
+        return None
 
