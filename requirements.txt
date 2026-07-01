@@ -8,3 +8,5 @@ gunicorn>=21.2.0
 PyMuPDF>=1.23.0
 pytesseract>=0.3.10
 Pillow>=10.0.0
+django-storages>=1.14.0
+boto3>=1.30.0

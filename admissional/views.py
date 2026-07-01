@@ -52,11 +52,11 @@ def atualizar_documento(request, admissao_pk, doc_pk):
         novo_status = request.POST.get('status')
         obs = request.POST.get('observacao', '')
         
-        arquivo = request.FILES.get('arquivo')
-        if arquivo:
-            doc.arquivo = arquivo.read()
-            doc.arquivo_nome = arquivo.name
-            doc.arquivo_mimetype = arquivo.content_type
+        arquivo_upload = request.FILES.get('arquivo')
+        if arquivo_upload:
+            doc.arquivo_nuvem = arquivo_upload
+            doc.arquivo_nome = arquivo_upload.name
+            doc.arquivo_mimetype = arquivo_upload.content_type
             
         doc.status = novo_status
         doc.observacao = obs
@@ -179,6 +179,9 @@ def baixar_documento(request, admissao_pk, doc_pk):
     admissao = get_object_or_404(Admissao, pk=admissao_pk)
     doc = get_object_or_404(DocumentoAdmissional, pk=doc_pk, admissao=admissao)
     
+    if doc.arquivo_nuvem:
+        return redirect(doc.arquivo_nuvem.url)
+        
     if doc.arquivo:
         content_type = doc.arquivo_mimetype or 'application/octet-stream'
         filename = doc.arquivo_nome or f'documento_{doc.get_tipo_display()}.bin'

@@ -38,7 +38,8 @@ class DocumentoFinanceiro(models.Model):
     motivo_rejeicao = models.TextField(blank=True, verbose_name='Motivo da Rejeição')
     recebido_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                       related_name='documentos_recebidos')
-    arquivo_pdf = models.BinaryField(null=True, blank=True, editable=True, verbose_name='Nota Fiscal PDF')
+    arquivo_pdf = models.BinaryField(null=True, blank=True, editable=True, verbose_name='Nota Fiscal PDF (Legado DB)')
+    arquivo = models.FileField(upload_to='notas_fiscais/', null=True, blank=True, verbose_name='Nota Fiscal PDF (Nuvem)')
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 

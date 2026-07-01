@@ -85,7 +85,8 @@ class Candidato(models.Model):
     avaliado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                       related_name='candidatos_avaliados')
     encaminhado_admissao = models.BooleanField(default=False, verbose_name='Encaminhado para Admissão?')
-    arquivo_pdf = models.BinaryField(null=True, blank=True, editable=True, verbose_name='Currículo PDF')
+    arquivo_pdf = models.BinaryField(null=True, blank=True, editable=True, verbose_name='Currículo PDF (Legado DB)')
+    arquivo = models.FileField(upload_to='curriculos/', null=True, blank=True, verbose_name='Currículo PDF (Nuvem)')
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
@@ -105,7 +106,8 @@ class Talento(models.Model):
     cidade = models.CharField(max_length=100, blank=True, verbose_name='Cidade')
     cpf = models.CharField(max_length=14, blank=True, verbose_name='CPF')
     curriculo_texto = models.TextField(blank=True, verbose_name='Texto Extraído do Currículo')
-    arquivo_pdf = models.BinaryField(null=True, blank=True, editable=True, verbose_name='Currículo PDF')
+    arquivo_pdf = models.BinaryField(null=True, blank=True, editable=True, verbose_name='Currículo PDF (Legado DB)')
+    arquivo = models.FileField(upload_to='curriculos/', null=True, blank=True, verbose_name='Currículo PDF (Nuvem)')
     ultima_vaga = models.ForeignKey(Vaga, on_delete=models.SET_NULL, null=True, blank=True, related_name='talentos_aplicados', verbose_name='Última Vaga Aplicada')
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)

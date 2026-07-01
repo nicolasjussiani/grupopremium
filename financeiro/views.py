@@ -80,9 +80,9 @@ def entrada_documento(request):
             recebido_por=request.user,
         )
         
-        arquivo_pdf = request.FILES.get('arquivo_pdf')
-        if arquivo_pdf:
-            doc.arquivo_pdf = arquivo_pdf.read()
+        arquivo_upload = request.FILES.get('arquivo_pdf')
+        if arquivo_upload:
+            doc.arquivo = arquivo_upload
 
         doc.save()
 
@@ -215,9 +215,16 @@ def validar_lancamento(request, pk):
 @login_required
 def download_pdf_financeiro(request, pk):
     doc = get_object_or_404(DocumentoFinanceiro, pk=pk)
+    
+    # 1. Tenta baixar da Nuvem (S3 / Supabase Storage)
+    if doc.arquivo:
+        return redirect(doc.arquivo.url)
+        
+    # 2. Fallback: Banco de Dados Legado
     if doc.arquivo_pdf:
         response = HttpResponse(doc.arquivo_pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="NF_{doc.numero_documento}.pdf"'
         return response
+        
     messages.error(request, '❌ Arquivo PDF não encontrado.')
     return redirect('detalhe_documento', pk=pk)

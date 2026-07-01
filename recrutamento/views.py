@@ -141,10 +141,9 @@ def adicionar_candidato(request, vaga_pk):
             curriculum_obs=request.POST.get('curriculum_obs', ''),
             etapa_atual='triagem',
         )
-        arquivo_pdf = request.FILES.get('curriculo_pdf')
-        if arquivo_pdf:
-            pdf_bytes = arquivo_pdf.read()
-            candidato.arquivo_pdf = pdf_bytes
+        arquivo_upload = request.FILES.get('curriculo_pdf')
+        if arquivo_upload:
+            candidato.arquivo = arquivo_upload
         candidato.save()
         
         # Salva no Banco de Talentos ou atualiza a última vaga aplicada
@@ -163,8 +162,8 @@ def adicionar_candidato(request, vaga_pk):
                 talento.ultima_vaga = vaga
                 talento.telefone = telefone
                 talento.cidade = cidade
-            if arquivo_pdf:
-                talento.arquivo_pdf = pdf_bytes
+            if arquivo_upload:
+                talento.arquivo = arquivo_upload
             talento.save()
 
         messages.success(request, f'✅ Candidato {candidato.nome} adicionado à vaga {vaga.nome_vaga}.')
@@ -270,6 +269,8 @@ def banco_talentos(request):
 def baixar_curriculo_candidato(request, pk):
     from django.http import HttpResponse, HttpResponseNotFound
     candidato = get_object_or_404(Candidato, pk=pk)
+    if candidato.arquivo:
+        return redirect(candidato.arquivo.url)
     if candidato.arquivo_pdf:
         response = HttpResponse(candidato.arquivo_pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="curriculo_{candidato.nome}.pdf"'
@@ -280,6 +281,8 @@ def baixar_curriculo_candidato(request, pk):
 def baixar_curriculo_talento(request, pk):
     from django.http import HttpResponse, HttpResponseNotFound
     talento = get_object_or_404(Talento, pk=pk)
+    if talento.arquivo:
+        return redirect(talento.arquivo.url)
     if talento.arquivo_pdf:
         response = HttpResponse(talento.arquivo_pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="curriculo_{talento.nome}.pdf"'
