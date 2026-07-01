@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Atualizar Documento — ERP Grupo Premium{% endblock %}
+{% block nav_admissional %}active{% endblock %}
+{% block topbar_title %}Atualizar Documento Admissional{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-2" style="margin-bottom:20px;">
+  <div class="mod-title">📄 {{ doc.get_tipo_display }}</div>
+  <div class="mod-desc">Candidato: {{ admissao.candidato_nome }} — {{ admissao.vaga_nome }}</div>
+</div>
+
+<div style="max-width:600px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🔍 Análise do Documento</div>
+      <span class="badge {% if doc.status == 'aprovado' %}badge-success{% elif doc.status == 'rejeitado' %}badge-danger{% elif doc.status == 'aguardando_analise' %}badge-info{% else %}badge-warning{% endif %}">
+        Status atual: {{ doc.get_status_display }}
+      </span>
+    </div>
+
+    <div class="gateway-box">
+      <div class="gateway-question">Documento "{{ doc.get_tipo_display }}" está correto e válido?</div>
+      <p style="font-size:0.82rem;color:var(--text-secondary);">SIM → Aprovado | NÃO → Solicitar correção ao candidato</p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label class="form-label">Arquivo do Documento</label>
+        {% if doc.arquivo %}
+        <div style="margin-bottom: 8px; font-size: 0.9rem;">
+            ✅ Arquivo atual: <strong>{{ doc.arquivo_nome|default:"Documento" }}</strong> 
+            <a href="{% url 'baixar_documento' admissao.pk doc.pk %}" target="_blank" style="margin-left:10px; color:var(--brand); text-decoration:none;">Baixar/Ver Arquivo</a>
+        </div>
+        {% else %}
+        <div style="margin-bottom: 8px; font-size: 0.85rem; color: var(--text-muted);">
+            Nenhum arquivo anexado ainda.
+        </div>
+        {% endif %}
+        <input type="file" name="arquivo" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+        <small style="color:var(--text-muted); font-size:0.75rem;">Você pode enviar um novo arquivo para substituir o atual.</small>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Status do Documento <span class="required">*</span></label>
+        <select name="status" class="form-control" id="statusSelect">
+          <option value="aguardando_analise" {% if doc.status == 'aguardando_analise' %}selected{% endif %}>🔍 Em Análise</option>
+          <option value="aprovado" {% if doc.status == 'aprovado' %}selected{% endif %}>✅ Aprovado</option>
+          <option value="rejeitado" {% if doc.status == 'rejeitado' %}selected{% endif %}>❌ Rejeitado — Solicitar Correção</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Observação</label>
+        <textarea name="observacao" class="form-control" rows="3" placeholder="Descreva o motivo de rejeição ou aprovação...">{{ doc.observacao }}</textarea>
+      </div>
+
+      <div class="gateway-actions">
+        <button type="submit" class="btn btn-mod2">💾 Salvar</button>
+        <a href="{% url 'detalhe_admissao' admissao.pk %}" class="btn btn-outline">← Voltar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

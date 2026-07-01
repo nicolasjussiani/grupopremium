@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}RH / Processo Admissional — ERP Grupo Premium{% endblock %}
+{% block nav_admissional %}active{% endblock %}
+{% block topbar_title %}RH / Processo Admissional{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-2">
+  <div class="mod-title">📋 RH / Processo Admissional</div>
+  <div class="mod-desc">Gestão de documentação, cadastro e integração de novos colaboradores</div>
+</div>
+
+<div class="page-header">
+  <div class="flex gap-3">
+    <div class="kpi-card kpi-mod2" style="padding:14px 20px;min-width:150px;">
+      <div style="font-size:1.6rem;font-weight:800;">{{ total_em_andamento }}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);">Em Andamento</div>
+    </div>
+    <div class="kpi-card kpi-mod2" style="padding:14px 20px;min-width:150px;">
+      <div style="font-size:1.6rem;font-weight:800;">{{ total_concluidos }}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);">Concluídos</div>
+    </div>
+  </div>
+</div>
+
+<!-- FILTROS -->
+<div class="card mb-5">
+  <form method="get" class="flex gap-3 items-center flex-wrap">
+    <select name="status" class="form-control" style="max-width:260px;">
+      <option value="">Todos os Status</option>
+      {% for val, label in status_choices %}
+      <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
+    <a href="{% url 'lista_admissoes' %}" class="btn btn-outline btn-sm">Limpar</a>
+  </form>
+</div>
+
+<!-- LISTA -->
+{% if admissoes %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Candidato</th>
+        <th>Vaga</th>
+        <th>Unidade</th>
+        <th>Documentos</th>
+        <th>Status</th>
+        <th>Data</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in admissoes %}
+      <tr>
+        <td style="font-family:monospace;color:var(--text-muted);font-size:0.78rem;">{{ a.pk|stringformat:"04d" }}</td>
+        <td>
+          <div style="font-weight:600;">{{ a.candidato_nome }}</div>
+          <div style="font-size:0.74rem;color:var(--text-muted);">{{ a.candidato_email }}</div>
+        </td>
+        <td>{{ a.vaga_nome }}</td>
+        <td>{{ a.unidade_destino }}</td>
+        <td>
+          {% with total=a.documentos.count aprovados=a.documentos.filter.status %}
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="progress-bar" style="width:80px;height:6px;border-radius:99px;background:var(--border);">
+              <div style="height:100%;border-radius:99px;background:var(--mod2-green);width:{{ a.percentual_conclusao }}%;"></div>
+            </div>
+            <span style="font-size:0.78rem;color:var(--text-muted);">{{ a.percentual_conclusao }}%</span>
+          </div>
+          {% endwith %}
+        </td>
+        <td>
+          <span class="badge {% if a.status == 'concluido' %}badge-success{% elif a.status == 'documentos_pendentes' %}badge-danger{% elif a.status == 'aguardando_documentos' %}badge-warning{% else %}badge-info{% endif %}">
+            {{ a.get_status_display }}
+          </span>
+        </td>
+        <td style="font-size:0.78rem;color:var(--text-muted);">{{ a.criado_em|date:"d/m/Y" }}</td>
+        <td>
+          <a href="{% url 'detalhe_admissao' a.pk %}" class="btn btn-sm btn-mod2">Ver</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <div class="empty-icon">📭</div>
+    <p>Nenhum processo admissional encontrado.</p>
+    <p style="font-size:0.82rem;color:var(--text-muted);">Os processos são criados automaticamente quando um candidato é aprovado no Módulo 1.</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

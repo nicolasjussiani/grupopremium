@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Detalhe da Aprovação #{{ aprovacao.pk }} — ERP Grupo Premium{% endblock %}
+{% block topbar_title %}Detalhe da Aprovação{% endblock %}
+
+{% block content %}
+<div style="max-width:680px;margin:0 auto;">
+  <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem;">
+    <a href="{% url 'aprovacoes_pendentes' %}" style="color:var(--text-muted);text-decoration:none;font-size:0.85rem;">
+      ← Voltar às Aprovações
+    </a>
+  </div>
+
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.75rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+      <h2 style="font-size:1.15rem;font-weight:700;color:var(--text-primary);">
+        {{ aprovacao.titulo }}
+      </h2>
+      <span style="
+        padding:0.3rem 0.8rem;border-radius:999px;font-size:0.8rem;font-weight:600;
+        background:{% if aprovacao.status == 'aprovado' %}#10b98120{% elif aprovacao.status == 'rejeitado' %}#ef444420{% elif aprovacao.status == 'pendente' %}#f59e0b20{% else %}#6b728020{% endif %};
+        color:{% if aprovacao.status == 'aprovado' %}#10b981{% elif aprovacao.status == 'rejeitado' %}#ef4444{% elif aprovacao.status == 'pendente' %}#f59e0b{% else %}#6b7280{% endif %};">
+        {{ aprovacao.get_status_display }}
+      </span>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <tr>
+        <td style="color:var(--text-muted);padding:0.5rem 0;width:40%;">Módulo</td>
+        <td style="color:var(--text-primary);font-weight:500;">{{ aprovacao.get_modulo_display }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-muted);padding:0.5rem 0;">Nível</td>
+        <td style="color:var(--text-primary);font-weight:500;">{{ aprovacao.get_nivel_display }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-muted);padding:0.5rem 0;">Solicitado por</td>
+        <td style="color:var(--text-primary);">
+          {% if aprovacao.solicitado_por %}
+            {{ aprovacao.solicitado_por.get_full_name|default:aprovacao.solicitado_por.username }}
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-muted);padding:0.5rem 0;">Criado em</td>
+        <td style="color:var(--text-primary);">{{ aprovacao.criado_em|date:"d/m/Y \à\s H:i" }}</td>
+      </tr>
+      {% if aprovacao.aprovado_por %}
+      <tr>
+        <td style="color:var(--text-muted);padding:0.5rem 0;">Decidido por</td>
+        <td style="color:var(--text-primary);">{{ aprovacao.aprovado_por.get_full_name|default:aprovacao.aprovado_por.username }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-muted);padding:0.5rem 0;">Decidido em</td>
+        <td style="color:var(--text-primary);">{{ aprovacao.decidido_em|date:"d/m/Y \à\s H:i" }}</td>
+      </tr>
+      {% endif %}
+    </table>
+
+    {% if aprovacao.descricao %}
+    <div style="margin-top:1.25rem;">
+      <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.05em;">Descrição</div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:0.85rem;font-size:0.87rem;line-height:1.55;color:var(--text-primary);">
+        {{ aprovacao.descricao }}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if aprovacao.comentario %}
+    <div style="margin-top:1rem;">
+      <div style="font-size:0.82rem;font-weight:600;color:#10b981;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.05em;">✅ Comentário da Aprovação</div>
+      <div style="background:#10b98115;border:1px solid #10b98140;border-radius:8px;padding:0.85rem;font-size:0.87rem;color:var(--text-primary);">
+        {{ aprovacao.comentario }}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if aprovacao.motivo_rejeicao %}
+    <div style="margin-top:1rem;">
+      <div style="font-size:0.82rem;font-weight:600;color:#ef4444;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.05em;">🚫 Motivo da Rejeição</div>
+      <div style="background:#ef444415;border:1px solid #ef444440;border-radius:8px;padding:0.85rem;font-size:0.87rem;color:var(--text-primary);">
+        {{ aprovacao.motivo_rejeicao }}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if aprovacao.esta_pendente %}
+    <div style="display:flex;gap:0.75rem;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);">
+      <form method="post" action="{% url 'aprovar_registro' aprovacao.pk %}" style="flex:1;">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'aprovacoes_pendentes' %}">
+        <button type="submit" style="width:100%;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:10px;padding:0.65rem;font-size:0.9rem;font-weight:600;cursor:pointer;">
+          ✅ Aprovar
+        </button>
+      </form>
+      <form method="post" action="{% url 'rejeitar_registro' aprovacao.pk %}" style="flex:1;" id="formRejeitarDetalhe">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'aprovacoes_pendentes' %}">
+        <input type="hidden" name="motivo_rejeicao" id="motivoInput">
+        <button type="button" onclick="pedirMotivo()" style="width:100%;background:transparent;color:#ef4444;border:1.5px solid #ef4444;border-radius:10px;padding:0.65rem;font-size:0.9rem;font-weight:600;cursor:pointer;">
+          🚫 Rejeitar
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if aprovacao.esta_pendente %}
+<script>
+function pedirMotivo() {
+  const motivo = prompt('Informe o motivo da rejeição:');
+  if (motivo && motivo.trim()) {
+    document.getElementById('motivoInput').value = motivo.trim();
+    document.getElementById('formRejeitarDetalhe').submit();
+  }
+}
+</script>
+{% endif %}
+{% endblock %}

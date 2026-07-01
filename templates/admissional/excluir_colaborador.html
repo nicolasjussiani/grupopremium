@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Excluir Colaborador — ERP Grupo Premium{% endblock %}
+{% block nav_colaboradores %}active{% endblock %}
+{% block topbar_title %}Colaboradores{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-2" style="margin-bottom:20px;">
+  <div class="mod-title">🏢 Excluir Colaborador</div>
+  <div class="mod-desc">Confirmação de exclusão do colaborador no sistema.</div>
+</div>
+
+<div class="card" style="max-width: 600px; margin: 0 auto; text-align: center;">
+  <div style="font-size: 3rem; margin-bottom: 15px;">⚠️</div>
+  <h3 style="margin-bottom: 15px;">Tem certeza que deseja excluir o colaborador(a) <strong>{{ colaborador.nome }}</strong>?</h3>
+  <p style="color: var(--text-muted); margin-bottom: 25px;">Esta ação não pode ser desfeita e removerá todos os registros associados a este colaborador.</p>
+  
+  <form method="post" class="flex gap-2" style="justify-content: center;">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Sim, Excluir</button>
+    <a href="{% url 'lista_colaboradores' %}" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

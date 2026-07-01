@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% block title %}Compras / Almoxarifado — ERP Grupo Premium{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}Processo de Compras{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-5">
+  <div class="mod-title">🛒 Processo de Compras / Almoxarifado</div>
+  <div class="mod-desc">Gestão de estoque, solicitações, cotação e aprovação de pedidos de compra</div>
+</div>
+
+<div class="page-header">
+  <div class="kpi-grid">
+    <div class="kpi-card kpi-mod5">
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-value">{{ total_materiais }}</div>
+      <div class="kpi-label">Materiais Cadastrados</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--danger);">
+      <div class="kpi-icon">🔴</div>
+      <div class="kpi-value" style="color:var(--danger);">{{ total_estoque_critico }}</div>
+      <div class="kpi-label">Estoque Crítico</div>
+      {% if total_estoque_critico > 0 %}<div class="kpi-sub" style="color:var(--danger);">Reabastecimento urgente!</div>{% endif %}
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--warning);">
+      <div class="kpi-icon">📋</div>
+      <div class="kpi-value" style="color:var(--warning);">{{ solicitacoes_pendentes|length }}</div>
+      <div class="kpi-label">Solicitações Pendentes</div>
+    </div>
+    <div class="kpi-card kpi-mod5">
+      <div class="kpi-icon">🛒</div>
+      <div class="kpi-value">{{ pedidos_abertos|length }}</div>
+      <div class="kpi-label">Pedidos em Aberto</div>
+    </div>
+  </div>
+
+  <div class="flex gap-3">
+    <a href="{% url 'nova_solicitacao' %}" class="btn btn-mod5">+ Nova Solicitação</a>
+    <a href="{% url 'lista_materiais' %}" class="btn btn-outline">📦 Materiais</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px;">
+  <!-- Materiais com Estoque Crítico -->
+  <div class="card" style="border-top-color:var(--danger);">
+    <div class="card-header">
+      <div class="card-title" style="color:var(--danger);">🔴 Estoque Crítico</div>
+      {% if total_estoque_critico > 0 %}<span class="badge badge-danger">{{ total_estoque_critico }}</span>{% endif %}
+    </div>
+
+    {% if materiais_criticos %}
+    <div class="table-wrap" style="border:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Material</th>
+            <th>Estoque</th>
+            <th>Mínimo</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in materiais_criticos %}
+          <tr>
+            <td style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">{{ m.codigo }}</td>
+            <td style="font-weight:600;font-size:0.84rem;">{{ m.nome }}</td>
+            <td><span class="badge badge-danger">{{ m.quantidade_estoque }} {{ m.get_unidade_medida_display }}</span></td>
+            <td style="font-size:0.82rem;">{{ m.estoque_minimo }}</td>
+            <td>
+              <a href="{% url 'nova_solicitacao' %}?material={{ m.pk }}" class="btn btn-sm btn-mod5">📋</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:30px;color:var(--success);">
+      <div style="font-size:2.5rem;">✅</div>
+      <p style="margin-top:10px;font-size:0.84rem;">Todos os materiais com estoque adequado.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Solicitações Pendentes -->
+  <div class="card" style="border-top-color:var(--mod5-purple);">
+    <div class="card-header">
+      <div class="card-title" style="color:var(--mod5-purple);">📋 Solicitações Pendentes</div>
+      {% if solicitacoes_pendentes %}<span class="badge badge-primary">{{ solicitacoes_pendentes|length }}</span>{% endif %}
+    </div>
+
+    {% if solicitacoes_pendentes %}
+    <div class="table-wrap" style="border:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Material</th>
+            <th>Qtd</th>
+            <th>Status</th>
+            <th>Data</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in solicitacoes_pendentes %}
+          <tr>
+            <td style="font-family:monospace;font-size:0.78rem;">
+              <a href="{% url 'detalhe_solicitacao' s.pk %}" style="color:var(--mod5-purple);">#{{ s.pk }}</a>
+            </td>
+            <td style="font-weight:600;font-size:0.84rem;">{{ s.material.nome }}</td>
+            <td>{{ s.quantidade_solicitada }}</td>
+            <td>
+              <span class="badge {% if s.status == 'pendente' %}badge-warning{% elif s.status == 'em_analise' %}badge-info{% elif s.status == 'compra_externa' %}badge-primary{% else %}badge-muted{% endif %}">
+                {{ s.get_status_display }}
+              </span>
+            </td>
+            <td style="font-size:0.78rem;color:var(--text-muted);">{{ s.criado_em|date:"d/m/Y" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:30px;color:var(--success);">
+      <div style="font-size:2.5rem;">✅</div>
+      <p style="margin-top:10px;font-size:0.84rem;">Nenhuma solicitação pendente.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Pedidos Abertos -->
+{% if pedidos_abertos %}
+<div class="card" style="margin-top:20px;border-top-color:var(--mod5-purple);">
+  <div class="card-header">
+    <div class="card-title">🛒 Pedidos de Compra em Aberto</div>
+    <span class="badge badge-primary">{{ pedidos_abertos|length }}</span>
+  </div>
+  <div class="table-wrap" style="border:none;">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Material</th>
+          <th>Fornecedor</th>
+          <th>Valor Total</th>
+          <th>Status</th>
+          <th>Prazo</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pedido in pedidos_abertos %}
+        <tr>
+          <td style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">PC-{{ pedido.pk|stringformat:"04d" }}</td>
+          <td style="font-weight:600;font-size:0.84rem;">{{ pedido.solicitacao.material.nome }}</td>
+          <td>{{ pedido.fornecedor }}</td>
+          <td style="font-weight:700;">R$ {{ pedido.valor_total|floatformat:2 }}</td>
+          <td>
+            <span class="badge {% if pedido.status == 'aprovado' %}badge-success{% elif pedido.status == 'reprovado' %}badge-danger{% elif pedido.status == 'aguardando_aprovacao' %}badge-warning{% else %}badge-info{% endif %}">
+              {{ pedido.get_status_display }}
+            </span>
+          </td>
+          <td style="font-size:0.82rem;">{{ pedido.prazo_entrega|date:"d/m/Y"|default:"—" }}</td>
+          <td>
+            {% if pedido.status == 'aguardando_aprovacao' %}
+            <a href="{% url 'aprovar_pedido' pedido.pk %}" class="btn btn-sm btn-mod5">Aprovar</a>
+            {% else %}
+            <a href="{% url 'detalhe_solicitacao' pedido.solicitacao.pk %}" class="btn btn-sm btn-outline">Ver</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

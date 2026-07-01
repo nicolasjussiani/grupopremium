@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Avaliar Candidato — ERP Grupo Premium{% endblock %}
+{% block nav_recrutamento %}active{% endblock %}
+{% block topbar_title %}Gateway — Avaliação de Candidato{% endblock %}
+{% block content %}
+<a href="{% url 'detalhe_vaga' candidato.vaga.pk %}" style="color:var(--text-muted);font-size:0.82rem;text-decoration:none;display:block;margin-bottom:16px;">← Voltar à Vaga</a>
+<div class="card" style="max-width:600px;">
+  <div style="margin-bottom:20px;">
+    <div style="font-size:1.1rem;font-weight:800;">{{ candidato.nome }}</div>
+    <div style="font-size:0.82rem;color:var(--text-muted);">{{ candidato.email }} · {{ candidato.telefone }}</div>
+    <div style="margin-top:8px;"><span class="badge badge-info">Etapa Atual: {{ candidato.get_etapa_atual_display }}</span></div>
+  </div>
+
+  <div class="gateway-box">
+    <div class="gateway-question">Candidato aprovado nesta etapa?</div>
+    <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:16px;">
+      <strong>SIM:</strong> Avança para próxima etapa (ou aprovação final com gatilho M2).<br>
+      <strong>NÃO:</strong> Candidato reprovado. Processo retorna para nova seleção.
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label">Observações desta Avaliação</label>
+        <textarea name="obs" class="form-control" rows="3" placeholder="Registre o resultado desta etapa..."></textarea>
+      </div>
+      <div class="gateway-actions">
+        <button type="submit" name="acao" value="avancar" class="btn btn-success btn-lg">
+          ✅ SIM — Avançar para Próxima Etapa
+        </button>
+        <button type="submit" name="acao" value="reprovar" class="btn btn-danger">
+          ❌ NÃO — Reprovar Candidato
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

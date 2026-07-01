@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+{% block title %}Adicionar Candidato — ERP Grupo Premium{% endblock %}
+{% block nav_recrutamento %}active{% endblock %}
+{% block topbar_title %}Adicionar Candidato{% endblock %}
+{% block content %}
+<a href="{% url 'detalhe_vaga' vaga.pk %}" style="color:var(--text-muted);font-size:0.82rem;text-decoration:none;display:block;margin-bottom:16px;">← Voltar à Vaga</a>
+<div class="card" style="max-width:620px;">
+  <div class="card-title mb-4">👤 Novo Candidato — {{ vaga.nome_vaga }}</div>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+  <!-- UPLOAD DE CURRÍCULO -->
+  <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe); border:2px dashed #3b82f6; padding:20px; border-radius:10px; margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <span style="font-size:1.3rem;">📄</span>
+      <strong style="color:#1e40af;font-size:0.95rem;">Currículo (PDF) e Autopreenchimento</strong>
+    </div>
+    <p style="color:#475569;font-size:0.82rem;margin-bottom:12px;">
+      Selecione um arquivo PDF para salvar no banco. Clique em <b>"Puxar Dados"</b> se quiser preencher os campos automaticamente.
+    </p>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <input type="file" name="curriculo_pdf" id="arquivo_curriculo" accept=".pdf" style="flex:1; min-width:200px; padding:8px; border:1px solid #93c5fd; border-radius:6px; background:var(--bg-input); color:var(--text-primary); font-size:0.85rem;">
+      <button type="button" id="btn_extrair" style="padding:10px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:600; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
+        📥 Puxar Dados
+      </button>
+    </div>
+    <div id="loading_curriculo" style="display:none; margin-top:10px; padding:8px 12px; background:#fef3c7; border-radius:6px; color:#92400e; font-size:0.82rem;">
+      ⏳ Processando currículo com OCR... Aguarde alguns segundos.
+    </div>
+    <div id="resultado_curriculo" style="display:none; margin-top:10px; padding:8px 12px; background:#dcfce7; border-radius:6px; color:#166534; font-size:0.82rem;">
+      ✅ Dados extraídos! Confira os campos abaixo.
+    </div>
+    <div id="erro_curriculo" style="display:none; margin-top:10px; padding:8px 12px; background:#fee2e2; border-radius:6px; color:#991b1b; font-size:0.82rem;">
+    </div>
+  </div>
+    <div class="form-group">
+      <label class="form-label">Nome Completo <span class="required">*</span></label>
+      <input type="text" name="nome" id="id_nome" class="form-control" placeholder="Nome completo do candidato" required>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">E-mail <span class="required">*</span></label>
+        <input type="email" name="email" id="id_email" class="form-control" placeholder="email@exemplo.com" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Telefone <span class="required">*</span></label>
+        <input type="text" name="telefone" id="id_telefone" class="form-control" placeholder="(00) 00000-0000" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">CPF</label>
+        <input type="text" name="cpf" id="id_cpf" class="form-control" placeholder="000.000.000-00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cidade</label>
+        <input type="text" name="cidade" id="id_cidade" class="form-control" placeholder="Cidade do candidato">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observações do Currículo</label>
+      <textarea name="curriculum_obs" id="id_obs" class="form-control" rows="3" placeholder="Pontos relevantes do currículo..."></textarea>
+    </div>
+    <div class="flex justify-between mt-4">
+      <a href="{% url 'detalhe_vaga' vaga.pk %}" class="btn btn-outline">← Cancelar</a>
+      <button type="submit" class="btn btn-mod1">+ Adicionar Candidato</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var btnExtrair = document.getElementById('btn_extrair');
+    var fileInput = document.getElementById('arquivo_curriculo');
+    var loadingDiv = document.getElementById('loading_curriculo');
+    var resultDiv = document.getElementById('resultado_curriculo');
+    var erroDiv = document.getElementById('erro_curriculo');
+
+    if (!btnExtrair) {
+        console.error('Botão btn_extrair não encontrado');
+        return;
+    }
+
+    btnExtrair.addEventListener('click', function() {
+        // Reset visual
+        loadingDiv.style.display = 'none';
+        resultDiv.style.display = 'none';
+        erroDiv.style.display = 'none';
+
+        if (fileInput.files.length === 0) {
+            erroDiv.textContent = '⚠️ Selecione um arquivo PDF primeiro.';
+            erroDiv.style.display = 'block';
+            return;
+        }
+
+        var file = fileInput.files[0];
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            erroDiv.textContent = '⚠️ O arquivo precisa ser um PDF.';
+            erroDiv.style.display = 'block';
+            return;
+        }
+
+        // Mostra loading
+        loadingDiv.style.display = 'block';
+        btnExtrair.disabled = true;
+        btnExtrair.textContent = '⏳ Processando...';
+
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) {
+            erroDiv.textContent = '❌ Erro interno: token CSRF não encontrado.';
+            erroDiv.style.display = 'block';
+            loadingDiv.style.display = 'none';
+            btnExtrair.disabled = false;
+            btnExtrair.textContent = '📥 Puxar Dados';
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('curriculo', file);
+
+        fetch('/recrutamento/api/parse-curriculo/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken.value
+            },
+            body: formData
+        })
+        .then(function(response) {
+            if (!response.ok) {
+                return response.text().then(function(txt) {
+                    throw new Error('HTTP ' + response.status + ': ' + txt.substring(0, 200));
+                });
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            loadingDiv.style.display = 'none';
+            btnExtrair.disabled = false;
+            btnExtrair.textContent = '📥 Puxar Dados';
+
+            if (data.error) {
+                erroDiv.textContent = '❌ ' + data.error;
+                erroDiv.style.display = 'block';
+                return;
+            }
+
+            if (!data.texto_extraido || data.texto_extraido.trim() === '') {
+                erroDiv.textContent = '⚠️ Não foi possível ler texto deste PDF. Pode ser uma imagem protegida.';
+                erroDiv.style.display = 'block';
+                return;
+            }
+
+            // Preencher campos
+            if (data.nome) document.getElementById('id_nome').value = data.nome;
+            if (data.email) document.getElementById('id_email').value = data.email;
+            if (data.telefone) document.getElementById('id_telefone').value = data.telefone;
+            if (data.texto_extraido) {
+                document.getElementById('id_obs').value = data.texto_extraido.substring(0, 800);
+            }
+
+            resultDiv.style.display = 'block';
+        })
+        .catch(function(error) {
+            loadingDiv.style.display = 'none';
+            btnExtrair.disabled = false;
+            btnExtrair.textContent = '📥 Puxar Dados';
+            erroDiv.textContent = '❌ Erro: ' + error.message;
+            erroDiv.style.display = 'block';
+            console.error('parse_curriculo error:', error);
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}Recibo de EPI — SESMET ERP Grupo Premium{% endblock %}
+{% block nav_sesmet %}active{% endblock %}
+{% block topbar_title %}Termo de Entrega de EPI{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-4" style="margin-bottom:20px; display: flex; justify-content: space-between; align-items: center;">
+  <div>
+    <div class="mod-title">📄 Termo de Recebimento e Compromisso</div>
+    <div class="mod-desc">Documento comprobatório de entrega de Equipamento de Proteção Individual</div>
+  </div>
+  <button onclick="window.print()" class="btn btn-outline" style="background: var(--bg-card);">🖨️ Imprimir Recibo</button>
+</div>
+
+<style>
+  .receipt-container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: var(--bg-card);
+    padding: 40px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border: 1px solid var(--border);
+  }
+  .receipt-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--border);
+  }
+  .receipt-header h2 {
+    margin: 0 0 5px 0;
+    color: var(--text-primary);
+  }
+  .receipt-header p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 30px;
+  }
+  .info-item {
+    background: var(--bg-input);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+  .info-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .info-value {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .declaration {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    margin-bottom: 40px;
+    text-align: justify;
+  }
+  .signature-box {
+    text-align: center;
+    margin-top: 50px;
+  }
+  .signature-img {
+    max-width: 300px;
+    max-height: 120px;
+    border-bottom: 1px solid var(--text-primary);
+    margin-bottom: 10px;
+  }
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    .receipt-container, .receipt-container * {
+      visibility: visible;
+    }
+    .receipt-container {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      box-shadow: none;
+      border: none;
+      padding: 0;
+    }
+  }
+</style>
+
+<div class="receipt-container">
+  <div class="receipt-header">
+    <h2>FICHA DE ENTREGA DE EPI</h2>
+    <p>Grupo Premium — Departamento de Segurança e Saúde Ocupacional (SESMET)</p>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-item">
+      <div class="info-label">Colaborador</div>
+      <div class="info-value">{{ epi.colaborador.nome }}</div>
+    </div>
+    <div class="info-item">
+      <div class="info-label">Cargo / Setor</div>
+      <div class="info-value">{{ epi.colaborador.cargo }} — {{ epi.colaborador.unidade }}</div>
+    </div>
+    <div class="info-item">
+      <div class="info-label">Equipamento Fornecido</div>
+      <div class="info-value" style="font-weight: 700;">{{ epi.get_tipo_epi_display }}</div>
+    </div>
+    <div class="info-item">
+      <div class="info-label">Quantidade / CA</div>
+      <div class="info-value">{{ epi.quantidade }} un. {% if epi.numero_ca %}(CA: {{ epi.numero_ca }}){% endif %}</div>
+    </div>
+    <div class="info-item">
+      <div class="info-label">Motivo da Entrega</div>
+      <div class="info-value">{{ epi.get_motivo_substituicao_display }}</div>
+    </div>
+    <div class="info-item">
+      <div class="info-label">Data de Entrega</div>
+      <div class="info-value">{{ epi.data_entrega|date:"d/m/Y" }}</div>
+    </div>
+  </div>
+
+  <div class="declaration">
+    <p>Declaro para os devidos fins que recebi da empresa o Equipamento de Proteção Individual (EPI) acima descrito, de forma gratuita, comprometendo-me a utilizá-lo apenas para a finalidade a que se destina e a zelar por sua guarda e conservação.</p>
+    <p>Fui orientado sobre o uso correto e sobre a obrigatoriedade da sua utilização durante a jornada de trabalho, em conformidade com as normas de segurança da empresa e disposições legais vigentes (NR-06 da Portaria 3.214/78 do MTE).</p>
+  </div>
+
+  <div class="signature-box">
+    {% if epi.assinado and epi.assinatura_base64 %}
+      <img src="{{ epi.assinatura_base64 }}" alt="Assinatura do Colaborador" class="signature-img">
+      <div style="font-weight: 600;">{{ epi.colaborador.nome }}</div>
+      <div style="font-size: 0.8rem; color: var(--text-muted);">Assinado digitalmente em: {{ epi.data_assinatura|date:"d/m/Y \à\s H:i" }}</div>
+    {% else %}
+      <div style="width: 300px; border-bottom: 1px solid var(--text-primary); margin: 0 auto 10px auto; height: 50px;"></div>
+      <div style="font-weight: 600;">{{ epi.colaborador.nome }}</div>
+      <div style="font-size: 0.8rem; color: var(--danger); margin-top: 5px;">Documento Pendente de Assinatura</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

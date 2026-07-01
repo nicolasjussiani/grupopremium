@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+{% block title %}SESMET — Segurança do Trabalho — ERP Grupo Premium{% endblock %}
+{% block nav_sesmet %}active{% endblock %}
+{% block topbar_title %}SESMET / Segurança do Trabalho{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-4">
+  <div class="mod-title">🦺 SESMET / Segurança do Trabalho</div>
+  <div class="mod-desc">Integração de segurança, controle de EPIs, ordens de serviço e conformidade NR</div>
+</div>
+
+<div class="page-header">
+  <div class="kpi-grid">
+    <div class="kpi-card kpi-mod4">
+      <div class="kpi-icon">👥</div>
+      <div class="kpi-value">{{ total_colaboradores }}</div>
+      <div class="kpi-label">Colaboradores</div>
+    </div>
+    <div class="kpi-card kpi-mod4">
+      <div class="kpi-icon">🦺</div>
+      <div class="kpi-value">{{ total_epis_ativos }}</div>
+      <div class="kpi-label">EPIs Ativos</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--danger);">
+      <div class="kpi-icon">🔴</div>
+      <div class="kpi-value" style="color:var(--danger);">{{ epis_vencidos|length }}</div>
+      <div class="kpi-label">EPIs Vencidos</div>
+      {% if epis_vencidos %}<div class="kpi-sub" style="color:var(--danger);">Ação imediata!</div>{% endif %}
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--warning);">
+      <div class="kpi-icon">⚠️</div>
+      <div class="kpi-value" style="color:var(--warning);">{{ epis_vencendo|length }}</div>
+      <div class="kpi-label">Vencendo em 7 dias</div>
+      {% if nao_assinados %}<div class="kpi-sub">{{ nao_assinados|length }} não assinados</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="flex gap-3">
+    <a href="{% url 'registrar_epi' %}" class="btn btn-mod4">+ Registrar EPI</a>
+    <a href="{% url 'matriz_epis' %}" class="btn btn-outline">📊 Matriz EPIs</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px;">
+  <!-- EPIs Vencidos -->
+  <div class="card" style="border-top-color:var(--danger);">
+    <div class="card-header">
+      <div class="card-title" style="color:var(--danger);">🔴 EPIs Vencidos</div>
+      {% if epis_vencidos %}<span class="badge badge-danger">{{ epis_vencidos|length }}</span>{% endif %}
+    </div>
+
+    {% if epis_vencidos %}
+    <div class="table-wrap" style="border:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>Colaborador</th>
+            <th>EPI</th>
+            <th>Vencimento</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for epi in epis_vencidos %}
+          <tr>
+            <td style="font-weight:600;font-size:0.84rem;">{{ epi.colaborador.nome }}</td>
+            <td>{{ epi.get_tipo_epi_display }}</td>
+            <td style="color:var(--danger);font-size:0.82rem;">{{ epi.data_validade|date:"d/m/Y" }}</td>
+            <td>
+              <a href="{% url 'registrar_epi_colaborador' epi.colaborador.pk %}" class="btn btn-sm btn-danger">🔄</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:30px;color:var(--success);">
+      <div style="font-size:2.5rem;">✅</div>
+      <p style="margin-top:10px;font-size:0.84rem;">Nenhum EPI vencido. Ótimo!</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- EPIs Vencendo -->
+  <div class="card" style="border-top-color:var(--warning);">
+    <div class="card-header">
+      <div class="card-title" style="color:var(--warning);">⚠️ Vencendo em 7 dias</div>
+      {% if epis_vencendo %}<span class="badge badge-warning">{{ epis_vencendo|length }}</span>{% endif %}
+    </div>
+
+    {% if epis_vencendo %}
+    <div class="table-wrap" style="border:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>Colaborador</th>
+            <th>EPI</th>
+            <th>Vencimento</th>
+            <th>Dias</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for epi in epis_vencendo %}
+          <tr>
+            <td style="font-weight:600;font-size:0.84rem;">{{ epi.colaborador.nome }}</td>
+            <td>{{ epi.get_tipo_epi_display }}</td>
+            <td style="color:var(--warning);font-size:0.82rem;">{{ epi.data_validade|date:"d/m/Y" }}</td>
+            <td>
+              <span class="badge badge-warning">{{ epi.dias_para_vencer }} dias</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:30px;color:var(--success);">
+      <div style="font-size:2.5rem;">✅</div>
+      <p style="margin-top:10px;font-size:0.84rem;">Nenhum EPI vencendo nos próximos 7 dias.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- EPIs não assinados -->
+{% if nao_assinados %}
+<div class="card" style="margin-top:20px;border-top-color:var(--info);">
+  <div class="card-header">
+    <div class="card-title" style="color:var(--info);">🖊️ EPIs Aguardando Assinatura</div>
+    <span class="badge badge-info">{{ nao_assinados|length }}</span>
+  </div>
+  <div class="table-wrap" style="border:none;">
+    <table>
+      <thead>
+        <tr>
+          <th>Colaborador</th>
+          <th>EPI</th>
+          <th>Entrega</th>
+          <th>Registrado por</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for epi in nao_assinados %}
+        <tr>
+          <td style="font-weight:600;">{{ epi.colaborador.nome }}</td>
+          <td>{{ epi.get_tipo_epi_display }}</td>
+          <td style="font-size:0.82rem;">{{ epi.data_entrega|date:"d/m/Y" }}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted);">{{ epi.registrado_por.get_full_name|default:epi.registrado_por }}</td>
+          <td>
+            <form method="post" action="{% url 'assinar_epi' epi.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" name="acao" value="assinar" class="btn btn-sm btn-success">✅ Assinar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Periodicidade de EPIs -->
+<div class="card" style="margin-top:20px;">
+  <div class="card-header">
+    <div class="card-title">📋 Periodicidade de Substituição por EPI</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
+    {% for tipo_key, tipo_label in tipos_epi %}
+    <div style="padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-base);">
+      <div style="font-weight:600;font-size:0.88rem;margin-bottom:4px;">{{ tipo_label }}</div>
+      <div style="font-size:0.78rem;color:var(--text-muted);">
+        {% if tipo_key == 'luva' %}🔄 A cada 30 dias
+        {% elif tipo_key == 'calcado' %}🔄 A cada 365 dias
+        {% elif tipo_key == 'protetor_auricular' %}🔄 A cada 90 dias
+        {% elif tipo_key == 'respirador_p2' %}🔄 A cada 3 dias
+        {% elif tipo_key == 'capacete' %}🔄 A cada 730 dias
+        {% elif tipo_key == 'cinto_seguranca' %}🔄 A cada 365 dias
+        {% elif tipo_key == 'avental' %}🔄 A cada 180 dias
+        {% else %}📋 Conforme avaliação
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+

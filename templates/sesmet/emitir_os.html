@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Emitir Ordem de Serviço — SESMET ERP{% endblock %}
+{% block nav_sesmet %}active{% endblock %}
+{% block topbar_title %}Emitir Ordem de Serviço{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-4" style="margin-bottom:20px;">
+  <div class="mod-title">📄 Ordem de Serviço — {{ colaborador.nome }}</div>
+  <div class="mod-desc">Documentação obrigatória de riscos e medidas preventivas</div>
+</div>
+
+<div style="max-width:700px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 Dados da Ordem de Serviço</div>
+    </div>
+
+    <div style="padding:16px;background:rgba(0,128,128,0.06);border:1px solid rgba(0,128,128,0.2);border-radius:var(--radius-sm);margin-bottom:20px;">
+      <div style="font-size:0.72rem;color:var(--mod4-cyan);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Colaborador</div>
+      <div style="font-weight:700;font-size:1rem;margin-top:4px;">{{ colaborador.nome }}</div>
+      <div style="font-size:0.78rem;color:var(--text-muted);">{{ colaborador.cargo }} — {{ colaborador.unidade }}</div>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label">Descrição dos Riscos <span class="required">*</span></label>
+        <textarea name="descricao_riscos" class="form-control" rows="4" required
+                  placeholder="Descreva os riscos ocupacionais da função: físicos, químicos, biológicos, ergonômicos, acidentes..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Medidas Preventivas <span class="required">*</span></label>
+        <textarea name="medidas_preventivas" class="form-control" rows="4" required
+                  placeholder="Descreva todas as medidas preventivas a serem adotadas para cada risco identificado..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">EPIs Obrigatórios <span class="required">*</span></label>
+        <textarea name="epis_obrigatorios" class="form-control" rows="3" required
+                  placeholder="Liste todos os EPIs obrigatórios para a função com número de CA quando aplicável..."></textarea>
+      </div>
+
+      <div class="gateway-box">
+        <div class="gateway-question">Ao emitir, o colaborador deve assinar a OS</div>
+        <p style="font-size:0.82rem;color:var(--text-secondary);">A Ordem de Serviço tem validade legal após assinatura do colaborador e responsável SESMET.</p>
+      </div>
+
+      <div class="gateway-actions" style="margin-top:16px;">
+        <button type="submit" class="btn btn-mod4">📄 Emitir OS</button>
+        <a href="{% url 'dashboard_sesmet' %}" class="btn btn-outline">← Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

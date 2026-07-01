@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Recrutamento e Seleção — ERP Grupo Premium{% endblock %}
+{% block nav_recrutamento %}active{% endblock %}
+{% block topbar_title %}Recrutamento e Seleção{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-1">
+  <div class="mod-title">👥 Recrutamento e Seleção</div>
+  <div class="mod-desc">Gestão de vagas, pipeline de candidatos e encaminhamento para admissão</div>
+</div>
+
+<div class="page-header">
+  <div class="flex gap-3">
+    <div class="kpi-card kpi-mod1" style="padding:14px 20px;min-width:140px;">
+      <div style="font-size:1.6rem;font-weight:800;">{{ total_vagas }}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);">Total de Vagas</div>
+    </div>
+    <div class="kpi-card kpi-mod1" style="padding:14px 20px;min-width:140px;">
+      <div style="font-size:1.6rem;font-weight:800;">{{ vagas_abertas }}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);">Vagas Abertas</div>
+    </div>
+  </div>
+  <a href="{% url 'nova_vaga' %}" class="btn btn-mod1">+ Abrir Nova Vaga</a>
+</div>
+
+<!-- FILTROS -->
+<div class="card mb-5">
+  <form method="get" class="flex gap-3 items-center flex-wrap">
+    <select name="status" class="form-control" style="max-width:220px;">
+      <option value="">Todos os Status</option>
+      {% for val, label in status_choices %}
+      <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
+    <a href="{% url 'lista_vagas' %}" class="btn btn-outline btn-sm">Limpar</a>
+  </form>
+</div>
+
+<!-- LISTA DE VAGAS -->
+{% if vagas %}
+<div class="grid-auto">
+  {% for vaga in vagas %}
+  <a href="{% url 'detalhe_vaga' vaga.pk %}" style="text-decoration:none;">
+    <div class="card" style="height:100%;cursor:pointer;border-left:3px solid var(--mod1-blue);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+        <div>
+          <div style="font-weight:700;font-size:1rem;color:var(--text-primary);">{{ vaga.nome_vaga }}</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">{{ vaga.unidade }} · {{ vaga.cidade }}</div>
+        </div>
+        <span class="badge badge-{% if vaga.status == 'em_selecao' %}info{% elif vaga.status == 'preenchida' %}success{% elif vaga.status == 'informacoes_incompletas' %}danger{% elif vaga.status == 'aguardando_aprovacao' %}warning{% else %}muted{% endif %}">
+          {{ vaga.get_status_display }}
+        </span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+        <div>
+          <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Contratação</div>
+          <div style="font-size:0.82rem;font-weight:600;">{{ vaga.get_tipo_contratacao_display }}</div>
+        </div>
+        <div>
+          <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Vagas</div>
+          <div style="font-size:0.82rem;font-weight:600;">{{ vaga.quantidade_colaboradores }} vaga(s)</div>
+        </div>
+        <div>
+          <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Início Previsto</div>
+          <div style="font-size:0.82rem;font-weight:600;">{{ vaga.previsao_inicio|date:"d/m/Y" }}</div>
+        </div>
+        <div>
+          <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Candidatos</div>
+          <div style="font-size:0.82rem;font-weight:600;">{{ vaga.candidatos.count }}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-size:0.74rem;color:var(--text-muted);">👤 {{ vaga.gestor_responsavel }}</div>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <div class="empty-icon">📭</div>
+    <p>Nenhuma vaga encontrada com os filtros selecionados.</p>
+    <a href="{% url 'nova_vaga' %}" class="btn btn-mod1 mt-4">+ Abrir Primeira Vaga</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

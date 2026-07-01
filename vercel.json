@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "erp_config/wsgi.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": "staticfiles/**"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "erp_config/wsgi.py"
+    }
+  ]
+}

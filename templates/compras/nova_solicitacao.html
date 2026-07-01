@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}Nova Solicitação de Material — ERP Grupo Premium{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}Nova Solicitação de Material{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-5" style="margin-bottom:20px;">
+  <div class="mod-title">📋 Nova Solicitação de Material</div>
+  <div class="mod-desc">Identificação de necessidade → Conferência de estoque → Decisão de compra</div>
+</div>
+
+<div style="max-width:700px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🔍 Dados da Solicitação</div>
+    </div>
+
+    <div class="gateway-box">
+      <div class="gateway-question">Material disponível em estoque?</div>
+      <p style="font-size:0.82rem;color:var(--text-secondary);">SIM → Atendido internamente | NÃO → Encaminhado para Compra Externa</p>
+    </div>
+
+    <form method="post" style="margin-top:20px;">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label">Material <span class="required">*</span></label>
+        <select name="material" class="form-control" required id="materialSelect">
+          <option value="">Selecione o material...</option>
+          {% for m in materiais %}
+          <option value="{{ m.pk }}" {% if post_data.material == m.pk|stringformat:"s" %}selected{% endif %}
+                  data-estoque="{{ m.quantidade_estoque }}"
+                  data-unidade="{{ m.get_unidade_medida_display }}"
+                  data-critico="{% if m.estoque_critico %}true{% else %}false{% endif %}">
+            [{{ m.codigo }}] {{ m.nome }} — Estoque: {{ m.quantidade_estoque }} {{ m.get_unidade_medida_display }}
+            {% if m.estoque_critico %} ⚠️ CRÍTICO{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div id="estoqueInfo" style="display:none;padding:12px;background:rgba(107,70,193,0.06);border:1px solid rgba(107,70,193,0.2);border-radius:var(--radius-sm);margin-bottom:16px;font-size:0.84rem;">
+        <strong>Estoque atual:</strong> <span id="estoqueValor">—</span>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Quantidade Solicitada <span class="required">*</span></label>
+          <input type="number" name="quantidade_solicitada" class="form-control" required
+                 min="0.01" step="0.01" value="{{ post_data.quantidade_solicitada|default:1 }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unidade de Destino <span class="required">*</span></label>
+          <input type="text" name="unidade_destino" class="form-control" required
+                 value="{{ post_data.unidade_destino|default:'' }}" placeholder="Ex: Matriz SP, Filial RJ...">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Justificativa <span class="required">*</span></label>
+          <textarea name="justificativa" class="form-control" rows="3" required
+                    placeholder="Descreva o motivo da solicitação e urgência...">{{ post_data.justificativa|default:'' }}</textarea>
+        </div>
+      </div>
+
+      <div class="gateway-actions">
+        <button type="submit" class="btn btn-mod5">📤 Enviar Solicitação</button>
+        <a href="{% url 'painel_compras' %}" class="btn btn-outline">← Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.getElementById('materialSelect').addEventListener('change', function() {
+  const opt = this.selectedOptions[0];
+  const info = document.getElementById('estoqueInfo');
+  const val = document.getElementById('estoqueValor');
+  if (this.value) {
+    const estoque = opt.dataset.estoque;
+    const unidade = opt.dataset.unidade;
+    const critico = opt.dataset.critico === 'true';
+    val.innerHTML = `<strong style="color:${critico ? 'var(--danger)' : 'var(--success)'};">${estoque} ${unidade}</strong>${critico ? ' <span style="color:var(--danger);">⚠️ Estoque Crítico!</span>' : ''}`;
+    info.style.display = 'block';
+  } else {
+    info.style.display = 'none';
+  }
+});
+</script>
+{% endblock %}

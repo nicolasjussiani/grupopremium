@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Criar Pedido de Compra — ERP Grupo Premium{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}Criar Pedido de Compra{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-5" style="margin-bottom:20px;">
+  <div class="mod-title">🛒 Cotação e Pedido de Compra</div>
+  <div class="mod-desc">{{ solicitacao.material.nome }} × {{ solicitacao.quantidade_solicitada }} {{ solicitacao.material.get_unidade_medida_display }}</div>
+</div>
+
+<div style="max-width:700px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 Dados do Pedido</div>
+    </div>
+
+    <div style="padding:14px;background:rgba(107,70,193,0.06);border:1px solid rgba(107,70,193,0.2);border-radius:var(--radius-sm);margin-bottom:20px;">
+      <div style="font-size:0.72rem;color:var(--mod5-purple);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Solicitação de Origem</div>
+      <div style="font-weight:700;margin-top:6px;">#{{ solicitacao.pk }} — {{ solicitacao.material.nome }}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;font-size:0.82rem;">
+        <div><span style="color:var(--text-muted);">Quantidade:</span> <strong>{{ solicitacao.quantidade_solicitada }} {{ solicitacao.material.get_unidade_medida_display }}</strong></div>
+        <div><span style="color:var(--text-muted);">Destino:</span> <strong>{{ solicitacao.unidade_destino }}</strong></div>
+      </div>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label class="form-label">Fornecedor <span class="required">*</span></label>
+          <input type="text" name="fornecedor" class="form-control" required
+                 placeholder="Razão social do fornecedor"
+                 value="{{ solicitacao.material.fornecedor_preferencial }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">CNPJ do Fornecedor</label>
+          <input type="text" name="cnpj_fornecedor" class="form-control" placeholder="00.000.000/0001-00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Prazo de Entrega</label>
+          <input type="date" name="prazo_entrega" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor Unitário (R$) <span class="required">*</span></label>
+          <input type="number" name="valor_unitario" class="form-control" required
+                 min="0.01" step="0.01" id="valorUnit" placeholder="0,00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor Total (R$)</label>
+          <input type="text" class="form-control" id="valorTotal" disabled
+                 value="Será calculado automaticamente" style="opacity:0.6;">
+        </div>
+      </div>
+
+      <div class="gateway-box">
+        <div class="gateway-question">Cotação e aprovação necessárias antes do envio ao fornecedor</div>
+        <p style="font-size:0.82rem;color:var(--text-secondary);">Pedido criado → Aguardando aprovação → Emissão ao fornecedor</p>
+      </div>
+
+      <div class="gateway-actions" style="margin-top:16px;">
+        <button type="submit" class="btn btn-mod5">🛒 Criar Pedido</button>
+        <a href="{% url 'detalhe_solicitacao' solicitacao.pk %}" class="btn btn-outline">← Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const qtd = {{ solicitacao.quantidade_solicitada }};
+document.getElementById('valorUnit').addEventListener('input', function() {
+  const total = parseFloat(this.value || 0) * qtd;
+  document.getElementById('valorTotal').value = 'R$ ' + total.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+});
+</script>
+{% endblock %}

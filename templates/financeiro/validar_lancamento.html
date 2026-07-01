@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block title %}Validar Lançamento #{{ lancamento.pk }} — ERP Grupo Premium{% endblock %}
+{% block nav_financeiro %}active{% endblock %}
+{% block topbar_title %}Validação Final do Lançamento{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <div class="mod-title">🏆 Validação Final — Lançamento ERP</div>
+  <div class="mod-desc">{{ lancamento.descricao }}</div>
+</div>
+
+<div style="max-width:700px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📊 Dados do Lançamento</div>
+      <span class="badge {% if lancamento.status == 'finalizado' %}badge-success{% elif lancamento.status == 'rejeitado' %}badge-danger{% else %}badge-warning{% endif %}">
+        {{ lancamento.get_status_display }}
+      </span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Descrição</span>
+        <div style="font-weight:600;">{{ lancamento.descricao }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Tipo</span>
+        <div>
+          <span class="badge {% if lancamento.tipo == 'debito' %}badge-danger{% elif lancamento.tipo == 'credito' %}badge-success{% else %}badge-info{% endif %}">
+            {{ lancamento.get_tipo_display }}
+          </span>
+        </div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Valor</span>
+        <div style="font-size:1.8rem;font-weight:800;color:var(--mod6-yellow);">R$ {{ lancamento.valor|floatformat:2 }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Competência</span>
+        <div style="font-weight:600;">{{ lancamento.competencia|date:"m/Y" }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Centro de Custo</span>
+        <div>{{ lancamento.centro_custo }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Lançado por</span>
+        <div>{{ lancamento.lancado_por.get_full_name|default:lancamento.lancado_por }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Documento Origem</span>
+        <div><a href="{% url 'detalhe_documento' lancamento.documento.pk %}" style="color:var(--mod6-yellow);">{{ lancamento.documento.numero_documento }}</a></div>
+      </div>
+    </div>
+
+    {% if lancamento.status == 'finalizado' %}
+    <div style="text-align:center;padding:30px;background:rgba(47,133,90,0.08);border:1px solid rgba(47,133,90,0.2);border-radius:var(--radius-md);">
+      <div style="font-size:3rem;">🏆</div>
+      <div style="font-weight:800;font-size:1.2rem;color:var(--success);margin-top:12px;">FINALIZADO NO ERP GRUPO PREMIUM</div>
+      <div style="font-size:0.84rem;color:var(--text-muted);margin-top:8px;">
+        Validado por: {{ lancamento.validado_por.get_full_name|default:lancamento.validado_por }}
+        em {{ lancamento.finalizado_em|date:"d/m/Y H:i" }}
+      </div>
+      <div style="margin-top:16px;">
+        <span class="badge badge-success">✅ Prestação de contas concluída</span>
+        <span class="badge badge-success" style="margin-left:8px;">📦 Documento arquivado digitalmente</span>
+      </div>
+    </div>
+
+    {% elif lancamento.status == 'rejeitado' %}
+    <div style="padding:16px;background:rgba(229,62,62,0.06);border:1px solid rgba(229,62,62,0.25);border-radius:var(--radius-md);margin-bottom:16px;">
+      <div style="font-weight:700;color:var(--danger);">❌ Lançamento Rejeitado</div>
+      {% if lancamento.motivo_rejeicao %}<div style="margin-top:8px;font-size:0.84rem;">{{ lancamento.motivo_rejeicao }}</div>{% endif %}
+    </div>
+
+    {% else %}
+    <div class="gateway-box">
+      <div class="gateway-question">Lançamento validado? Confirmar finalização no ERP?</div>
+      <p style="font-size:0.82rem;color:var(--text-secondary);">SIM → Finalizado no ERP + Documento Arquivado | NÃO → Corrigir lançamento</p>
+    </div>
+
+    <form method="post" style="margin-top:16px;">
+      {% csrf_token %}
+      <div class="form-group" id="motivoGroup" style="display:none;">
+        <label class="form-label">Motivo da Rejeição <span class="required">*</span></label>
+        <textarea name="motivo_rejeicao" class="form-control" rows="3" placeholder="Descreva o motivo da rejeição..."></textarea>
+      </div>
+
+      <div class="gateway-actions">
+        <button type="submit" name="acao" value="validar" class="btn btn-success">
+          🏆 Validar e Finalizar no ERP
+        </button>
+        <button type="button" class="btn btn-danger" onclick="
+          document.getElementById('motivoGroup').style.display='block';
+          document.querySelector('button[name=acao][value=rejeitar]').style.display='inline-flex';
+          this.style.display='none';
+        ">
+          ❌ Rejeitar
+        </button>
+        <button type="submit" name="acao" value="rejeitar" class="btn btn-danger" style="display:none;">
+          Confirmar Rejeição
+        </button>
+        <a href="{% url 'painel_financeiro' %}" class="btn btn-outline">← Painel</a>
+      </div>
+    </form>
+    {% endif %}
+
+    {% if lancamento.status == 'finalizado' or lancamento.status == 'rejeitado' %}
+    <div style="margin-top:20px;">
+      <a href="{% url 'painel_financeiro' %}" class="btn btn-outline" style="width:100%;text-align:center;">← Voltar ao Painel Financeiro</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

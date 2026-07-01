@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Auditoria — {{ documento.numero_documento }} — ERP{% endblock %}
+{% block nav_financeiro %}active{% endblock %}
+{% block topbar_title %}Auditoria Interna de Documento{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <div class="mod-title">🔍 Auditoria Interna</div>
+  <div class="mod-desc">{{ documento.get_tipo_display }}: {{ documento.numero_documento }} — R$ {{ documento.valor|floatformat:2 }}</div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <!-- Checklist de Auditoria -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">☑️ Checklist de Auditoria</div>
+      <span class="badge {% if documento.status == 'aprovado_lancamento' %}badge-success{% elif documento.status == 'informacoes_incorretas' %}badge-danger{% else %}badge-warning{% endif %}">
+        {{ documento.get_status_display }}
+      </span>
+    </div>
+
+    <div class="gateway-box">
+      <div class="gateway-question">Conferência de Informações</div>
+      <p style="font-size:0.82rem;color:var(--text-secondary);">SIM (OK) → Aprovado para lançamento | NÃO (Divergente) → Devolvido ao emitente para correção</p>
+    </div>
+
+    {% if documento.status == 'aprovado_lancamento' or documento.status == 'lancado' or documento.status == 'arquivado' %}
+    <div style="text-align:center;padding:20px;color:var(--success);">
+      <div style="font-size:2rem;">✅</div>
+      <div style="font-weight:700;margin-top:8px;">Auditoria Aprovada</div>
+      <div style="font-size:0.78rem;color:var(--text-muted);">Documento liberado para lançamento no ERP</div>
+      <a href="{% url 'detalhe_documento' documento.pk %}" class="btn btn-mod6 mt-4">Ver Documento</a>
+    </div>
+    {% else %}
+    <form method="post" style="margin-top:20px;">
+      {% csrf_token %}
+      <div style="display:grid;gap:14px;">
+        {% for item in itens %}
+        <div style="padding:16px;border:1px solid var(--border);border-radius:var(--radius-md);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div style="font-weight:600;font-size:0.9rem;">{{ item.get_item_display }}</div>
+            <select name="item_{{ item.pk }}" class="form-control" style="max-width:180px;">
+              {% for val, label in status_choices %}
+              <option value="{{ val }}" {% if item.status == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <textarea name="obs_{{ item.pk }}" class="form-control" rows="1"
+                    placeholder="Observação (opcional)...">{{ item.observacao }}</textarea>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="gateway-actions" style="margin-top:20px;">
+        <button type="submit" class="btn btn-mod6">💾 Salvar Auditoria</button>
+        <a href="{% url 'painel_financeiro' %}" class="btn btn-outline">← Painel</a>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+
+  <!-- Dados do Documento -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📄 Dados do Documento</div>
+    </div>
+    <div style="display:grid;gap:14px;">
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Tipo</span>
+        <div style="font-weight:600;">{{ documento.get_tipo_display }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Número</span>
+        <div style="font-weight:600;font-family:monospace;">{{ documento.numero_documento }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Valor</span>
+        <div style="font-size:1.4rem;font-weight:800;color:var(--mod6-yellow);">R$ {{ documento.valor|floatformat:2 }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Centro de Custo</span>
+        <div>{{ documento.centro_custo }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Unidade</span>
+        <div>{{ documento.unidade }}</div>
+      </div>
+      {% if documento.cnpj_emitente %}
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">CNPJ</span>
+        <div style="font-family:monospace;font-size:0.88rem;">{{ documento.cnpj_emitente }}</div>
+      </div>
+      {% endif %}
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Emissão</span>
+        <div>{{ documento.data_emissao|date:"d/m/Y" }}</div>
+      </div>
+      {% if documento.data_vencimento %}
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Vencimento</span>
+        <div>{{ documento.data_vencimento|date:"d/m/Y" }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

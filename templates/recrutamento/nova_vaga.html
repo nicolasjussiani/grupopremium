@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% block title %}Nova Vaga — ERP Grupo Premium{% endblock %}
+{% block nav_recrutamento %}active{% endblock %}
+{% block topbar_title %}Abrir Nova Vaga{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-1">
+  <div class="mod-title">📝 Formulário de Abertura de Vaga</div>
+  <div class="mod-desc">Preencha todos os campos obrigatórios. O sistema validará automaticamente antes de prosseguir.</div>
+</div>
+
+<div class="gateway-box" style="margin-bottom:24px;">
+  <div class="gateway-question">⚙️ Gateway de Validação — Informações Completas?</div>
+  <p style="font-size:0.84rem;color:var(--text-secondary);">
+    O sistema verificará se todos os 11 campos obrigatórios estão preenchidos antes de criar a vaga.
+    Caso incompleto, uma notificação de retorno será gerada.
+  </p>
+</div>
+
+{% if erros %}
+<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
+  <div style="font-weight:700;color:var(--danger);margin-bottom:8px;">❌ Campos obrigatórios não preenchidos:</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for campo in erros %}
+    <span class="badge badge-danger">{{ campo }}</span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<form method="post">
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-title mb-5">📋 Dados da Vaga</div>
+
+    <div class="form-grid">
+      <div class="form-group form-full">
+        <label class="form-label">Nome da Vaga <span class="required">*</span></label>
+        <input type="text" name="nome_vaga" class="form-control {% if 'nome_vaga' in erros %}form-error-field{% endif %}"
+               value="{{ post_data.nome_vaga|default:'' }}" placeholder="Ex: Operador de Logística" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Quantidade de Colaboradores <span class="required">*</span></label>
+        <input type="number" name="quantidade_colaboradores" class="form-control"
+               value="{{ post_data.quantidade_colaboradores|default:'1' }}" min="1" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Tipo de Contratação <span class="required">*</span></label>
+        <select name="tipo_contratacao" class="form-control" required>
+          <option value="">Selecionar...</option>
+          {% for val, label in tipo_choices %}
+          <option value="{{ val }}" {% if post_data.tipo_contratacao == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Cidade <span class="required">*</span></label>
+        <input type="text" name="cidade" class="form-control"
+               value="{{ post_data.cidade|default:'' }}" placeholder="Ex: São Paulo" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Unidade <span class="required">*</span></label>
+        <input type="text" name="unidade" class="form-control"
+               value="{{ post_data.unidade|default:'' }}" placeholder="Ex: Unidade Centro-SP" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Horário de Trabalho <span class="required">*</span></label>
+        <input type="text" name="horario_trabalho" class="form-control"
+               value="{{ post_data.horario_trabalho|default:'' }}" placeholder="Ex: 08h00 às 17h00 (Seg-Sex)" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Valor / Salário (R$) <span class="required">*</span></label>
+        <input type="number" name="valor_salario" class="form-control" step="0.01"
+               value="{{ post_data.valor_salario|default:'' }}" placeholder="0,00" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Previsão de Início <span class="required">*</span></label>
+        <input type="date" name="previsao_inicio" class="form-control"
+               value="{{ post_data.previsao_inicio|default:'' }}" required>
+      </div>
+
+      <div class="form-group form-full">
+        <label class="form-label">Perfil Desejado <span class="required">*</span></label>
+        <textarea name="perfil_desejado" class="form-control" rows="3"
+                  placeholder="Descreva o perfil do candidato ideal...">{{ post_data.perfil_desejado|default:'' }}</textarea>
+      </div>
+
+      <div class="form-group form-full">
+        <label class="form-label">Atividades da Função <span class="required">*</span></label>
+        <textarea name="atividades" class="form-control" rows="3"
+                  placeholder="Liste as principais atividades e responsabilidades...">{{ post_data.atividades|default:'' }}</textarea>
+      </div>
+
+      <div class="form-group form-full">
+        <label class="form-label">Motivo da Solicitação <span class="required">*</span></label>
+        <textarea name="motivo_solicitacao" class="form-control" rows="2"
+                  placeholder="Ex: Expansão da operação, substituição de colaborador...">{{ post_data.motivo_solicitacao|default:'' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Nome do Gestor Responsável <span class="required">*</span></label>
+        <input type="text" name="gestor_responsavel" class="form-control"
+               value="{{ post_data.gestor_responsavel|default:user.get_full_name }}"
+               placeholder="Nome completo do gestor" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Exige Experiência?</label>
+        <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);">
+          <input type="checkbox" name="exige_experiencia" id="exige_exp"
+                 {% if post_data.exige_experiencia %}checked{% endif %}
+                 style="width:18px;height:18px;accent-color:var(--brand);">
+          <label for="exige_exp" style="font-size:0.86rem;cursor:pointer;">Sim, exige experiência prévia</label>
+        </div>
+      </div>
+
+      <div class="form-group form-full">
+        <label class="form-label">Descrição da Experiência Necessária</label>
+        <input type="text" name="descricao_experiencia" class="form-control"
+               value="{{ post_data.descricao_experiencia|default:'' }}"
+               placeholder="Ex: Mínimo 1 ano na função...">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="flex justify-between items-center">
+      <a href="{% url 'lista_vagas' %}" class="btn btn-outline">← Cancelar</a>
+      <button type="submit" class="btn btn-mod1 btn-lg">
+        ✅ Criar Vaga e Iniciar Seleção
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

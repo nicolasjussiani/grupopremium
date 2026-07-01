@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}Documento {{ documento.numero_documento }} — Financeiro ERP{% endblock %}
+{% block nav_financeiro %}active{% endblock %}
+{% block topbar_title %}Detalhe do Documento Financeiro{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <div class="mod-title">💰 {{ documento.get_tipo_display }}: {{ documento.numero_documento }}</div>
+  <div class="mod-desc">{{ documento.descricao }}</div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <!-- Dados do Documento -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📄 Informações</div>
+      <span class="badge {% if documento.status == 'arquivado' %}badge-success{% elif documento.status == 'informacoes_incorretas' %}badge-danger{% elif documento.status == 'aprovado_lancamento' %}badge-success{% elif documento.status == 'lancado' %}badge-info{% else %}badge-warning{% endif %}">
+        {{ documento.get_status_display }}
+      </span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Tipo</span>
+        <div style="font-weight:600;">{{ documento.get_tipo_display }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Número</span>
+        <div style="font-weight:600;font-family:monospace;">{{ documento.numero_documento }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Valor</span>
+        <div style="font-size:1.3rem;font-weight:800;color:var(--mod6-yellow);">R$ {{ documento.valor|floatformat:2 }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Centro de Custo</span>
+        <div>{{ documento.centro_custo }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Unidade</span>
+        <div>{{ documento.unidade }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">CNPJ</span>
+        <div style="font-family:monospace;font-size:0.84rem;">{{ documento.cnpj_emitente|default:"—" }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Emissão</span>
+        <div>{{ documento.data_emissao|date:"d/m/Y" }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Vencimento</span>
+        <div>{{ documento.data_vencimento|date:"d/m/Y"|default:"—" }}</div>
+      </div>
+    </div>
+    {% if documento.contratos_vinculados %}
+    <div style="margin-top:14px;padding:12px;background:var(--bg-base);border-radius:var(--radius-sm);">
+      <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Contratos Vinculados</span>
+      <div style="margin-top:4px;font-size:0.88rem;">{{ documento.contratos_vinculados }}</div>
+    </div>
+    {% endif %}
+
+    {% if documento.arquivo_pdf %}
+    <div style="margin-top:14px;">
+      <a href="{% url 'download_pdf_financeiro' documento.pk %}" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;">📄 Visualizar Nota Fiscal (PDF)</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Ações -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <!-- Ação disponível conforme status -->
+    {% if documento.status == 'em_auditoria' or documento.status == 'recebido' %}
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px;">🔍 Auditoria Pendente</div>
+      <p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:16px;">Este documento ainda não foi auditado. Clique para iniciar a conferência dos itens.</p>
+      <a href="{% url 'auditoria_documento' documento.pk %}" class="btn btn-mod6" style="width:100%;text-align:center;">🔍 Iniciar Auditoria</a>
+    </div>
+    {% elif documento.status == 'aprovado_lancamento' %}
+    <div class="card" style="border-top-color:var(--success);">
+      <div class="card-title" style="margin-bottom:16px;color:var(--success);">✅ Pronto para Lançamento</div>
+      <p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:16px;">Auditoria aprovada. Registre o lançamento no ERP Grupo Premium.</p>
+      <a href="{% url 'lancar_erp' documento.pk %}" class="btn btn-success" style="width:100%;text-align:center;">📊 Lançar no ERP</a>
+    </div>
+    {% elif documento.status == 'informacoes_incorretas' %}
+    <div class="card" style="border-top-color:var(--danger);">
+      <div class="card-title" style="margin-bottom:16px;color:var(--danger);">❌ Informações Incorretas</div>
+      <p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:16px;">Documento devolvido ao emitente para correção.</p>
+      {% if documento.motivo_rejeicao %}
+      <div style="padding:12px;background:rgba(229,62,62,0.06);border-radius:var(--radius-sm);font-size:0.84rem;">{{ documento.motivo_rejeicao }}</div>
+      {% endif %}
+    </div>
+    {% elif documento.status == 'arquivado' %}
+    <div class="card" style="border-top-color:var(--success);">
+      <div style="text-align:center;padding:20px;">
+        <div style="font-size:2rem;">🏆</div>
+        <div style="font-weight:700;color:var(--success);margin-top:8px;">Processo Concluído</div>
+        <div style="font-size:0.78rem;color:var(--text-muted);">Documento arquivado digitalmente no ERP Grupo Premium</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <a href="{% url 'painel_financeiro' %}" class="btn btn-outline" style="text-align:center;">← Voltar ao Painel</a>
+  </div>
+</div>
+
+<!-- Lançamentos -->
+{% if lancamentos %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header">
+    <div class="card-title">📊 Lançamentos no ERP</div>
+  </div>
+  <div class="table-wrap" style="border:none;">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Descrição</th>
+          <th>Tipo</th>
+          <th>Valor</th>
+          <th>Competência</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in lancamentos %}
+        <tr>
+          <td style="font-family:monospace;font-size:0.78rem;">{{ l.pk }}</td>
+          <td style="font-weight:600;">{{ l.descricao }}</td>
+          <td><span class="badge {% if l.tipo == 'debito' %}badge-danger{% elif l.tipo == 'credito' %}badge-success{% else %}badge-info{% endif %}">{{ l.get_tipo_display }}</span></td>
+          <td style="font-weight:700;">R$ {{ l.valor|floatformat:2 }}</td>
+          <td>{{ l.competencia|date:"m/Y" }}</td>
+          <td>
+            <span class="badge {% if l.status == 'finalizado' %}badge-success{% elif l.status == 'rejeitado' %}badge-danger{% elif l.status == 'em_validacao' %}badge-warning{% else %}badge-info{% endif %}">
+              {{ l.get_status_display }}
+            </span>
+          </td>
+          <td>
+            {% if l.status == 'em_validacao' %}
+            <a href="{% url 'validar_lancamento' l.pk %}" class="btn btn-sm btn-mod6">Validar</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

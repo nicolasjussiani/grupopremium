@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Banco de Talentos — ERP Grupo Premium{% endblock %}
+{% block nav_recrutamento %}active{% endblock %}
+{% block topbar_title %}Banco de Talentos{% endblock %}
+{% block content %}
+<div class="module-banner mod-banner-1" style="margin-bottom:20px;">
+  <div class="mod-title">🌟 Banco de Talentos</div>
+  <div class="mod-desc">Pessoas cadastradas ou que não foram selecionadas em processos anteriores.</div>
+</div>
+
+<div class="card mb-5">
+  <form method="get" class="flex gap-3 items-center flex-wrap">
+    <input type="text" name="nome" value="{{ nome_filter }}" class="form-control" placeholder="Buscar por Nome" style="max-width:260px;">
+    <input type="text" name="cidade" value="{{ cidade_filter }}" class="form-control" placeholder="Filtrar por Cidade" style="max-width:260px;">
+    <input type="text" name="vaga" value="{{ vaga_filter }}" class="form-control" placeholder="Buscar por Vaga" style="max-width:260px;">
+    <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
+    <a href="{% url 'banco_talentos' %}" class="btn btn-outline btn-sm">Limpar</a>
+  </form>
+</div>
+
+{% if talentos %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>E-mail</th>
+        <th>Telefone</th>
+        <th>Cidade</th>
+        <th>Última Vaga</th>
+        <th>Data Cadastro</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in talentos %}
+      <tr>
+        <td style="font-weight:600;">
+          {{ t.nome }}
+          {% if t.arquivo_pdf %}
+            <a href="{% url 'baixar_curriculo_talento' t.pk %}" target="_blank" title="Baixar Currículo PDF" style="margin-left:8px; text-decoration:none;">📄</a>
+          {% endif %}
+        </td>
+        <td style="color:var(--text-muted);font-size:0.85rem;">{{ t.email }}</td>
+        <td>{{ t.telefone }}</td>
+        <td>{{ t.cidade|default:"-" }}</td>
+        <td>{% if t.ultima_vaga %}<a href="{% url 'detalhe_vaga' t.ultima_vaga.pk %}" style="color:var(--brand); text-decoration:none; font-size:0.85rem;">{{ t.ultima_vaga.nome_vaga }}</a>{% else %}-{% endif %}</td>
+        <td style="font-size:0.82rem;">{{ t.criado_em|date:"d/m/Y" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <div class="empty-icon">📭</div>
+    <p>Nenhum talento encontrado no banco.</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

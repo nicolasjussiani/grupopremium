@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+{% block title %}Aprovações Pendentes — ERP Grupo Premium{% endblock %}
+{% block topbar_title %}Linha de Aprovação{% endblock %}
+{% block nav_aprovacoes %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ─── Página de Aprovações ─────────────────────────────────────────────── */
+.aprovacoes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.aprovacoes-header h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.badge-total {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-orange, #f59e0b);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  min-width: 1.6rem;
+}
+
+/* Filtros */
+.filtros-bar {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+.filtro-select {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.btn-filtrar {
+  background: var(--accent-blue, #3b82f6);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-filtrar:hover { opacity: 0.85; }
+.btn-limpar {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+/* Cards de aprovação */
+.aprovacoes-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 2.5rem;
+}
+.aprovacao-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  animation: slideIn 0.25s ease;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.aprovacao-card:hover {
+  border-color: var(--accent-orange, #f59e0b);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+}
+.aprovacao-icone {
+  font-size: 1.8rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+.aprovacao-body { flex: 1; min-width: 0; }
+.aprovacao-titulo {
+  font-size: 0.97rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aprovacao-meta {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+.tag {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.tag-modulo-recrutamento  { border-color: #6366f1; color: #6366f1; }
+.tag-modulo-admissional   { border-color: #06b6d4; color: #06b6d4; }
+.tag-modulo-administrativo{ border-color: #8b5cf6; color: #8b5cf6; }
+.tag-modulo-sesmet        { border-color: #f59e0b; color: #f59e0b; }
+.tag-modulo-compras       { border-color: #10b981; color: #10b981; }
+.tag-modulo-financeiro    { border-color: #ef4444; color: #ef4444; }
+.tag-nivel-1 { border-color: #60a5fa; color: #60a5fa; }
+.tag-nivel-2 { border-color: #f97316; color: #f97316; }
+
+.aprovacao-descricao {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+  line-height: 1.45;
+}
+.aprovacao-acoes {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.btn-aprovar {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.4rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s;
+}
+.btn-aprovar:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-rejeitar {
+  background: transparent;
+  color: #ef4444;
+  border: 1.5px solid #ef4444;
+  border-radius: 8px;
+  padding: 0.4rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-rejeitar:hover { background: #ef444420; }
+.btn-detalhe {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.btn-detalhe:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+}
+.empty-state-icon { font-size: 3.5rem; margin-bottom: 0.75rem; }
+.empty-state h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); }
+
+/* Histórico */
+.historico-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.historico-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 0.83rem;
+}
+.historico-status-aprovado { color: #10b981; font-weight: 600; }
+.historico-status-rejeitado { color: #ef4444; font-weight: 600; }
+
+/* Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.active { display: flex; }
+.modal-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.75rem;
+  width: 100%;
+  max-width: 440px;
+  animation: modalIn 0.2s ease;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.modal-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+  color: var(--text-primary);
+}
+.modal-sub { font-size: 0.83rem; color: var(--text-muted); margin-bottom: 1.1rem; }
+.modal-textarea {
+  width: 100%;
+  background: var(--bg-input, rgba(255,255,255,0.05));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.85rem;
+  resize: vertical;
+  min-height: 90px;
+  box-sizing: border-box;
+  margin-bottom: 1rem;
+}
+.modal-acoes {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+.btn-cancelar-modal {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="aprovacoes-header">
+  <h2>
+    ✅ Aprovações Pendentes
+    {% if total_pendentes > 0 %}
+    <span class="badge-total">{{ total_pendentes }}</span>
+    {% endif %}
+  </h2>
+</div>
+
+<!-- Filtros -->
+<form method="get" class="filtros-bar">
+  <select name="modulo" class="filtro-select" id="filtroModulo">
+    <option value="">Todos os Módulos</option>
+    {% for key, label in MODULOS_CHOICES %}
+    <option value="{{ key }}" {% if modulo_filtro == key %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="nivel" class="filtro-select" id="filtroNivel">
+    <option value="">Todos os Níveis</option>
+    {% for val, label in NIVEL_CHOICES %}
+    <option value="{{ val }}" {% if nivel_filtro == val|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn-filtrar">🔍 Filtrar</button>
+  <a href="{% url 'aprovacoes_pendentes' %}" class="btn-limpar">✕ Limpar</a>
+</form>
+
+<!-- Lista de aprovações pendentes -->
+<div class="aprovacoes-grid">
+  {% if aprovacoes %}
+    {% for aprov in aprovacoes %}
+    {% with icones="recrutamento:👥,admissional:📋,administrativo:🗂️,sesmet:🦺,compras:🛒,financeiro:💰" %}
+    <div class="aprovacao-card" id="card-aprov-{{ aprov.pk }}">
+      <div class="aprovacao-icone">
+        {% if aprov.modulo == 'recrutamento' %}👥
+        {% elif aprov.modulo == 'admissional' %}📋
+        {% elif aprov.modulo == 'administrativo' %}🗂️
+        {% elif aprov.modulo == 'sesmet' %}🦺
+        {% elif aprov.modulo == 'compras' %}🛒
+        {% elif aprov.modulo == 'financeiro' %}💰
+        {% else %}📌{% endif %}
+      </div>
+      <div class="aprovacao-body">
+        <div class="aprovacao-titulo">{{ aprov.titulo }}</div>
+        <div class="aprovacao-meta">
+          <span class="tag tag-modulo-{{ aprov.modulo }}">{{ aprov.get_modulo_display }}</span>
+          <span class="tag tag-nivel-{{ aprov.nivel }}">{{ aprov.get_nivel_display }}</span>
+          {% if aprov.solicitado_por %}
+          <span>👤 {{ aprov.solicitado_por.get_full_name|default:aprov.solicitado_por.username }}</span>
+          {% endif %}
+          <span>🕐 {{ aprov.criado_em|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% if aprov.descricao %}
+        <div class="aprovacao-descricao">{{ aprov.descricao|truncatechars:180 }}</div>
+        {% endif %}
+        <div class="aprovacao-acoes">
+          <!-- Aprovar direto (com modal de comentário opcional) -->
+          <button class="btn-aprovar"
+                  onclick="abrirModalAprovar({{ aprov.pk }}, '{{ aprov.titulo|escapejs }}')"
+                  id="btn-aprovar-{{ aprov.pk }}">
+            ✅ Aprovar
+          </button>
+          <!-- Rejeitar com motivo obrigatório -->
+          <button class="btn-rejeitar"
+                  onclick="abrirModalRejeitar({{ aprov.pk }}, '{{ aprov.titulo|escapejs }}')"
+                  id="btn-rejeitar-{{ aprov.pk }}">
+            🚫 Rejeitar
+          </button>
+          <a href="{% url 'detalhe_aprovacao' aprov.pk %}" class="btn-detalhe" target="_blank">
+            🔎 Detalhes
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-icon">🎉</div>
+    <h3>Nenhuma aprovação pendente</h3>
+    <p>Tudo em dia! Não há itens aguardando sua decisão.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Histórico -->
+{% if historico %}
+<div class="historico-section">
+  <h3>📜 Histórico Recente (últimas 20 decisões)</h3>
+  {% for h in historico %}
+  <div class="historico-item">
+    <span class="historico-status-{{ h.status }}">
+      {% if h.status == 'aprovado' %}✅{% else %}🚫{% endif %}
+      {{ h.get_status_display }}
+    </span>
+    <span style="flex:1">{{ h.titulo }}</span>
+    <span style="color:var(--text-muted);font-size:0.77rem;">
+      {% if h.aprovado_por %}{{ h.aprovado_por.get_full_name|default:h.aprovado_por.username }}{% endif %}
+      · {{ h.decidido_em|date:"d/m H:i" }}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── Modal: Aprovar ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modalAprovar">
+  <div class="modal-box">
+    <div class="modal-title">✅ Confirmar Aprovação</div>
+    <div class="modal-sub" id="modalAprovarSub">—</div>
+    <form method="post" id="formAprovar">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'aprovacoes_pendentes' %}">
+      <textarea name="comentario" class="modal-textarea" placeholder="Comentário (opcional)…" rows="3"></textarea>
+      <div class="modal-acoes">
+        <button type="button" class="btn-cancelar-modal" onclick="fecharModal('modalAprovar')">Cancelar</button>
+        <button type="submit" class="btn-aprovar">✅ Confirmar Aprovação</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Modal: Rejeitar ────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modalRejeitar">
+  <div class="modal-box">
+    <div class="modal-title">🚫 Rejeitar Registro</div>
+    <div class="modal-sub" id="modalRejeitarSub">—</div>
+    <form method="post" id="formRejeitar">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'aprovacoes_pendentes' %}">
+      <textarea name="motivo_rejeicao" class="modal-textarea" placeholder="Motivo da rejeição (obrigatório)…" rows="4" required></textarea>
+      <div class="modal-acoes">
+        <button type="button" class="btn-cancelar-modal" onclick="fecharModal('modalRejeitar')">Cancelar</button>
+        <button type="submit" class="btn-rejeitar">🚫 Confirmar Rejeição</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const BASE_APROVAR = "{% url 'aprovar_registro' 0 %}".replace('/0/', '/');
+const BASE_REJEITAR = "{% url 'rejeitar_registro' 0 %}".replace('/0/', '/');
+
+function abrirModalAprovar(pk, titulo) {
+  document.getElementById('modalAprovarSub').textContent = titulo;
+  document.getElementById('formAprovar').action = BASE_APROVAR + pk + '/';
+  document.getElementById('modalAprovar').classList.add('active');
+}
+function abrirModalRejeitar(pk, titulo) {
+  document.getElementById('modalRejeitarSub').textContent = titulo;
+  document.getElementById('formRejeitar').action = BASE_REJEITAR + pk + '/';
+  document.getElementById('modalRejeitar').classList.add('active');
+}
+function fecharModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+// Fechar ao clicar fora
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
+});
+</script>
+{% endblock %}

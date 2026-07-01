@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Lançamento no ERP — {{ documento.numero_documento }}{% endblock %}
+{% block nav_financeiro %}active{% endblock %}
+{% block topbar_title %}Lançamento no ERP Grupo Premium{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <div class="mod-title">📊 Lançamento no ERP</div>
+  <div class="mod-desc">{{ documento.get_tipo_display }} {{ documento.numero_documento }} — R$ {{ documento.valor|floatformat:2 }}</div>
+</div>
+
+<div style="max-width:700px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">💾 Dados do Lançamento</div>
+    </div>
+
+    <div style="padding:14px;background:rgba(183,121,31,0.06);border:1px solid rgba(183,121,31,0.2);border-radius:var(--radius-sm);margin-bottom:20px;">
+      <div style="font-size:0.72rem;color:var(--mod6-yellow);text-transform:uppercase;letter-spacing:.08em;font-weight:700;">Documento de Origem</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:8px;font-size:0.84rem;">
+        <div><span style="color:var(--text-muted);">Número:</span> <strong>{{ documento.numero_documento }}</strong></div>
+        <div><span style="color:var(--text-muted);">Valor:</span> <strong style="color:var(--mod6-yellow);">R$ {{ documento.valor|floatformat:2 }}</strong></div>
+        <div><span style="color:var(--text-muted);">CC:</span> <strong>{{ documento.centro_custo }}</strong></div>
+      </div>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label class="form-label">Descrição do Lançamento <span class="required">*</span></label>
+          <input type="text" name="descricao" class="form-control" required
+                 value="{{ documento.descricao }}"
+                 placeholder="Descrição clara do lançamento...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo do Lançamento <span class="required">*</span></label>
+          <select name="tipo" class="form-control" required>
+            {% for val, label in tipos %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mês de Competência <span class="required">*</span></label>
+          <input type="date" name="competencia" class="form-control" required
+                 value="{{ documento.data_emissao|date:'Y-m-01' }}">
+        </div>
+      </div>
+
+      <div style="padding:14px;background:rgba(47,133,90,0.06);border:1px solid rgba(47,133,90,0.2);border-radius:var(--radius-sm);margin:16px 0;">
+        <div style="font-size:0.78rem;color:var(--success);font-weight:700;">Valor a ser lançado: R$ {{ documento.valor|floatformat:2 }}</div>
+        <div style="font-size:0.74rem;color:var(--text-muted);margin-top:4px;">O valor é herdado automaticamente do documento auditado.</div>
+      </div>
+
+      <div class="gateway-actions">
+        <button type="submit" class="btn btn-mod6">📊 Registrar Lançamento</button>
+        <a href="{% url 'detalhe_documento' documento.pk %}" class="btn btn-outline">← Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

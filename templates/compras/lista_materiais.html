@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}Materiais — Almoxarifado ERP{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}Materiais / Almoxarifado{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-5" style="margin-bottom:20px;">
+  <div class="mod-title">📦 Materiais Cadastrados</div>
+  <div class="mod-desc">Controle de estoque e identificação de necessidades de reposição</div>
+</div>
+
+<div class="page-header" style="margin-bottom:20px;">
+  <form method="get" class="flex gap-3 items-center">
+    <input type="text" name="q" value="{{ busca }}" class="form-control" style="max-width:280px;" placeholder="Buscar material...">
+    <button type="submit" class="btn btn-outline btn-sm">Buscar</button>
+    {% if busca %}<a href="{% url 'lista_materiais' %}" class="btn btn-outline btn-sm">Limpar</a>{% endif %}
+  </form>
+  <div class="flex gap-2">
+    <a href="{% url 'nova_solicitacao' %}" class="btn btn-mod5">+ Nova Solicitação</a>
+    <a href="{% url 'painel_compras' %}" class="btn btn-outline">← Painel</a>
+  </div>
+</div>
+
+{% if materiais %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Material</th>
+        <th>Categoria</th>
+        <th>Estoque Atual</th>
+        <th>Est. Mínimo</th>
+        <th>Unidade</th>
+        <th>Localização</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in materiais %}
+      <tr>
+        <td style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">{{ m.codigo }}</td>
+        <td>
+          <div style="font-weight:600;">{{ m.nome }}</div>
+          {% if m.descricao %}<div style="font-size:0.74rem;color:var(--text-muted);">{{ m.descricao|truncatechars:50 }}</div>{% endif %}
+        </td>
+        <td><span class="badge badge-muted">{{ m.get_categoria_display }}</span></td>
+        <td>
+          <span style="font-weight:700;{% if m.estoque_critico %}color:var(--danger);{% else %}color:var(--success);{% endif %}">
+            {{ m.quantidade_estoque }}
+          </span>
+        </td>
+        <td style="color:var(--text-muted);">{{ m.estoque_minimo }}</td>
+        <td>{{ m.get_unidade_medida_display }}</td>
+        <td style="font-size:0.82rem;color:var(--text-muted);">{{ m.localizacao|default:"—" }}</td>
+        <td>
+          {% if m.estoque_critico %}
+          <span class="badge badge-danger">🔴 Crítico</span>
+          {% else %}
+          <span class="badge badge-success">✅ OK</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{% url 'nova_solicitacao' %}?material={{ m.pk }}" class="btn btn-sm btn-mod5">📋 Solicitar</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <div class="empty-icon">📦</div>
+    <p>Nenhum material encontrado{% if busca %} para "{{ busca }}"{% endif %}.</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

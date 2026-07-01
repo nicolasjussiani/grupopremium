@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Matriz de EPIs — SESMET ERP Grupo Premium{% endblock %}
+{% block nav_sesmet %}active{% endblock %}
+{% block topbar_title %}Matriz de Controle de EPIs{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-4" style="margin-bottom:20px;">
+  <div class="mod-title">📊 Matriz de EPIs por Colaborador</div>
+  <div class="mod-desc">Visão consolidada de validade e conformidade de todos os EPIs</div>
+</div>
+
+<div style="margin-bottom:16px;display:flex;gap:12px;align-items:center;">
+  <a href="{% url 'dashboard_sesmet' %}" class="btn btn-outline btn-sm">← Dashboard</a>
+  <a href="{% url 'registrar_epi' %}" class="btn btn-mod4 btn-sm">+ Registrar EPI</a>
+</div>
+
+{% if colaboradores %}
+<div style="display:grid;gap:16px;">
+  {% for colaborador in colaboradores %}
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">{{ colaborador.nome }}</div>
+        <div style="font-size:0.78rem;color:var(--text-muted);">{{ colaborador.cargo }} · {{ colaborador.unidade }}</div>
+      </div>
+      <div class="flex gap-2">
+        <a href="{% url 'registrar_epi_colaborador' colaborador.pk %}" class="btn btn-sm btn-mod4">+ EPI</a>
+        <a href="{% url 'emitir_os' colaborador.pk %}" class="btn btn-sm btn-outline">📄 OS</a>
+      </div>
+    </div>
+
+    {% with epis=colaborador.epis.all %}
+    {% if epis %}
+    <div class="table-wrap" style="border:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo EPI</th>
+            <th>Data Entrega</th>
+            <th>Validade</th>
+            <th>Nº CA</th>
+            <th>Status</th>
+            <th>Assinado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for epi in epis %}
+          <tr>
+            <td style="font-weight:600;">{{ epi.get_tipo_epi_display }}</td>
+            <td style="font-size:0.82rem;">{{ epi.data_entrega|date:"d/m/Y" }}</td>
+            <td style="font-size:0.82rem;">
+              {% if epi.data_validade %}
+                {% if epi.esta_vencido %}
+                  <span style="color:var(--danger);font-weight:600;">{{ epi.data_validade|date:"d/m/Y" }} ⚠️</span>
+                {% else %}
+                  {{ epi.data_validade|date:"d/m/Y" }}
+                  {% if epi.dias_para_vencer %}
+                    <span style="font-size:0.72rem;color:var(--text-muted);">({{ epi.dias_para_vencer }}d)</span>
+                  {% endif %}
+                {% endif %}
+              {% else %}
+                <span style="color:var(--text-muted);">Avaliação</span>
+              {% endif %}
+            </td>
+            <td style="font-size:0.82rem;color:var(--text-muted);">{{ epi.numero_ca|default:"—" }}</td>
+            <td>
+              <span class="badge {% if epi.status == 'ativo' %}badge-success{% elif epi.status == 'vencido' %}badge-danger{% elif epi.status == 'substituido' %}badge-muted{% else %}badge-warning{% endif %}">
+                {{ epi.get_status_display }}
+              </span>
+            </td>
+            <td>
+              {% if epi.assinado %}
+                <span class="badge badge-success" style="margin-right: 5px;">✅ Sim</span>
+                <a href="{% url 'recibo_epi' epi.pk %}" class="btn btn-sm btn-outline">📄 Ver Recibo</a>
+              {% else %}
+                <a href="{% url 'assinar_epi' epi.pk %}" class="btn btn-sm" style="background-color: var(--mod4-cyan); color: #fff;">✍️ Assinar</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.84rem;">
+      Nenhum EPI registrado para este colaborador.
+      <a href="{% url 'registrar_epi_colaborador' colaborador.pk %}" style="color:var(--mod4-cyan);margin-left:8px;">+ Registrar</a>
+    </div>
+    {% endif %}
+    {% endwith %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <div class="empty-icon">🦺</div>
+    <p>Nenhum colaborador ativo encontrado.</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

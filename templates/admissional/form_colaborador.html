@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}{{ acao }} Colaborador — ERP Grupo Premium{% endblock %}
+{% block nav_colaboradores %}active{% endblock %}
+{% block topbar_title %}Colaboradores{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-2" style="margin-bottom:20px;">
+  <div class="mod-title">🏢 {{ acao }} Colaborador</div>
+  <div class="mod-desc">Preencha os dados do colaborador no sistema.</div>
+</div>
+
+<div class="card" style="max-width: 800px; margin: 0 auto;">
+  <form method="post" class="flex flex-col gap-4">
+    {% csrf_token %}
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        {% for field in form %}
+        <div class="form-group" style="{% if field.name == 'endereco' %}grid-column: span 2;{% endif %}">
+            <label style="font-weight: 500; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px; display: block;">
+                {{ field.label }}
+            </label>
+            {{ field }}
+            {% if field.errors %}
+                <div style="color: var(--danger); font-size: 0.8rem; margin-top: 4px;">
+                    {{ field.errors.0 }}
+                </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="flex gap-2" style="margin-top: 20px;">
+      <button type="submit" class="btn btn-mod1">Salvar Colaborador</button>
+      <a href="{% url 'lista_colaboradores' %}" class="btn btn-outline">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Área Administrativa — ERP Grupo Premium{% endblock %}
+{% block nav_administrativo %}active{% endblock %}
+{% block topbar_title %}Área Administrativa{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-3">
+  <div class="mod-title">🗂️ Área Administrativa</div>
+  <div class="mod-desc">Gestão de demandas, contratos, fornecedores e apoio operacional</div>
+</div>
+
+<div class="page-header">
+  <div class="flex gap-3">
+    <div class="kpi-card kpi-mod3" style="padding:14px 20px;min-width:150px;">
+      <div style="font-size:1.6rem;font-weight:800;">{{ total_abertas }}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);">Demandas Abertas</div>
+    </div>
+    <div class="kpi-card kpi-mod3" style="padding:14px 20px;min-width:150px;">
+      <div style="font-size:1.6rem;font-weight:800;color:var(--danger);">{{ urgentes }}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);">Urgentes</div>
+    </div>
+  </div>
+  <a href="{% url 'nova_demanda' %}" class="btn btn-mod3">+ Nova Demanda</a>
+</div>
+
+<!-- FILTROS -->
+<div class="card mb-5">
+  <form method="get" class="flex gap-3 items-center flex-wrap">
+    <select name="tipo" class="form-control" style="max-width:220px;">
+      <option value="">Todos os Tipos</option>
+      {% for val, label in tipos %}
+      <option value="{{ val }}" {% if tipo_filter == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" class="form-control" style="max-width:220px;">
+      <option value="">Todos os Status</option>
+      {% for val, label in status_choices %}
+      <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="prioridade" class="form-control" style="max-width:180px;">
+      <option value="">Toda Prioridade</option>
+      {% for val, label in prioridades %}
+      <option value="{{ val }}" {% if prioridade_filter == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
+    <a href="{% url 'lista_demandas' %}" class="btn btn-outline btn-sm">Limpar</a>
+  </form>
+</div>
+
+<!-- LISTA -->
+{% if demandas %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Título</th>
+        <th>Tipo</th>
+        <th>Requisitante</th>
+        <th>Prioridade</th>
+        <th>Status</th>
+        <th>Data</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in demandas %}
+      <tr>
+        <td style="font-family:monospace;color:var(--text-muted);font-size:0.78rem;">{{ d.pk|stringformat:"04d" }}</td>
+        <td>
+          <div style="font-weight:600;">{{ d.titulo }}</div>
+          <div style="font-size:0.74rem;color:var(--text-muted);">{{ d.descricao|truncatechars:60 }}</div>
+        </td>
+        <td><span class="badge badge-muted">{{ d.get_tipo_display }}</span></td>
+        <td>{{ d.requisitante }}</td>
+        <td>
+          <span class="badge {% if d.prioridade == 'urgente' %}badge-danger{% elif d.prioridade == 'alta' %}badge-warning{% elif d.prioridade == 'media' %}badge-info{% else %}badge-success{% endif %}">
+            {{ d.get_prioridade_display }}
+          </span>
+        </td>
+        <td>
+          <span class="badge {% if d.status == 'arquivada' %}badge-success{% elif d.status == 'aguardando_ajuste' %}badge-danger{% elif d.status == 'em_execucao' %}badge-info{% elif d.status == 'em_triagem' %}badge-warning{% else %}badge-muted{% endif %}">
+            {{ d.get_status_display }}
+          </span>
+        </td>
+        <td style="font-size:0.78rem;color:var(--text-muted);">{{ d.criado_em|date:"d/m/Y" }}</td>
+        <td><a href="{% url 'detalhe_demanda' d.pk %}" class="btn btn-sm btn-mod3">Ver</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <div class="empty-icon">📭</div>
+    <p>Nenhuma demanda encontrada com os filtros selecionados.</p>
+    <a href="{% url 'nova_demanda' %}" class="btn btn-mod3 mt-4">+ Criar Primeira Demanda</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

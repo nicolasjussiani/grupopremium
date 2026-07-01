@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Entrada de Documento Financeiro — ERP Grupo Premium{% endblock %}
+{% block nav_financeiro %}active{% endblock %}
+{% block topbar_title %}Entrada de Documento Financeiro{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <div class="mod-title">💰 Recebimento de Documento Financeiro</div>
+  <div class="mod-desc">Conferência de informações → Auditoria interna → Lançamento no ERP</div>
+</div>
+
+<div style="max-width:800px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📄 Dados do Documento</div>
+    </div>
+
+    <div class="gateway-box">
+      <div class="gateway-question">Informações do documento estão corretas?</div>
+      <p style="font-size:0.82rem;color:var(--text-secondary);">SIM → Inicia auditoria automática | NÃO → Solicitar correção ao emitente</p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" style="margin-top:20px;">
+      {% csrf_token %}
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Tipo de Documento <span class="required">*</span></label>
+          <select name="tipo" class="form-control" required>
+            <option value="">Selecione...</option>
+            {% for val, label in tipos %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Número do Documento <span class="required">*</span></label>
+          <input type="text" name="numero_documento" class="form-control" required placeholder="Ex: NF-123456">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Descrição <span class="required">*</span></label>
+          <input type="text" name="descricao" class="form-control" required placeholder="Descrição resumida do documento">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor (R$) <span class="required">*</span></label>
+          <input type="number" name="valor" class="form-control" required min="0.01" step="0.01" placeholder="0,00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Centro de Custo <span class="required">*</span></label>
+          <input type="text" name="centro_custo" class="form-control" required placeholder="Ex: ADM, OPE-SP...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unidade <span class="required">*</span></label>
+          <input type="text" name="unidade" class="form-control" required placeholder="Ex: Matriz SP, Filial RJ...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">CNPJ do Emitente</label>
+          <input type="text" name="cnpj_emitente" class="form-control" placeholder="00.000.000/0001-00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Razão Social do Emitente</label>
+          <input type="text" name="razao_social_emitente" class="form-control" placeholder="Nome da empresa emitente">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contratos Vinculados</label>
+          <input type="text" name="contratos_vinculados" class="form-control" placeholder="Nº do(s) contrato(s)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Emissão <span class="required">*</span></label>
+          <input type="date" name="data_emissao" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Vencimento</label>
+          <input type="date" name="data_vencimento" class="form-control">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Nota Fiscal (PDF) <span class="required">*</span></label>
+          <input type="file" name="arquivo_pdf" accept="application/pdf" class="form-control" required>
+        </div>
+      </div>
+
+      <div class="gateway-actions" style="margin-top:8px;">
+        <button type="submit" class="btn btn-mod6">📥 Receber e Auditar</button>
+        <a href="{% url 'painel_financeiro' %}" class="btn btn-outline">← Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

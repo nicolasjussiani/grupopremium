@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Nova Demanda Administrativa — ERP Grupo Premium{% endblock %}
+{% block nav_administrativo %}active{% endblock %}
+{% block topbar_title %}Nova Demanda Administrativa{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-3" style="margin-bottom:20px;">
+  <div class="mod-title">🗂️ Registrar Nova Demanda</div>
+  <div class="mod-desc">Recebimento da demanda administrativa — Gateway de completude</div>
+</div>
+
+<div style="max-width:700px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📝 Dados da Demanda</div>
+    </div>
+
+    <div class="gateway-box">
+      <div class="gateway-question">Solicitação está completa?</div>
+      <p style="font-size:0.82rem;color:var(--text-secondary);">Todos os campos obrigatórios devem ser preenchidos para prosseguir.</p>
+    </div>
+
+    <form method="post" style="margin-top:20px;">
+      {% csrf_token %}
+
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label class="form-label">Título da Demanda <span class="required">*</span></label>
+          <input type="text" name="titulo" class="form-control" required
+                 value="{{ post_data.titulo|default:'' }}"
+                 placeholder="Ex: Renovação contrato fornecedor XYZ">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Tipo de Demanda <span class="required">*</span></label>
+          <select name="tipo" class="form-control" required>
+            <option value="">Selecione...</option>
+            {% for val, label in tipos %}
+            <option value="{{ val }}" {% if post_data.tipo == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Prioridade <span class="required">*</span></label>
+          <select name="prioridade" class="form-control">
+            {% for val, label in prioridades %}
+            <option value="{{ val }}" {% if post_data.prioridade == val or val == 'media' and not post_data %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group form-full">
+          <label class="form-label">Requisitante <span class="required">*</span></label>
+          <input type="text" name="requisitante" class="form-control" required
+                 value="{{ post_data.requisitante|default:'' }}"
+                 placeholder="Nome do solicitante">
+        </div>
+
+        <div class="form-group form-full">
+          <label class="form-label">Descrição Detalhada <span class="required">*</span></label>
+          <textarea name="descricao" class="form-control" required rows="5"
+                    placeholder="Descreva detalhadamente a demanda, incluindo contexto, objetivo e entregáveis esperados...">{{ post_data.descricao|default:'' }}</textarea>
+        </div>
+      </div>
+
+      <div class="gateway-actions" style="margin-top:8px;">
+        <button type="submit" class="btn btn-mod3">📤 Registrar Demanda</button>
+        <a href="{% url 'lista_demandas' %}" class="btn btn-outline">← Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

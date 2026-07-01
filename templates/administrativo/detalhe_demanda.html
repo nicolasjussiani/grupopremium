@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+{% block title %}{{ demanda.titulo }} — Administrativo ERP{% endblock %}
+{% block nav_administrativo %}active{% endblock %}
+{% block topbar_title %}Detalhe da Demanda Administrativa{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-3" style="margin-bottom:20px;">
+  <div class="mod-title">🗂️ {{ demanda.titulo }}</div>
+  <div class="mod-desc">{{ demanda.get_tipo_display }} · Requisitante: {{ demanda.requisitante }}</div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <!-- Detalhes -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📄 Informações da Demanda</div>
+        <span class="badge {% if demanda.status == 'arquivada' %}badge-success{% elif demanda.status == 'aguardando_ajuste' %}badge-danger{% elif demanda.status == 'em_execucao' %}badge-info{% else %}badge-warning{% endif %}">
+          {{ demanda.get_status_display }}
+        </span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">
+        <div>
+          <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Tipo</span>
+          <div style="font-weight:600;">{{ demanda.get_tipo_display }}</div>
+        </div>
+        <div>
+          <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Prioridade</span>
+          <div>
+            <span class="badge {% if demanda.prioridade == 'urgente' %}badge-danger{% elif demanda.prioridade == 'alta' %}badge-warning{% elif demanda.prioridade == 'media' %}badge-info{% else %}badge-success{% endif %}">
+              {{ demanda.get_prioridade_display }}
+            </span>
+          </div>
+        </div>
+        <div>
+          <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Requisitante</span>
+          <div style="font-weight:600;">{{ demanda.requisitante }}</div>
+        </div>
+        <div>
+          <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Criado em</span>
+          <div>{{ demanda.criado_em|date:"d/m/Y H:i" }}</div>
+        </div>
+        {% if demanda.concluido_em %}
+        <div>
+          <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Concluído em</span>
+          <div style="color:var(--success);">{{ demanda.concluido_em|date:"d/m/Y H:i" }}</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Descrição Detalhada</span>
+        <div style="margin-top:8px;line-height:1.7;color:var(--text-secondary);">{{ demanda.descricao }}</div>
+      </div>
+
+      {% if demanda.motivo_rejeicao %}
+      <div style="margin-top:16px;padding:14px;background:rgba(229,62,62,0.06);border:1px solid rgba(229,62,62,0.25);border-radius:var(--radius-sm);">
+        <div style="font-size:0.72rem;color:var(--danger);text-transform:uppercase;letter-spacing:.06em;font-weight:700;">⚠️ Motivo do Ajuste</div>
+        <div style="margin-top:6px;color:var(--text-secondary);">{{ demanda.motivo_rejeicao }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Fluxo de Execução -->
+    {% if demanda.status == 'em_execucao' or demanda.status == 'em_triagem' %}
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">⚙️ Etapas de Execução Administrativa</div>
+      </div>
+      <div style="display:grid;gap:12px;">
+        {% for etapa in etapas_execucao %}
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--mod3-orange);flex-shrink:0;"></span>
+          <span style="font-size:0.88rem;">{{ etapa }}</span>
+        </div>
+        {% empty %}
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--mod3-orange);flex-shrink:0;"></span>
+          <span style="font-size:0.88rem;">Organização</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--mod3-orange);flex-shrink:0;"></span>
+          <span style="font-size:0.88rem;">Controle</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--mod3-orange);flex-shrink:0;"></span>
+          <span style="font-size:0.88rem;">Suporte operacional</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--mod3-orange);flex-shrink:0;"></span>
+          <span style="font-size:0.88rem;">Avaliação de relatórios e indicadores</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Painel de Ações -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🔄 Atualizar Status</div>
+      </div>
+
+      <div class="gateway-box">
+        <div class="gateway-question">Processo finalizado corretamente?</div>
+        <p style="font-size:0.8rem;color:var(--text-secondary);">SIM → Arquivar | NÃO → Retornar para ajuste</p>
+      </div>
+
+      {% if demanda.status != 'arquivada' %}
+      <form method="post" action="{% url 'atualizar_status_demanda' demanda.pk %}" style="margin-top:16px;">
+        {% csrf_token %}
+        <div class="form-group">
+          <label class="form-label">Novo Status</label>
+          <select name="status" class="form-control">
+            {% for val, label in demanda.STATUS %}
+            <option value="{{ val }}" {% if demanda.status == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Motivo / Observação</label>
+          <textarea name="motivo_rejeicao" class="form-control" rows="3" placeholder="Descreva o motivo (obrigatório para retorno para ajuste)..."></textarea>
+        </div>
+        <div class="gateway-actions">
+          <button type="submit" name="status" value="arquivada" class="btn btn-success btn-sm">✅ Arquivar</button>
+          <button type="submit" name="status" value="aguardando_ajuste" class="btn btn-danger btn-sm">↩ Ajuste</button>
+          <button type="submit" class="btn btn-outline btn-sm">Salvar</button>
+        </div>
+      </form>
+      {% else %}
+      <div style="text-align:center;padding:20px;color:var(--success);">
+        <div style="font-size:2rem;">✅</div>
+        <div style="font-weight:700;margin-top:8px;">Demanda Concluída</div>
+        <div style="font-size:0.78rem;color:var(--text-muted);">Arquivada em {{ demanda.concluido_em|date:"d/m/Y" }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <a href="{% url 'lista_demandas' %}" class="btn btn-outline" style="text-align:center;">← Voltar para Lista</a>
+  </div>
+</div>
+{% endblock %}

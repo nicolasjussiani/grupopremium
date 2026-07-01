@@ -1,0 +1,212 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ERP Grupo Premium — Sistema integrado de gestão para Trip Premium, Eco Premium e Log Premium">
+  <title>{% block title %}ERP Grupo Premium{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/main.css' %}?v=2">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+<script>
+  if (localStorage.getItem('theme') === 'dark') {
+    document.body.classList.add('dark-theme');
+  }
+</script>
+<!-- ALERTAS DE MENSAGEM -->
+{% if messages %}
+<div class="alerts-container" id="alertsContainer">
+  {% for message in messages %}
+  <div class="alert alert-{% if message.tags == 'error' %}error{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}">
+    <span>
+      {% if message.tags == 'error' %}❌{% elif message.tags == 'success' %}✅{% elif message.tags == 'warning' %}⚠️{% else %}ℹ️{% endif %}
+    </span>
+    <span>{{ message }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="erp-layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <!-- Logo -->
+    <div class="sidebar-logo">
+      <img src="{% static 'assets/logo.png' %}" alt="Grupo Premium Logo" onerror="this.style.display='none'">
+      <div class="sidebar-logo-text">
+        <div class="brand-name">GRUPO PREMIUM</div>
+        <div class="brand-sub">ERP Sistema</div>
+      </div>
+    </div>
+
+    <!-- Navegação -->
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Navegação</div>
+      <a href="{% url 'dashboard' %}" class="nav-item {% block nav_dashboard %}{% endblock %}">
+        <span class="nav-icon">🏠</span>
+        Dashboard
+      </a>
+
+      <div class="nav-section-label">Módulos</div>
+
+      <a href="{% url 'lista_vagas' %}" class="nav-item mod1 {% block nav_recrutamento %}{% endblock %}">
+        <span class="nav-icon">👥</span>
+        Recrutamento e Seleção
+        {% if nav_vagas_count %}<span class="nav-badge">{{ nav_vagas_count }}</span>{% endif %}
+      </a>
+      
+      <a href="{% url 'banco_talentos' %}" class="nav-item mod1 {% block nav_talentos %}{% endblock %}">
+        <span class="nav-icon">🌟</span>
+        Banco de Talentos
+      </a>
+
+      <a href="{% url 'lista_admissoes' %}" class="nav-item mod2 {% block nav_admissional %}{% endblock %}">
+        <span class="nav-icon">📋</span>
+        RH / Admissional
+        {% if nav_admissoes_count %}<span class="nav-badge">{{ nav_admissoes_count }}</span>{% endif %}
+      </a>
+
+      <a href="{% url 'lista_demandas' %}" class="nav-item mod3 {% block nav_administrativo %}{% endblock %}">
+        <span class="nav-icon">🗂️</span>
+        Administrativo
+        {% if nav_demandas_count %}<span class="nav-badge">{{ nav_demandas_count }}</span>{% endif %}
+      </a>
+
+      <a href="{% url 'dashboard_sesmet' %}" class="nav-item mod4 {% block nav_sesmet %}{% endblock %}">
+        <span class="nav-icon">🦺</span>
+        SESMET / Segurança
+        {% if nav_epis_vencidos %}<span class="nav-badge">{{ nav_epis_vencidos }}</span>{% endif %}
+      </a>
+
+      <a href="{% url 'painel_compras' %}" class="nav-item mod5 {% block nav_compras %}{% endblock %}">
+        <span class="nav-icon">🛒</span>
+        Compras / Almoxarifado
+        {% if nav_compras_count %}<span class="nav-badge">{{ nav_compras_count }}</span>{% endif %}
+      </a>
+
+      <a href="{% url 'painel_financeiro' %}" class="nav-item mod6 {% block nav_financeiro %}{% endblock %}">
+        <span class="nav-icon">💰</span>
+        Financeiro / Fiscal
+        {% if nav_financeiro_count %}<span class="nav-badge">{{ nav_financeiro_count }}</span>{% endif %}
+      </a>
+
+      <div class="nav-section-label">Processos</div>
+      <a href="{% url 'aprovacoes_pendentes' %}" class="nav-item {% block nav_aprovacoes %}{% endblock %}" id="navAprovacoes">
+        <span class="nav-icon">✅</span>
+        Aprovações
+        <span class="nav-badge" id="badgeAprovacoes" style="display:none;"></span>
+      </a>
+
+      <div class="nav-section-label">Colaboradores</div>
+      <a href="{% url 'lista_colaboradores' %}" class="nav-item {% block nav_colaboradores %}{% endblock %}">
+        <span class="nav-icon">🏢</span>
+        Colaboradores Ativos
+      </a>
+    </nav>
+
+    <!-- Footer do Sidebar -->
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="avatar">
+          {% if user.perfil.avatar_iniciais %}{{ user.perfil.avatar_iniciais }}{% else %}{{ user.username|first|upper }}{{ user.username|slice:"1:2"|upper }}{% endif %}
+        </div>
+        <div class="user-info">
+          <div class="user-name">{{ user.get_full_name|default:user.username }}</div>
+          <div class="user-role">{% if user.perfil %}{{ user.perfil.get_perfil_display }}{% else %}Usuário{% endif %}</div>
+        </div>
+        <a href="{% url 'logout' %}" class="btn-logout" title="Sair">⏏</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <div class="main-content">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="topbar-title">
+        <span class="breadcrumb">ERP Grupo Premium</span>
+        {% block topbar_title %}Dashboard{% endblock %}
+      </div>
+      <div class="topbar-actions">
+        <span style="font-size:0.78rem;color:var(--text-muted);">
+          {% if user.perfil %}{{ user.perfil.get_marca_display }}{% endif %}
+        </span>
+        <button id="themeToggleBtn" class="notif-btn" title="Alternar Tema Escuro" style="margin-right: 5px;" onclick="toggleTheme()">
+          🌙
+        </button>
+        <a href="#" class="notif-btn" id="notifBtn" title="Notificações">
+          🔔
+          {% if notificacoes_nao_lidas and notificacoes_nao_lidas > 0 %}
+          <span class="notif-dot"></span>
+          {% endif %}
+        </a>
+      </div>
+    </div>
+
+    <!-- ÁREA DE CONTEÚDO -->
+    <div class="content-area">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</div>
+
+<script>
+// Auto-dismiss alerts after 5s
+setTimeout(() => {
+  document.querySelectorAll('.alert').forEach(el => {
+    el.style.transition = 'opacity 0.4s, transform 0.4s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(20px)';
+    setTimeout(() => el.remove(), 400);
+  });
+}, 5000);
+
+// Badge de aprovações pendentes (polling a cada 60s)
+function atualizarBadgeAprovacoes() {
+  fetch('{% url "aprovacoes_count_api" %}')
+    .then(r => r.json())
+    .then(data => {
+      const badge = document.getElementById('badgeAprovacoes');
+      if (badge) {
+        if (data.total > 0) {
+          badge.textContent = data.total;
+          badge.style.display = 'inline-flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    })
+    .catch(() => {});
+}
+atualizarBadgeAprovacoes();
+setInterval(atualizarBadgeAprovacoes, 60000);
+
+// Toggle Dark Theme (Versão Robusta)
+function toggleTheme() {
+  document.body.classList.toggle('dark-theme');
+  const isDark = document.body.classList.contains('dark-theme');
+  
+  // Atualizar ícone
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+  
+  // Salvar preferência
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+if (themeToggleBtn) {
+  // Ajustar ícone inicial
+  if (document.body.classList.contains('dark-theme')) {
+    themeToggleBtn.textContent = '☀️';
+  }
+  // Vincular evento
+  themeToggleBtn.addEventListener('click', toggleTheme);
+}
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

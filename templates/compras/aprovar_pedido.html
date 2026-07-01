@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Aprovar Pedido de Compra — ERP Grupo Premium{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}Aprovação de Pedido de Compra{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-5" style="margin-bottom:20px;">
+  <div class="mod-title">🛒 Aprovação de Pedido de Compra</div>
+  <div class="mod-desc">PC-{{ pedido.pk|stringformat:"04d" }} — {{ pedido.solicitacao.material.nome }}</div>
+</div>
+
+<div style="max-width:700px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 Dados do Pedido</div>
+      <span class="badge badge-warning">Aguardando Aprovação</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Material</span>
+        <div style="font-weight:700;">{{ pedido.solicitacao.material.nome }}</div>
+        <div style="font-size:0.78rem;color:var(--text-muted);">{{ pedido.solicitacao.material.get_categoria_display }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Quantidade</span>
+        <div style="font-weight:600;">{{ pedido.solicitacao.quantidade_solicitada }} {{ pedido.solicitacao.material.get_unidade_medida_display }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Fornecedor</span>
+        <div style="font-weight:600;">{{ pedido.fornecedor }}</div>
+        {% if pedido.cnpj_fornecedor %}<div style="font-size:0.78rem;color:var(--text-muted);font-family:monospace;">{{ pedido.cnpj_fornecedor }}</div>{% endif %}
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Prazo de Entrega</span>
+        <div style="font-weight:600;">{{ pedido.prazo_entrega|date:"d/m/Y"|default:"Não definido" }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Valor Unitário</span>
+        <div>R$ {{ pedido.valor_unitario|floatformat:2 }}</div>
+      </div>
+      <div>
+        <span style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Valor Total</span>
+        <div style="font-size:1.6rem;font-weight:800;color:var(--mod5-purple);">R$ {{ pedido.valor_total|floatformat:2 }}</div>
+      </div>
+    </div>
+
+    <div class="gateway-box">
+      <div class="gateway-question">Compra aprovada?</div>
+      <p style="font-size:0.82rem;color:var(--text-secondary);">SIM → Pedido emitido ao fornecedor | NÃO → Retorna para nova cotação</p>
+    </div>
+
+    <form method="post" style="margin-top:20px;">
+      {% csrf_token %}
+      <div class="form-group" id="motivoReprovacao" style="display:none;">
+        <label class="form-label">Motivo da Reprovação</label>
+        <textarea name="obs" class="form-control" rows="2" placeholder="Descreva o motivo para retorno à cotação..."></textarea>
+      </div>
+      <div class="gateway-actions">
+        <button type="submit" name="acao" value="aprovar" class="btn btn-success">
+          ✅ Aprovar Compra
+        </button>
+        <button type="button" class="btn btn-danger" onclick="
+          document.getElementById('motivoReprovacao').style.display='block';
+          document.querySelector('[name=acao][value=reprovar]').style.display='inline-flex';
+          this.style.display='none';
+        ">⛔ Reprovar</button>
+        <button type="submit" name="acao" value="reprovar" class="btn btn-danger" style="display:none;">Confirmar Reprovação</button>
+        <a href="{% url 'detalhe_solicitacao' pedido.solicitacao.pk %}" class="btn btn-outline">← Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

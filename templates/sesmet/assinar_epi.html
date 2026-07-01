@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+{% block title %}Assinar EPI — SESMET ERP Grupo Premium{% endblock %}
+{% block nav_sesmet %}active{% endblock %}
+{% block topbar_title %}Assinatura Digital de Entrega de EPI{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-4" style="margin-bottom:20px;">
+  <div class="mod-title">✍️ Assinatura do Colaborador</div>
+  <div class="mod-desc">Assinatura digital para confirmação de recebimento do Equipamento de Proteção Individual</div>
+</div>
+
+<div class="card" style="max-width: 600px; margin: 0 auto;">
+  
+  <!-- BLOCO DE TREINAMENTO OBRIGATÓRIO -->
+  <div class="card-header" style="background: rgba(245,158,11,0.1); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 20px; border: 1px solid rgba(245,158,11,0.3);">
+    <div>
+      <div class="card-title" style="color: var(--warning);">⚠️ Treinamento Obrigatório</div>
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Assista ao vídeo explicativo sobre o uso correto do EPI. O formulário de assinatura será liberado após o tempo mínimo do treinamento.</div>
+    </div>
+  </div>
+
+  <div style="margin-bottom: 24px;">
+    <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: var(--radius-md); box-shadow: var(--shadow-card);">
+      <iframe src="{{ video_info.url }}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    </div>
+  </div>
+
+  <!-- AVALIAÇÃO (5 QUESTÕES) -->
+  <div style="margin-bottom: 24px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius-md);">
+    <h3 style="margin-bottom: 15px; font-size: 0.95rem; color: var(--text-primary); border-bottom: 1px solid var(--border); padding-bottom: 10px;">📝 Avaliação de Conhecimento (Responda todas para liberar)</h3>
+    
+    {% for questao in video_info.questoes %}
+    <div style="margin-bottom: 20px;" class="questao-block">
+      <p style="font-weight: 600; margin-bottom: 10px; font-size: 0.85rem; color: var(--text-primary);">{{ questao.pergunta }}</p>
+      <div style="font-size: 0.8rem; color: var(--text-secondary);">
+        {% for opcao in questao.opcoes %}
+        <label style="display: block; margin-bottom: 6px; cursor: pointer; padding: 6px; border-radius: var(--radius-sm); border: 1px solid transparent; transition: all 0.2s;" onmouseover="this.style.background='var(--bg-base)'" onmouseout="this.style.background='transparent'">
+          <input type="radio" name="resposta_{{ questao.id }}" value="{{ opcao.id }}" style="margin-right: 8px; cursor: pointer;">
+          {{ opcao.texto }}
+        </label>
+        {% endfor %}
+      </div>
+      <input type="hidden" id="gabarito_{{ questao.id }}" value="{{ questao.resposta_correta }}">
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card-header">
+    <div class="card-title">Confirmação de Recebimento</div>
+  </div>
+
+  <div style="padding: 20px; position: relative;">
+    
+    <!-- OVERLAY DE BLOQUEIO -->
+    <div id="lockOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-card); opacity: 0.95; backdrop-filter: blur(4px); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: var(--radius-sm);">
+      <div style="font-size: 3rem; margin-bottom: 10px;">⏳</div>
+      <div style="font-weight: 700; color: var(--text-primary); font-size: 1.1rem;">Aguarde o Treinamento</div>
+      <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">A assinatura será liberada em:</div>
+      <div id="timerDisplay" style="font-size: 2rem; font-weight: 800; color: var(--danger); margin-top: 10px; font-variant-numeric: tabular-nums;">--:--</div>
+    </div>
+
+    <div style="margin-bottom: 20px; font-size: 0.9rem; line-height: 1.5;">
+      <p>Eu, <strong>{{ epi.colaborador.nome }}</strong>, declaro ter recebido o EPI <strong>{{ epi.get_tipo_epi_display }}</strong> em perfeitas condições de uso para a execução das minhas atividades na empresa.</p>
+      <ul style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px; padding-left: 20px;">
+        <li>Data de Entrega: {{ epi.data_entrega|date:"d/m/Y" }}</li>
+        <li>Quantidade: {{ epi.quantidade }}</li>
+        {% if epi.numero_ca %}<li>CA: {{ epi.numero_ca }}</li>{% endif %}
+      </ul>
+    </div>
+
+    <form method="post" id="signatureForm">
+      {% csrf_token %}
+      <input type="hidden" name="assinatura_base64" id="assinaturaBase64">
+      
+      <div style="margin-bottom: 10px;">
+        <label style="font-weight: 600; display: block; margin-bottom: 8px;">Assinatura:</label>
+        <div style="border: 2px dashed var(--border); border-radius: var(--radius-md); background: var(--bg-input); position: relative;">
+          <canvas id="signaturePad" width="560" height="200" style="width: 100%; height: 200px; touch-action: none; cursor: crosshair;"></canvas>
+        </div>
+      </div>
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+        <button type="button" class="btn btn-outline btn-sm" id="clearBtn" disabled>🧹 Limpar Assinatura</button>
+        <div>
+          <a href="{% url 'matriz_epis' %}" class="btn btn-outline" style="margin-right: 10px;">Cancelar</a>
+          <button type="button" class="btn btn-mod4" id="saveBtn" disabled>✅ Confirmar e Assinar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    // --- TIMER E BLOQUEIO ---
+    const waitTimeMs = parseInt("{{ video_info.duracao_segundos }}", 10) * 1000;
+    const epiPk = "{{ epi.pk }}";
+    // Mudei a key para v2 para resetar o cache do usuário e forçar o timer a rodar
+    const storageKey = 'timer_epi_v2_' + epiPk;
+    
+    let startTime = localStorage.getItem(storageKey);
+    if (!startTime) {
+      startTime = Date.now();
+      localStorage.setItem(storageKey, startTime);
+    } else {
+      startTime = parseInt(startTime, 10);
+    }
+
+    const timerDisplay = document.getElementById('timerDisplay');
+    const lockOverlay = document.getElementById('lockOverlay');
+    const saveBtn = document.getElementById('saveBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    
+    function updateTimer() {
+      const now = Date.now();
+      const elapsed = now - startTime;
+      const remaining = waitTimeMs - elapsed;
+
+      if (remaining <= 0) {
+        // Desbloquear
+        timerDisplay.textContent = "00:00";
+        lockOverlay.style.display = 'none';
+        saveBtn.disabled = false;
+        clearBtn.disabled = false;
+        clearInterval(timerInterval);
+      } else {
+        // Atualizar texto
+        const totalSeconds = Math.floor(remaining / 1000);
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        timerDisplay.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+      }
+    }
+
+    const timerInterval = setInterval(updateTimer, 1000);
+    updateTimer(); // chamada inicial
+
+    // --- CANVAS ASSINATURA ---
+    const canvas = document.getElementById('signaturePad');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    let hasSignature = false;
+
+    function resizeCanvas() {
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * ratio;
+      canvas.height = rect.height * ratio;
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#000';
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function getMousePos(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    }
+
+    function getTouchPos(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: evt.touches[0].clientX - rect.left, y: evt.touches[0].clientY - rect.top };
+    }
+
+    canvas.addEventListener('mousedown', function(e) {
+      if (lockOverlay.style.display !== 'none') return;
+      isDrawing = true; hasSignature = true;
+      const pos = getMousePos(e);
+      ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+    });
+    
+    canvas.addEventListener('mousemove', function(e) {
+      if (!isDrawing) return;
+      const pos = getMousePos(e);
+      ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    });
+
+    canvas.addEventListener('mouseup', () => isDrawing = false);
+    canvas.addEventListener('mouseout', () => isDrawing = false);
+
+    canvas.addEventListener('touchstart', function(e) {
+      if (lockOverlay.style.display !== 'none') return;
+      e.preventDefault();
+      isDrawing = true; hasSignature = true;
+      const pos = getTouchPos(e);
+      ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+    }, {passive: false});
+
+    canvas.addEventListener('touchmove', function(e) {
+      if (lockOverlay.style.display !== 'none') return;
+      e.preventDefault();
+      if (!isDrawing) return;
+      const pos = getTouchPos(e);
+      ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    }, {passive: false});
+
+    canvas.addEventListener('touchend', () => isDrawing = false);
+
+    clearBtn.addEventListener('click', function() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasSignature = false;
+    });
+
+    saveBtn.addEventListener('click', function() {
+      // VALIDAÇÃO DAS 5 QUESTÕES
+      const questoesBlocks = document.querySelectorAll('.questao-block');
+      let todasCertas = true;
+      let questaoComErro = 0;
+
+      questoesBlocks.forEach(function(block, index) {
+        if (!todasCertas) return; // já achou um erro
+        
+        // Pega o ID da questão a partir do input hidden
+        const hiddenInput = block.querySelector('input[type="hidden"]');
+        if (hiddenInput) {
+           const gabarito = hiddenInput.value;
+           const questaoId = hiddenInput.id.replace('gabarito_', '');
+           
+           const respostaMarcada = block.querySelector(`input[name="resposta_${questaoId}"]:checked`);
+           if (!respostaMarcada) {
+             todasCertas = false;
+             questaoComErro = index + 1;
+             alert(`⚠️ Você esqueceu de responder a Questão ${questaoComErro}.`);
+             return;
+           }
+           
+           if (respostaMarcada.value !== gabarito) {
+             todasCertas = false;
+             questaoComErro = index + 1;
+             alert(`❌ Resposta Incorreta na Questão ${questaoComErro}! Por favor, reveja e tente novamente.`);
+             return;
+           }
+        }
+      });
+
+      if (!todasCertas) return;
+
+      // VALIDAÇÃO DA ASSINATURA
+      if (!hasSignature) {
+        alert("⚠️ Por favor, faça a assinatura no quadro antes de confirmar.");
+        return;
+      }
+      
+      const dataURL = canvas.toDataURL("image/png");
+      document.getElementById('assinaturaBase64').value = dataURL;
+      document.getElementById('signatureForm').submit();
+    });
+  });
+</script>
+{% endblock %}
