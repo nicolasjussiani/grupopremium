@@ -143,12 +143,19 @@ def adicionar_candidato(request, vaga_pk):
         )
         arquivo_upload = request.FILES.get('curriculo_pdf')
         if arquivo_upload:
-            candidato.arquivo = arquivo_upload
             file_bytes = arquivo_upload.read()
             candidato.arquivo_pdf = file_bytes
             arquivo_upload.seek(0)
-        candidato.save()
-        
+            candidato.arquivo = arquivo_upload
+
+        try:
+            candidato.save()
+        except Exception as e:
+            # Falha silenciosa do S3: Salva apenas no banco de dados (BinaryField)
+            candidato.arquivo = None
+            candidato.save()
+            
+
         # Salva no Banco de Talentos ou atualiza a última vaga aplicada
         if email:
             talento, created = Talento.objects.get_or_create(
