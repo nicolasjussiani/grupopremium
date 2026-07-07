@@ -16,7 +16,6 @@ class PerfilUsuario(models.Model):
         ('operacional', 'Operacional'),
     ]
     MARCAS = [
-        ('eco_premium', 'Eco Premium'),
         ('trip_premium', 'Trip Premium'),
         ('log_premium', 'Log Premium'),
         ('matriz', 'Matriz Grupo PremiumBR'),

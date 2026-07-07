@@ -12,7 +12,6 @@ class Colaborador(models.Model):
         ('desligado', 'Desligado'),
     ]
     MARCAS = [
-        ('eco_premium', 'Eco Premium'),
         ('trip_premium', 'Trip Premium'),
         ('log_premium', 'Log Premium'),
     ]
