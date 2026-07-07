@@ -1,5 +1,5 @@
 /* =============================================================
-   ERP GRUPO PREMIUM — DESIGN SYSTEM CORPORATIVO (Tema Claro)
+   ERP GRUPO PREMIUMBR — DESIGN SYSTEM CORPORATIVO (Tema Claro)
    Tipografia: Montserrat (Google Fonts)
    Módulos: Azul | Verde | Laranja | Teal | Roxo | Ouro/Amarelo
    ============================================================= */
@@ -30,7 +30,7 @@
   --mod5-purple:  #6B46C1;   /* Compras */
   --mod6-yellow:  #B7791F;   /* Financeiro */
 
-  /* Brand Grupo Premium (Dourado e Azul do Login) */
+  /* Brand Grupo PremiumBR (Dourado e Azul do Login) */
   --brand:       #C5A059;   /* Dourado */
   --brand-glow:  rgba(197, 160, 89, 0.12);
   --brand-dark:  #B08B47;

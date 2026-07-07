@@ -7,7 +7,7 @@ from django.contrib import messages
 
 class StatelessDemoMiddleware(MiddlewareMixin):
     """
-    Middleware inteligente para o ERP Grupo Premium:
+    Middleware inteligente para o ERP Grupo PremiumBR:
 
     - Se DATABASE_URL estiver configurada (Supabase/produção):
         Deixa o Django Auth normal funcionar (login real).

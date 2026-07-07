@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — URLs do Core"""
+"""ERP Grupo PremiumBR — URLs do Core"""
 from django.urls import path
 from core import views
 from core import views_aprovacao

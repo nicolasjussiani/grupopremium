@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — Models do Módulo 4: SESMET / Segurança do Trabalho"""
+"""ERP Grupo PremiumBR — Models do Módulo 4: SESMET / Segurança do Trabalho"""
 from django.db import models
 from django.contrib.auth.models import User
 from admissional.models import Colaborador

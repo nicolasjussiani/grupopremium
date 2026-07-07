@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — URLs Raiz"""
+"""ERP Grupo PremiumBR — URLs Raiz"""
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings

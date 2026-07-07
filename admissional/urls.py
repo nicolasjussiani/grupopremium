@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — URLs do Módulo 2: Admissional"""
+"""ERP Grupo PremiumBR — URLs do Módulo 2: Admissional"""
 from django.urls import path
 from admissional import views
 

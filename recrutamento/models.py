@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — Models do Módulo 1: Recrutamento e Seleção"""
+"""ERP Grupo PremiumBR — Models do Módulo 1: Recrutamento e Seleção"""
 from django.db import models
 from django.contrib.auth.models import User
 

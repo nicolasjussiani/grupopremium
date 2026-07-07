@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — Models do Core (Perfil de Usuário + Aprovações)"""
+"""ERP Grupo PremiumBR — Models do Core (Perfil de Usuário + Aprovações)"""
 from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -19,7 +19,7 @@ class PerfilUsuario(models.Model):
         ('eco_premium', 'Eco Premium'),
         ('trip_premium', 'Trip Premium'),
         ('log_premium', 'Log Premium'),
-        ('matriz', 'Matriz Grupo Premium'),
+        ('matriz', 'Matriz Grupo PremiumBR'),
     ]
 
     usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil')

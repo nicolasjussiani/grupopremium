@@ -1,5 +1,5 @@
 """
-ERP Grupo Premium — Management Command: criar_grupos
+ERP Grupo PremiumBR — Management Command: criar_grupos
 
 Cria todos os grupos de privilégio por área e configura permissões.
 Execute com: python manage.py criar_grupos
@@ -27,7 +27,7 @@ from django.apps import apps
 
 
 class Command(BaseCommand):
-    help = 'Cria os grupos de privilégio por área do ERP Grupo Premium'
+    help = 'Cria os grupos de privilégio por área do ERP Grupo PremiumBR'
 
     # Definição dos grupos e seus modelos com permissões
     # Formato: 'NomeGrupo': { 'app.Model': ['add', 'change', 'view', 'delete'] }
@@ -138,7 +138,7 @@ class Command(BaseCommand):
     }
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.MIGRATE_HEADING('\n[ERP] ERP Grupo Premium -- Criacao de Grupos de Privilegio\n'))
+        self.stdout.write(self.style.MIGRATE_HEADING('\n[ERP] ERP Grupo PremiumBR -- Criacao de Grupos de Privilegio\n'))
         criados = 0
         atualizados = 0
 

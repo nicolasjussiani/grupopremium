@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — Models do Módulo 5: Compras"""
+"""ERP Grupo PremiumBR — Models do Módulo 5: Compras"""
 from django.db import models
 from django.contrib.auth.models import User
 

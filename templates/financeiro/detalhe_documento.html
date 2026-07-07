@@ -78,7 +78,7 @@
     {% elif documento.status == 'aprovado_lancamento' %}
     <div class="card" style="border-top-color:var(--success);">
       <div class="card-title" style="margin-bottom:16px;color:var(--success);">✅ Pronto para Lançamento</div>
-      <p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:16px;">Auditoria aprovada. Registre o lançamento no ERP Grupo Premium.</p>
+      <p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:16px;">Auditoria aprovada. Registre o lançamento no ERP Grupo PremiumBR.</p>
       <a href="{% url 'lancar_erp' documento.pk %}" class="btn btn-success" style="width:100%;text-align:center;">📊 Lançar no ERP</a>
     </div>
     {% elif documento.status == 'informacoes_incorretas' %}
@@ -94,7 +94,7 @@
       <div style="text-align:center;padding:20px;">
         <div style="font-size:2rem;">🏆</div>
         <div style="font-weight:700;color:var(--success);margin-top:8px;">Processo Concluído</div>
-        <div style="font-size:0.78rem;color:var(--text-muted);">Documento arquivado digitalmente no ERP Grupo Premium</div>
+        <div style="font-size:0.78rem;color:var(--text-muted);">Documento arquivado digitalmente no ERP Grupo PremiumBR</div>
       </div>
     </div>
     {% endif %}

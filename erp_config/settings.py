@@ -1,5 +1,5 @@
 """
-ERP Grupo Premium - Settings
+ERP Grupo PremiumBR - Settings
 """
 from pathlib import Path
 import os
@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'storages',
-    # Apps ERP Grupo Premium
+    # Apps ERP Grupo PremiumBR
     'core',
     'recrutamento',
     'admissional',

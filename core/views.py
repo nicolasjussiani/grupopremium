@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — Views do Core (Login, Dashboard, Notificações)"""
+"""ERP Grupo PremiumBR — Views do Core (Login, Dashboard, Notificações)"""
 import os
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout

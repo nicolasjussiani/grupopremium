@@ -1,4 +1,4 @@
-# Generated manually — ERP Grupo Premium — AprovacaoRegistro (Linha de Aprovação)
+# Generated manually — ERP Grupo PremiumBR — AprovacaoRegistro (Linha de Aprovação)
 
 import django.db.models.deletion
 from django.conf import settings

@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — Views do Módulo 6: Financeiro / Fiscal"""
+"""ERP Grupo PremiumBR — Views do Módulo 6: Financeiro / Fiscal"""
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -155,7 +155,7 @@ def detalhe_documento(request, pk):
 
 @login_required
 def lancar_erp(request, doc_pk):
-    """Lançamento oficial no ERP Grupo Premium"""
+    """Lançamento oficial no ERP Grupo PremiumBR"""
     doc = get_object_or_404(DocumentoFinanceiro, pk=doc_pk)
     if request.method == 'POST':
         lancamento = LancamentoERP(
@@ -181,7 +181,7 @@ def lancar_erp(request, doc_pk):
 
 @login_required
 def validar_lancamento(request, pk):
-    """Gateway 2: Lançamento validado → FINALIZADO NO ERP GRUPO PREMIUM"""
+    """Gateway 2: Lançamento validado → FINALIZADO NO ERP GRUPO PREMIUMBR"""
     lancamento = get_object_or_404(LancamentoERP, pk=pk)
     if request.method == 'POST':
         acao = request.POST.get('acao')
@@ -202,7 +202,7 @@ def validar_lancamento(request, pk):
             lancamento.documento.status = 'arquivado'
             lancamento.documento.save()
             messages.success(request,
-                '🏆 GATEWAY FINAL: Lançamento VALIDADO e FINALIZADO NO ERP GRUPO PREMIUM! '
+                '🏆 GATEWAY FINAL: Lançamento VALIDADO e FINALIZADO NO ERP GRUPO PREMIUMBR! '
                 'Documento arquivado digitalmente. Prestação de contas concluída.')
         else:
             motivo = request.POST.get('motivo_rejeicao', '')

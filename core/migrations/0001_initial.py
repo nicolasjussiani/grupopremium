@@ -38,7 +38,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('perfil', models.CharField(choices=[('admin', 'Administrador'), ('gestor', 'Gestor'), ('rh', 'RH / Departamento Pessoal'), ('financeiro', 'Financeiro / Fiscal'), ('sesmet', 'SESMET / Segurança do Trabalho'), ('compras', 'Compras / Almoxarifado'), ('operacional', 'Operacional')], default='operacional', max_length=20)),
-                ('marca', models.CharField(choices=[('eco_premium', 'Eco Premium'), ('trip_premium', 'Trip Premium'), ('log_premium', 'Log Premium'), ('matriz', 'Matriz Grupo Premium')], default='eco_premium', max_length=20)),
+                ('marca', models.CharField(choices=[('eco_premium', 'Eco Premium'), ('trip_premium', 'Trip Premium'), ('log_premium', 'Log Premium'), ('matriz', 'Matriz Grupo PremiumBR')], default='eco_premium', max_length=20)),
                 ('unidade', models.CharField(default='Matriz', max_length=100)),
                 ('telefone', models.CharField(blank=True, max_length=20)),
                 ('avatar_iniciais', models.CharField(blank=True, max_length=3)),

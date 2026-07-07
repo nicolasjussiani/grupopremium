@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — Views do Módulo 2: Admissional"""
+"""ERP Grupo PremiumBR — Views do Módulo 2: Admissional"""
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages

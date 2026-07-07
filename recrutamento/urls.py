@@ -1,4 +1,4 @@
-"""ERP Grupo Premium — URLs do Módulo 1: Recrutamento"""
+"""ERP Grupo PremiumBR — URLs do Módulo 1: Recrutamento"""
 from django.urls import path
 from recrutamento import views
 

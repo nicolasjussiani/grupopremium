@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Validar Lançamento #{{ lancamento.pk }} — ERP Grupo Premium{% endblock %}
+{% block title %}Validar Lançamento #{{ lancamento.pk }} — ERP Grupo PremiumBR{% endblock %}
 {% block nav_financeiro %}active{% endblock %}
 {% block topbar_title %}Validação Final do Lançamento{% endblock %}
 
@@ -56,7 +56,7 @@
     {% if lancamento.status == 'finalizado' %}
     <div style="text-align:center;padding:30px;background:rgba(47,133,90,0.08);border:1px solid rgba(47,133,90,0.2);border-radius:var(--radius-md);">
       <div style="font-size:3rem;">🏆</div>
-      <div style="font-weight:800;font-size:1.2rem;color:var(--success);margin-top:12px;">FINALIZADO NO ERP GRUPO PREMIUM</div>
+      <div style="font-weight:800;font-size:1.2rem;color:var(--success);margin-top:12px;">FINALIZADO NO ERP GRUPO PREMIUMBR</div>
       <div style="font-size:0.84rem;color:var(--text-muted);margin-top:8px;">
         Validado por: {{ lancamento.validado_por.get_full_name|default:lancamento.validado_por }}
         em {{ lancamento.finalizado_em|date:"d/m/Y H:i" }}

@@ -1,5 +1,5 @@
 """
-ERP Grupo Premium — Management Command: populate_seed
+ERP Grupo PremiumBR — Management Command: populate_seed
 Popula o banco de dados com dados de demonstração para apresentação.
 Uso: python manage.py populate_seed
 """
@@ -11,10 +11,10 @@ import random
 
 
 class Command(BaseCommand):
-    help = 'Popula o banco de dados com dados de demonstração do ERP Grupo Premium'
+    help = 'Popula o banco de dados com dados de demonstração do ERP Grupo PremiumBR'
 
     def handle(self, *args, **options):
-        self.stdout.write('🌱 Iniciando seed de demonstração do ERP Grupo Premium...')
+        self.stdout.write('🌱 Iniciando seed de demonstração do ERP Grupo PremiumBR...')
 
         self._criar_usuarios()
         self._criar_vagas_candidatos()
@@ -458,7 +458,7 @@ class Command(BaseCommand):
                 'tipo': 'pagamento', 'numero_documento': 'PAG-2025-0087',
                 'descricao': 'Pagamento Folha de Pagamento — Maio/2025',
                 'valor': 42850.00, 'centro_custo': 'RH-GERAL', 'unidade': 'Matriz',
-                'cnpj_emitente': '01.234.567/0001-01', 'razao_social_emitente': 'Grupo Premium Holding Ltda',
+                'cnpj_emitente': '01.234.567/0001-01', 'razao_social_emitente': 'Grupo PremiumBR Holding Ltda',
                 'data_emissao': hoje - timedelta(days=2), 'data_vencimento': hoje + timedelta(days=3),
                 'status': 'lancado',
             },
