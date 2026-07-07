@@ -1,0 +1,61 @@
+import os
+import json
+import google.generativeai as genai
+from django.conf import settings
+
+def extrair_dados_documento(file_bytes, file_mime_type="application/pdf"):
+    """
+    Usa o Google Gemini para extrair dados estruturados de um PDF/Imagem.
+    Retorna um dicionário com os campos encontrados.
+    """
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise Exception("Chave da API do Gemini (GEMINI_API_KEY) não configurada.")
+    
+    genai.configure(api_key=api_key)
+    
+    # Prepara o modelo (gemini-1.5-flash é rápido e tem suporte a visão/pdf)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    prompt = """
+    Você é um assistente financeiro altamente especializado em extração de dados (OCR).
+    Leia o documento anexado (nota fiscal, fatura, recibo ou boleto) e extraia as seguintes informações exatamente no formato JSON abaixo.
+    Não inclua markdown, crases ou texto extra, apenas o JSON válido.
+
+    Estrutura JSON desejada:
+    {
+        "cnpj_emitente": "somente numeros ou vazio",
+        "razao_social_emitente": "Nome da empresa emissora",
+        "numero_documento": "Numero da nota ou documento",
+        "valor": "valor monetario em formato americano (ex: 1500.50), sem cifrao",
+        "data_emissao": "AAAA-MM-DD",
+        "data_vencimento": "AAAA-MM-DD (se nao houver, tente inferir pela emissao ou use a emissao)"
+    }
+    """
+    
+    # Configuração de envio do arquivo em inline data
+    contents = [
+        {
+            "mime_type": file_mime_type,
+            "data": file_bytes
+        },
+        prompt
+    ]
+    
+    try:
+        response = model.generate_content(contents)
+        text_response = response.text.strip()
+        
+        # Limpar crases Markdown caso o modelo retorne
+        if text_response.startswith('```json'):
+            text_response = text_response[7:]
+        if text_response.startswith('```'):
+            text_response = text_response[3:]
+        if text_response.endswith('```'):
+            text_response = text_response[:-3]
+            
+        dados_json = json.loads(text_response.strip())
+        return dados_json
+    except Exception as e:
+        print(f"Erro no OCR: {e}")
+        raise Exception("Falha ao ler o documento com a IA. Tente digitar manualmente.")

@@ -53,12 +53,12 @@
           <input type="text" name="unidade" class="form-control" required placeholder="Ex: Matriz SP, Filial RJ...">
         </div>
         <div class="form-group">
-          <label class="form-label">CNPJ do Emitente</label>
-          <input type="text" name="cnpj_emitente" class="form-control" placeholder="00.000.000/0001-00">
+          <label class="form-label">CNPJ do Emitente <span class="required">*</span></label>
+          <input type="text" id="id_cnpj" name="cnpj_emitente" class="form-control" required placeholder="00.000.000/0001-00">
         </div>
         <div class="form-group">
-          <label class="form-label">Razão Social do Emitente</label>
-          <input type="text" name="razao_social_emitente" class="form-control" placeholder="Nome da empresa emitente">
+          <label class="form-label">Razão Social do Emitente <span class="required">*</span></label>
+          <input type="text" id="id_razao" name="razao_social_emitente" class="form-control" required placeholder="Nome da empresa emitente">
         </div>
         <div class="form-group">
           <label class="form-label">Contratos Vinculados</label>
@@ -69,8 +69,8 @@
           <input type="date" name="data_emissao" class="form-control" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Data de Vencimento</label>
-          <input type="date" name="data_vencimento" class="form-control">
+          <label class="form-label">Data de Vencimento <span class="required">*</span></label>
+          <input type="date" id="id_vencimento" name="data_vencimento" class="form-control" required>
         </div>
         <div class="form-group form-full">
           <label class="form-label">Nota Fiscal (PDF) <span class="required">*</span></label>
@@ -85,4 +85,46 @@
     </form>
   </div>
 </div>
+
+<script>
+  document.querySelector('input[name="arquivo_pdf"]').addEventListener('change', async function(e) {
+    if (this.files.length === 0) return;
+    
+    // Mostra loader visual
+    const btn = document.querySelector('button[type="submit"]');
+    const oldText = btn.innerHTML;
+    btn.innerHTML = '🤖 IA lendo documento...';
+    btn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('arquivo', this.files[0]);
+
+    try {
+      const res = await fetch("{% url 'extrair_ocr_documento' %}", {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      
+      if (data.sucesso) {
+        const info = data.dados;
+        if (info.cnpj_emitente) document.getElementById('id_cnpj').value = info.cnpj_emitente;
+        if (info.razao_social_emitente) document.getElementById('id_razao').value = info.razao_social_emitente;
+        if (info.valor) document.querySelector('input[name="valor"]').value = info.valor;
+        if (info.numero_documento) document.querySelector('input[name="numero_documento"]').value = info.numero_documento;
+        if (info.data_emissao) document.querySelector('input[name="data_emissao"]').value = info.data_emissao;
+        if (info.data_vencimento) document.getElementById('id_vencimento').value = info.data_vencimento;
+        alert('✅ Documento lido com sucesso pela Inteligência Artificial!');
+      } else {
+        console.error("Erro OCR:", data.erro);
+        alert('⚠️ A IA não conseguiu ler perfeitamente. Por favor, preencha manualmente.');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+    }
+  });
+</script>
 {% endblock %}

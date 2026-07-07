@@ -101,6 +101,22 @@ def entrada_documento(request):
         'tipos': DocumentoFinanceiro.TIPOS,
     })
 
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from .services.ocr_service import extrair_dados_documento
+
+@login_required
+@csrf_exempt
+def extrair_ocr_documento(request):
+    if request.method == 'POST' and request.FILES.get('arquivo'):
+        arquivo = request.FILES['arquivo']
+        try:
+            dados = extrair_dados_documento(arquivo.read(), arquivo.content_type)
+            return JsonResponse({'sucesso': True, 'dados': dados})
+        except Exception as e:
+            return JsonResponse({'sucesso': False, 'erro': str(e)}, status=400)
+    return JsonResponse({'sucesso': False, 'erro': 'Arquivo não enviado.'}, status=400)
+
 
 @login_required
 def auditoria_documento(request, pk):
