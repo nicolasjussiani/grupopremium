@@ -83,6 +83,9 @@ def entrada_documento(request):
         arquivo_upload = request.FILES.get('arquivo_pdf')
         if arquivo_upload:
             doc.arquivo = arquivo_upload
+            file_bytes = arquivo_upload.read()
+            doc.arquivo_pdf = file_bytes
+            arquivo_upload.seek(0)
 
         doc.save()
 

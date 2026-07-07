@@ -57,6 +57,8 @@ def atualizar_documento(request, admissao_pk, doc_pk):
             doc.arquivo_nuvem = arquivo_upload
             doc.arquivo_nome = arquivo_upload.name
             doc.arquivo_mimetype = arquivo_upload.content_type
+            doc.arquivo = arquivo_upload.read()
+            arquivo_upload.seek(0)
             
         doc.status = novo_status
         doc.observacao = obs

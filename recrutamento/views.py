@@ -144,6 +144,9 @@ def adicionar_candidato(request, vaga_pk):
         arquivo_upload = request.FILES.get('curriculo_pdf')
         if arquivo_upload:
             candidato.arquivo = arquivo_upload
+            file_bytes = arquivo_upload.read()
+            candidato.arquivo_pdf = file_bytes
+            arquivo_upload.seek(0)
         candidato.save()
         
         # Salva no Banco de Talentos ou atualiza a última vaga aplicada
@@ -164,6 +167,7 @@ def adicionar_candidato(request, vaga_pk):
                 talento.cidade = cidade
             if arquivo_upload:
                 talento.arquivo = arquivo_upload
+                talento.arquivo_pdf = file_bytes
             talento.save()
 
         messages.success(request, f'✅ Candidato {candidato.nome} adicionado à vaga {vaga.nome_vaga}.')
