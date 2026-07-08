@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
-{% block title %}Controle de Experiência — ERP Grupo PremiumBR{% endblock %}
+{% block title %}Controle de ExperiÃªncia â€” ERP Grupo PremiumBR{% endblock %}
 {% block nav_colaboradores %}active{% endblock %}
-{% block topbar_title %}Controle de Experiência{% endblock %}
+{% block topbar_title %}Controle de ExperiÃªncia{% endblock %}
 
 {% block content %}
 <div class="module-banner mod-banner-2" style="margin-bottom:20px;">
-  <div class="mod-title">? Controle de Período de Experiência</div>
+  <div class="mod-title">? Controle de PerÃ­odo de ExperiÃªncia</div>
   <div class="mod-desc">Acompanhe os prazos de 45 e 90 dias dos colaboradores.</div>
 </div>
 
@@ -16,7 +16,7 @@
                 <tr>
                     <th>Colaborador</th>
                     <th>Unidade</th>
-                    <th>Data Admissão</th>
+                    <th>Data AdmissÃ£o</th>
                     <th>45 Dias (Vencimento)</th>
                     <th>90 Dias (Vencimento)</th>
                     <th>Status</th>
@@ -49,14 +49,14 @@
                         {% if c.dias_90_restantes < 0 %}
                         <span class="badge badge-success">Efetivado</span>
                         {% else %}
-                        <span class="badge badge-warning">Em Experiência</span>
+                        <span class="badge badge-warning">Em ExperiÃªncia</span>
                         {% endif %}
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
                     <td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">
-                        Nenhum colaborador com dados de admissão.
+                        Nenhum colaborador com dados de admissÃ£o.
                     </td>
                 </tr>
                 {% endfor %}
