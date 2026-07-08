@@ -107,6 +107,15 @@ def avancar_admissao(request, pk):
                 admissao.concluido_em = timezone.now()
                 # Criar colaborador se ainda não existe
                 if not admissao.colaborador:
+                    data_inicio_str = request.POST.get('data_inicio')
+                    data_inicio_obj = timezone.now().date()
+                    if data_inicio_str:
+                        from datetime import datetime
+                        try:
+                            data_inicio_obj = datetime.strptime(data_inicio_str, '%Y-%m-%d').date()
+                        except:
+                            pass
+                    
                     colab = Colaborador(
                         nome=admissao.candidato_nome,
                         cpf=request.POST.get('cpf', '000.000.000-00'),
@@ -114,11 +123,12 @@ def avancar_admissao(request, pk):
                         telefone=admissao.candidato_telefone or '',
                         cargo=admissao.vaga_nome,
                         unidade=admissao.unidade_destino,
-                        data_admissao=timezone.now().date(),
+                        data_admissao=data_inicio_obj,
                         status='ativo',
                     )
                     colab.save()
                     admissao.colaborador = colab
+                    admissao.data_inicio = data_inicio_obj
                 messages.success(request,
                     f'🎉 Processo admissional de {admissao.candidato_nome} CONCLUÍDO! '
                     f'Colaborador liberado para a unidade.')
@@ -193,3 +203,97 @@ def baixar_documento(request, admissao_pk, doc_pk):
         return response
     
     return HttpResponseNotFound("Arquivo não encontrado.")
+
+
+import csv
+from django.http import HttpResponse
+from datetime import timedelta
+from .models import PresencaDiaria
+
+@login_required
+def controle_presenca(request):
+    from datetime import datetime
+    data_str = request.GET.get('data') or request.POST.get('data')
+    unidade_filter = request.GET.get('unidade', '')
+    
+    if data_str:
+        try:
+            data_selecionada = datetime.strptime(data_str, '%Y-%m-%d').date()
+        except ValueError:
+            data_selecionada = timezone.now().date()
+    else:
+        data_selecionada = timezone.now().date()
+        
+    if request.method == 'POST':
+        for key, value in request.POST.items():
+            if key.startswith('colaborador_'):
+                colab_pk = key.split('_')[1]
+                status = request.POST.get(f'status_{colab_pk}')
+                obs = request.POST.get(f'obs_{colab_pk}', '')
+                
+                PresencaDiaria.objects.update_or_create(
+                    colaborador_id=colab_pk,
+                    data=data_selecionada,
+                    defaults={'status': status, 'observacao': obs}
+                )
+        messages.success(request, f'Presenças salvas com sucesso para o dia {data_selecionada.strftime("%d/%m/%Y")}!')
+        return redirect(f"{request.path}?data={data_selecionada}&unidade={unidade_filter}")
+
+    colaboradores = Colaborador.objects.filter(status='ativo')
+    if unidade_filter:
+        colaboradores = colaboradores.filter(unidade__icontains=unidade_filter)
+        
+    presencas = []
+    for c in colaboradores:
+        p, _ = PresencaDiaria.objects.get_or_create(colaborador=c, data=data_selecionada)
+        p.status_choices = PresencaDiaria.STATUS_CHOICES
+        presencas.append(p)
+        
+    return render(request, 'admissional/controle_presenca.html', {
+        'presencas': presencas,
+        'data_selecionada': data_selecionada,
+        'unidade_filter': unidade_filter,
+        'status_choices': PresencaDiaria.STATUS_CHOICES,
+    })
+
+@login_required
+def exportar_presenca_csv(request):
+    data_str = request.GET.get('data')
+    unidade_filter = request.GET.get('unidade', '')
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="presenca_{data_str}.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow(['Data', 'Colaborador', 'CPF/Matricula', 'Cliente/Unidade', 'Cidade/UF', 'Status', 'Observacao'])
+    
+    presencas = PresencaDiaria.objects.filter(data=data_str)
+    if unidade_filter:
+        presencas = presencas.filter(colaborador__unidade__icontains=unidade_filter)
+        
+    for p in presencas:
+        writer.writerow([
+            p.data.strftime("%d/%m/%Y"),
+            p.colaborador.nome,
+            p.colaborador.cpf,
+            p.colaborador.unidade,
+            p.colaborador.cidade if hasattr(p.colaborador, 'cidade') else '',
+            p.get_status_display(),
+            p.observacao
+        ])
+    return response
+
+@login_required
+def periodo_experiencia(request):
+    colaboradores = Colaborador.objects.filter(status='ativo', data_admissao__isnull=False)
+    hoje = timezone.now().date()
+    
+    for c in colaboradores:
+        c.data_45 = c.data_admissao + timedelta(days=45)
+        c.data_90 = c.data_admissao + timedelta(days=90)
+        c.dias_45_restantes = (c.data_45 - hoje).days
+        c.dias_90_restantes = (c.data_90 - hoje).days
+        
+    return render(request, 'admissional/experiencia_dashboard.html', {
+        'colaboradores': colaboradores,
+    })

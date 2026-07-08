@@ -47,12 +47,18 @@
         <input type="text" name="telefone" id="id_telefone" class="form-control" placeholder="(00) 00000-0000" required>
       </div>
       <div class="form-group">
-        <label class="form-label">CPF</label>
-        <input type="text" name="cpf" id="id_cpf" class="form-control" placeholder="000.000.000-00">
+        <label class="form-label">CPF/CNPJ <span class="required">*</span></label>
+        <input type="text" name="cpf_cnpj" id="id_cpf" class="form-control" placeholder="000.000.000-00 ou 00.000.000/0000-00" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Cidade</label>
-        <input type="text" name="cidade" id="id_cidade" class="form-control" placeholder="Cidade do candidato">
+        <label class="form-label">Cidade <span class="required">*</span></label>
+        <input type="text" name="cidade" id="id_cidade" class="form-control" placeholder="Cidade do candidato" required>
+      </div>
+      <div class="form-group" style="grid-column: span 2;">
+        <label class="form-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" name="tem_filhos_menores_14" id="id_tem_filhos">
+          Tem filhos menores de 14 anos?
+        </label>
       </div>
     </div>
     <div class="form-group">

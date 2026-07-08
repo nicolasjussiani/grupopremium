@@ -126,6 +126,14 @@
         <span class="nav-icon">🏢</span>
         Colaboradores Ativos
       </a>
+      <a href="{% url 'controle_presenca' %}" class="nav-item {% block nav_presenca %}{% endblock %}">
+        <span class="nav-icon">📅</span>
+        Controle de Presença
+      </a>
+      <a href="{% url 'periodo_experiencia' %}" class="nav-item {% block nav_experiencia %}{% endblock %}">
+        <span class="nav-icon">⏳</span>
+        Período de Experiência
+      </a>
     </nav>
 
     <!-- Footer do Sidebar -->

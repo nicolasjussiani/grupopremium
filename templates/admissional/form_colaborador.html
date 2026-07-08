@@ -10,7 +10,7 @@
 </div>
 
 <div class="card" style="max-width: 800px; margin: 0 auto;">
-  <form method="post" class="flex flex-col gap-4">
+  <form method="post" enctype="multipart/form-data" class="flex flex-col gap-4">
     {% csrf_token %}
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
         {% for field in form %}

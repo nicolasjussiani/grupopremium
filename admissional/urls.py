@@ -12,4 +12,7 @@ urlpatterns = [
     path('colaboradores/novo/', views.novo_colaborador, name='novo_colaborador'),
     path('colaboradores/<int:pk>/editar/', views.editar_colaborador, name='editar_colaborador'),
     path('colaboradores/<int:pk>/excluir/', views.excluir_colaborador, name='excluir_colaborador'),
+    path('colaboradores/presenca/', views.controle_presenca, name='controle_presenca'),
+    path('colaboradores/presenca/exportar/', views.exportar_presenca_csv, name='exportar_presenca_csv'),
+    path('colaboradores/experiencia/', views.periodo_experiencia, name='periodo_experiencia'),
 ]

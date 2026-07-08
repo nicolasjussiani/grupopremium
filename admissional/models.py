@@ -17,7 +17,7 @@ class Colaborador(models.Model):
     ]
 
     nome = models.CharField(max_length=200, verbose_name='Nome Completo')
-    cpf = models.CharField(max_length=14, unique=True, verbose_name='CPF')
+    cpf = models.CharField(max_length=18, unique=True, verbose_name='CPF/CNPJ')
     rg = models.CharField(max_length=20, blank=True, verbose_name='RG')
     data_nascimento = models.DateField(null=True, blank=True, verbose_name='Data de Nascimento')
     email = models.EmailField(verbose_name='E-mail')
@@ -32,6 +32,15 @@ class Colaborador(models.Model):
     pis_pasep = models.CharField(max_length=20, blank=True, verbose_name='PIS/PASEP')
     ctps = models.CharField(max_length=30, blank=True, verbose_name='CTPS')
     salario = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name='Salário')
+    
+    # Anexos de documentos
+    anexo_cpf = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo CPF/CNPJ')
+    anexo_rg = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo RG')
+    anexo_pis = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo PIS/PASEP')
+    anexo_ctps = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo CTPS')
+    anexo_titulo = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo Título de Eleitor')
+    anexo_reservista = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo Reservista')
+    
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
@@ -68,6 +77,8 @@ class Admissao(models.Model):
     responsavel_rh = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                         related_name='admissoes_responsavel')
     observacoes = models.TextField(blank=True)
+    tem_filhos_menores_14 = models.BooleanField(default=False, verbose_name='Tem filhos menores de 14 anos?')
+    data_inicio = models.DateField(null=True, blank=True, verbose_name='Data de Início na Empresa')
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
     concluido_em = models.DateTimeField(null=True, blank=True)
@@ -102,6 +113,9 @@ class DocumentoAdmissional(models.Model):
         ('atestado_saude', 'Atestado de Saúde Ocupacional (ASO)'),
         ('dados_bancarios', 'Dados Bancários'),
         ('antecedentes', 'Certidão de Antecedentes Criminais'),
+        ('titulo_eleitor', 'Título de Eleitor'),
+        ('reservista', 'Certificado de Reservista'),
+        ('carteira_vacinacao', 'Carteira de Vacinação dos Filhos'),
     ]
     STATUS = [
         ('pendente', 'Pendente'),
@@ -128,3 +142,28 @@ class DocumentoAdmissional(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} — {self.get_status_display()}"
+
+
+class PresencaDiaria(models.Model):
+    STATUS_CHOICES = [
+        ('presente', 'Presente'),
+        ('falta', 'Falta'),
+        ('atestado', 'Atestado/Licença'),
+        ('folga', 'Folga'),
+    ]
+
+    colaborador = models.ForeignKey(Colaborador, on_delete=models.CASCADE, related_name='presencas')
+    data = models.DateField(verbose_name='Data')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='presente')
+    observacao = models.TextField(blank=True, verbose_name='Observação')
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Presença Diária'
+        verbose_name_plural = 'Controle de Presenças'
+        unique_together = ('colaborador', 'data')
+        ordering = ['-data', 'colaborador__nome']
+
+    def __str__(self):
+        return f"{self.colaborador.nome} - {self.data} ({self.get_status_display()})"

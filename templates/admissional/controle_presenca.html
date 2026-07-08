@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Controle de Presença Diária — ERP Grupo PremiumBR{% endblock %}
+{% block nav_colaboradores %}active{% endblock %}
+{% block topbar_title %}Controle de Presença Diária{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-2" style="margin-bottom:20px;">
+  <div class="mod-title">?? Controle de Presença Diária</div>
+  <div class="mod-desc">Marque a presença dos colaboradores ativos para o dia selecionado.</div>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+  <form method="get" class="flex gap-4 align-center">
+    <div class="form-group" style="margin-bottom:0; flex:1; max-width: 250px;">
+      <label class="form-label">Data</label>
+      <input type="date" name="data" class="form-control" value="{{ data_selecionada|date:'Y-m-d' }}" required>
+    </div>
+    <div class="form-group" style="margin-bottom:0; flex:1; max-width: 250px;">
+        <label class="form-label">Unidade/Cliente</label>
+        <input type="text" name="unidade" class="form-control" value="{{ unidade_filter }}" placeholder="Filtrar por unidade...">
+    </div>
+    <div style="padding-top: 24px;">
+      <button type="submit" class="btn btn-mod1">Buscar</button>
+      <a href="{% url 'exportar_presenca_csv' %}?data={{ data_selecionada|date:'Y-m-d' }}&unidade={{ unidade_filter }}" class="btn btn-success">?? Exportar CSV</a>
+    </div>
+  </form>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="data" value="{{ data_selecionada|date:'Y-m-d' }}">
+    <div class="card">
+        <div style="overflow-x:auto;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Colaborador</th>
+                        <th>Cliente/Unidade</th>
+                        <th>CPF/Matrícula</th>
+                        <th>Status do Dia</th>
+                        <th>Observação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in presencas %}
+                    <tr>
+                        <td style="font-weight: 500;">
+                            {{ p.colaborador.nome }}
+                            <input type="hidden" name="colaborador_{{ p.colaborador.pk }}" value="1">
+                        </td>
+                        <td>{{ p.colaborador.unidade }}</td>
+                        <td>{{ p.colaborador.cpf }}</td>
+                        <td>
+                            <select name="status_{{ p.colaborador.pk }}" class="form-control" style="padding: 4px; min-width: 120px;">
+                                {% for v, l in status_choices %}
+                                <option value="{{ v }}" {% if p.status == v %}selected{% endif %}>{{ l }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input type="text" name="obs_{{ p.colaborador.pk }}" class="form-control" value="{{ p.observacao }}" style="padding: 4px;" placeholder="Opcional...">
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">
+                            Nenhum colaborador ativo encontrado para os filtros.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top: 16px; text-align: right;">
+            <button type="submit" class="btn btn-mod2">Salvar Presenças do Dia</button>
+        </div>
+    </div>
+</form>
+{% endblock %}

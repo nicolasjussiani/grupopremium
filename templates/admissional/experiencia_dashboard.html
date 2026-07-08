@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Controle de Experiência — ERP Grupo PremiumBR{% endblock %}
+{% block nav_colaboradores %}active{% endblock %}
+{% block topbar_title %}Controle de Experiência{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-2" style="margin-bottom:20px;">
+  <div class="mod-title">? Controle de Período de Experiência</div>
+  <div class="mod-desc">Acompanhe os prazos de 45 e 90 dias dos colaboradores.</div>
+</div>
+
+<div class="card">
+    <div style="overflow-x:auto;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Colaborador</th>
+                    <th>Unidade</th>
+                    <th>Data Admissão</th>
+                    <th>45 Dias (Vencimento)</th>
+                    <th>90 Dias (Vencimento)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in colaboradores %}
+                <tr>
+                    <td style="font-weight: 500;">{{ c.nome }}</td>
+                    <td>{{ c.unidade }}</td>
+                    <td>{{ c.data_admissao|date:'d/m/Y' }}</td>
+                    
+                    {% if c.dias_45_restantes < 0 %}
+                    <td style="color:var(--text-muted);">{{ c.data_45|date:'d/m/Y' }} (Expirou)</td>
+                    {% elif c.dias_45_restantes <= 5 %}
+                    <td style="color:var(--danger); font-weight:600;">{{ c.data_45|date:'d/m/Y' }} (Em {{ c.dias_45_restantes }} dias)</td>
+                    {% else %}
+                    <td>{{ c.data_45|date:'d/m/Y' }} (Faltam {{ c.dias_45_restantes }} dias)</td>
+                    {% endif %}
+
+                    {% if c.dias_90_restantes < 0 %}
+                    <td style="color:var(--text-muted);">{{ c.data_90|date:'d/m/Y' }} (Expirou)</td>
+                    {% elif c.dias_90_restantes <= 5 %}
+                    <td style="color:var(--danger); font-weight:600;">{{ c.data_90|date:'d/m/Y' }} (Em {{ c.dias_90_restantes }} dias)</td>
+                    {% else %}
+                    <td>{{ c.data_90|date:'d/m/Y' }} (Faltam {{ c.dias_90_restantes }} dias)</td>
+                    {% endif %}
+
+                    <td>
+                        {% if c.dias_90_restantes < 0 %}
+                        <span class="badge badge-success">Efetivado</span>
+                        {% else %}
+                        <span class="badge badge-warning">Em Experiência</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">
+                        Nenhum colaborador com dados de admissão.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

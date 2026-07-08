@@ -125,11 +125,12 @@ def detalhe_vaga(request, pk):
 def adicionar_candidato(request, vaga_pk):
     vaga = get_object_or_404(Vaga, pk=vaga_pk)
     if request.method == 'POST':
-        cpf = request.POST.get('cpf', '')
+        cpf_cnpj = request.POST.get('cpf_cnpj', '')
         email = request.POST.get('email', '')
         telefone = request.POST.get('telefone', '')
         nome = request.POST.get('nome', '')
         cidade = request.POST.get('cidade', '')
+        tem_filhos_menores_14 = request.POST.get('tem_filhos_menores_14') == 'on'
 
         candidato = Candidato(
             vaga=vaga,
@@ -137,7 +138,8 @@ def adicionar_candidato(request, vaga_pk):
             email=email,
             telefone=telefone,
             cidade=cidade,
-            cpf=cpf,
+            cpf_cnpj=cpf_cnpj,
+            tem_filhos_menores_14=tem_filhos_menores_14,
             curriculum_obs=request.POST.get('curriculum_obs', ''),
             etapa_atual='triagem',
         )
@@ -164,7 +166,7 @@ def adicionar_candidato(request, vaga_pk):
                     'nome': nome,
                     'telefone': telefone,
                     'cidade': cidade,
-                    'cpf': cpf,
+                    'cpf_cnpj': cpf_cnpj,
                     'ultima_vaga': vaga
                 }
             )
@@ -232,11 +234,18 @@ def _disparar_admissao(candidato, usuario):
             unidade_destino=candidato.vaga.unidade,
             status='aguardando_documentos',
             responsavel_rh=usuario,
+            tem_filhos_menores_14=candidato.tem_filhos_menores_14,
         )
         admissao.save()
 
         # Criar checklist de documentos automaticamente
         tipos_doc = [t[0] for t in DocumentoAdmissional.TIPOS]
+        
+        # Filtrar documentos desnecessários baseados na flag
+        if not candidato.tem_filhos_menores_14:
+            if 'carteira_vacinacao' in tipos_doc:
+                tipos_doc.remove('carteira_vacinacao')
+        
         for tipo in tipos_doc:
             DocumentoAdmissional.objects.create(admissao=admissao, tipo=tipo, status='pendente')
 
