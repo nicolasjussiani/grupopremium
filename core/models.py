@@ -19,6 +19,7 @@ class PerfilUsuario(models.Model):
         ('trip_premium', 'Trip Premium'),
         ('log_premium', 'Log Premium'),
         ('matriz', 'Matriz Grupo PremiumBR'),
+        ('eco_premium', 'Eco Premium'),
     ]
 
     usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil')

@@ -245,9 +245,17 @@ def controle_presenca(request):
         
     presencas = []
     for c in colaboradores:
-        p, _ = PresencaDiaria.objects.get_or_create(colaborador=c, data=data_selecionada)
-        p.status_choices = PresencaDiaria.STATUS_CHOICES
-        presencas.append(p)
+        try:
+            p, _ = PresencaDiaria.objects.get_or_create(colaborador=c, data=data_selecionada)
+            p.status_choices = PresencaDiaria.STATUS_CHOICES
+            presencas.append(p)
+        except Exception:
+            # Em caso de erro de integridade ou múltiplos objetos (rara inconsistência no DB)
+            p = PresencaDiaria.objects.filter(colaborador=c, data=data_selecionada).first()
+            if not p:
+                p = PresencaDiaria(colaborador=c, data=data_selecionada)
+            p.status_choices = PresencaDiaria.STATUS_CHOICES
+            presencas.append(p)
         
     return render(request, 'admissional/controle_presenca.html', {
         'presencas': presencas,
@@ -289,10 +297,25 @@ def periodo_experiencia(request):
     hoje = timezone.now().date()
     
     for c in colaboradores:
-        c.data_45 = c.data_admissao + timedelta(days=45)
-        c.data_90 = c.data_admissao + timedelta(days=90)
-        c.dias_45_restantes = (c.data_45 - hoje).days
-        c.dias_90_restantes = (c.data_90 - hoje).days
+        try:
+            if isinstance(c.data_admissao, str):
+                from datetime import datetime
+                c.data_admissao = datetime.strptime(c.data_admissao, '%Y-%m-%d').date()
+            if c.data_admissao:
+                c.data_45 = c.data_admissao + timedelta(days=45)
+                c.data_90 = c.data_admissao + timedelta(days=90)
+                c.dias_45_restantes = (c.data_45 - hoje).days
+                c.dias_90_restantes = (c.data_90 - hoje).days
+            else:
+                c.data_45 = hoje
+                c.data_90 = hoje
+                c.dias_45_restantes = 0
+                c.dias_90_restantes = 0
+        except Exception:
+            c.data_45 = hoje
+            c.data_90 = hoje
+            c.dias_45_restantes = 0
+            c.dias_90_restantes = 0
         
     return render(request, 'admissional/experiencia_dashboard.html', {
         'colaboradores': colaboradores,

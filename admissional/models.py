@@ -14,6 +14,7 @@ class Colaborador(models.Model):
     MARCAS = [
         ('trip_premium', 'Trip Premium'),
         ('log_premium', 'Log Premium'),
+        ('eco_premium', 'Eco Premium'),
     ]
 
     nome = models.CharField(max_length=200, verbose_name='Nome Completo')
