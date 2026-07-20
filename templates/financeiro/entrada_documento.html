@@ -117,7 +117,7 @@
         alert('✅ Documento lido com sucesso pela Inteligência Artificial!');
       } else {
         console.error("Erro OCR:", data.erro);
-        alert('⚠️ A IA não conseguiu ler perfeitamente. Por favor, preencha manualmente.');
+        alert('⚠️ Erro na leitura com a IA:\n' + data.erro);
       }
     } catch (err) {
       console.error(err);
