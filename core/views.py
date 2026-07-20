@@ -96,11 +96,11 @@ def dashboard(request):
             prioridade='urgente').exclude(status='arquivada').count()
 
         # Módulo 4 - SESMET
-        epis_vencidos    = RegistroEPI.objects.filter(data_validade__lt=hoje, status='ativo').count()
+        epis_vencidos    = RegistroEPI.objects.filter(data_validade__lt=hoje, tipo_movimentacao='retirada').count()
         epis_vencendo_7d = RegistroEPI.objects.filter(
             data_validade__gte=hoje,
             data_validade__lte=hoje + timezone.timedelta(days=7),
-            status='ativo').count()
+            tipo_movimentacao='retirada').count()
 
         # Módulo 5 - Compras
         solicitacoes_pendentes = SolicitacaoMaterial.objects.filter(
@@ -260,4 +260,79 @@ def auditoria_sistema(request):
     
     return render(request, 'core/auditoria.html', {
         'logs': logs
+    })
+
+
+from django.utils import timezone
+from core.models import AprovacaoRegistro
+from compras.models import PedidoCompra
+from financeiro.models import DocumentoFinanceiro
+
+@login_required
+def painel_sla_processos(request):
+    """
+    Dashboard de Tempo de Processos (SLA). Exclusivo para CEO/Admin.
+    """
+    eh_luiz = request.user.username.lower() == 'luiz' or 'luiz' in request.user.get_full_name().lower()
+    if not (request.user.is_superuser or eh_luiz):
+        messages.error(request, '⛔ Acesso restrito à Diretoria.')
+        return redirect('dashboard')
+
+    agora = timezone.now()
+    processos = []
+
+    # 1. Aprovações Genéricas Pendentes
+    aprovacoes = AprovacaoRegistro.objects.filter(status='pendente')
+    for ap in aprovacoes:
+        delta = agora - ap.criado_em
+        processos.append({
+            'tipo': 'Aprovação Genérica',
+            'modulo': ap.get_modulo_display(),
+            'titulo': ap.titulo,
+            'status': 'Pendente',
+            'responsavel': 'Gestor / Diretoria',
+            'criado_em': ap.criado_em,
+            'dias': delta.days,
+            'horas': delta.seconds // 3600,
+            'alerta': delta.days >= 2,
+        })
+
+    # 2. Pedidos de Compra Pendentes
+    pedidos = PedidoCompra.objects.filter(status__in=['em_cotacao', 'aguardando_aprovacao'])
+    for pc in pedidos:
+        delta = agora - pc.criado_em
+        resp = pc.aprovado_por.get_full_name() if pc.aprovado_por else 'Setor de Compras'
+        processos.append({
+            'tipo': 'Pedido de Compra',
+            'modulo': 'Compras',
+            'titulo': f"{pc.solicitacao.material.nome} - {pc.fornecedor}",
+            'status': pc.get_status_display(),
+            'responsavel': resp,
+            'criado_em': pc.criado_em,
+            'dias': delta.days,
+            'horas': delta.seconds // 3600,
+            'alerta': delta.days >= 2,
+        })
+
+    # 3. Documentos Financeiros Pendentes
+    docs = DocumentoFinanceiro.objects.filter(status__in=['recebido', 'em_auditoria', 'aguardando_correcao'])
+    for doc in docs:
+        delta = agora - doc.criado_em
+        processos.append({
+            'tipo': 'Documento Financeiro',
+            'modulo': 'Financeiro',
+            'titulo': f"{doc.numero_documento} - R$ {doc.valor}",
+            'status': doc.get_status_display(),
+            'responsavel': 'Financeiro / Auditoria',
+            'criado_em': doc.criado_em,
+            'dias': delta.days,
+            'horas': delta.seconds // 3600,
+            'alerta': delta.days >= 2,
+        })
+
+    # Ordenar pelos mais demorados
+    processos = sorted(processos, key=lambda x: x['criado_em'])
+
+    return render(request, 'core/painel_sla.html', {
+        'processos': processos
     })
