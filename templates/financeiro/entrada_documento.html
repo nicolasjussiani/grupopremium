@@ -78,6 +78,9 @@
         </div>
       </div>
 
+      <input type="hidden" name="produtos_json" id="produtos_json" value="[]">
+      <div id="produtos_preview"></div>
+
       <div class="gateway-actions" style="margin-top:8px;">
         <button type="submit" class="btn btn-mod6">📥 Receber e Auditar</button>
         <a href="{% url 'painel_financeiro' %}" class="btn btn-outline">← Cancelar</a>
@@ -114,6 +117,18 @@
         if (info.numero_documento) document.querySelector('input[name="numero_documento"]').value = info.numero_documento;
         if (info.data_emissao) document.querySelector('input[name="data_emissao"]').value = info.data_emissao;
         if (info.data_vencimento) document.getElementById('id_vencimento').value = info.data_vencimento;
+        
+        if (info.produtos && info.produtos.length > 0) {
+          document.getElementById('produtos_json').value = JSON.stringify(info.produtos);
+          let html = `<table class="table" style="margin-top:10px; font-size:12px;">
+                        <thead><tr><th>Produto</th><th>NCM</th><th>Qtd</th><th>V.Unit</th><th>V.Total</th></tr></thead><tbody>`;
+          info.produtos.forEach(p => {
+             html += `<tr><td>${p.descricao_produto}</td><td>${p.ncm}</td><td>${p.quantidade}</td><td>R$ ${p.valor_unitario}</td><td>R$ ${p.valor_total}</td></tr>`;
+          });
+          html += `</tbody></table>`;
+          document.getElementById('produtos_preview').innerHTML = html;
+        }
+
         alert('✅ Documento lido com sucesso pela Inteligência Artificial!');
       } else {
         console.error("Erro OCR:", data.erro);

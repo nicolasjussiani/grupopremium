@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.db.models import Sum
-from .models import DocumentoFinanceiro, AuditoriaItem, LancamentoERP, OrcamentoCentroCusto
+from .models import DocumentoFinanceiro, AuditoriaItem, LancamentoERP, OrcamentoCentroCusto, ItemDocumentoFinanceiro
 from django.http import HttpResponse
 
 
@@ -88,6 +88,22 @@ def entrada_documento(request):
             arquivo_upload.seek(0)
 
         doc.save()
+
+        produtos_json = request.POST.get('produtos_json', '[]')
+        try:
+            import json
+            produtos = json.loads(produtos_json)
+            for prod in produtos:
+                ItemDocumentoFinanceiro.objects.create(
+                    documento=doc,
+                    descricao_produto=prod.get('descricao_produto', 'Produto sem nome')[:255],
+                    ncm=prod.get('ncm', '')[:20],
+                    quantidade=prod.get('quantidade') or 1,
+                    valor_unitario=prod.get('valor_unitario') or 0,
+                    valor_total=prod.get('valor_total') or 0
+                )
+        except Exception as e:
+            print(f"Erro ao salvar itens do documento: {e}")
 
         # Criar checklist de auditoria automaticamente
         for item_key, _ in AuditoriaItem.ITENS_CHECKLIST:

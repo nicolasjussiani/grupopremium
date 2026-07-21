@@ -22,14 +22,29 @@ def extrair_dados_documento(file_bytes, file_mime_type="application/pdf"):
     Leia o documento anexado (nota fiscal, fatura, recibo ou boleto) e extraia as seguintes informações exatamente no formato JSON abaixo.
     Não inclua markdown, crases ou texto extra, apenas o JSON válido.
 
+    ATENÇÃO:
+    - O 'valor' deve ser SEMPRE o Valor Total da Nota Fiscal. Não confunda com o valor do Frete ou de impostos parciais.
+    - Em Notas Fiscais, a 'razao_social_emitente' geralmente é o nome no topo ou logo após "IDENTIFICAÇÃO DO EMITENTE".
+    - O 'numero_documento' geralmente está próximo de 'SÉRIE' no topo à direita.
+    - Para 'produtos', faça uma lista de todos os itens detalhados na nota (nome, NCM, qtd, unitário e total).
+
     Estrutura JSON desejada:
     {
         "cnpj_emitente": "somente numeros ou vazio",
-        "razao_social_emitente": "Nome da empresa emissora",
+        "razao_social_emitente": "Nome correto da empresa emissora",
         "numero_documento": "Numero da nota ou documento",
-        "valor": "valor monetario em formato americano (ex: 1500.50), sem cifrao",
+        "valor": "valor TOTAL da nota em formato americano (ex: 1500.50), sem cifrao",
         "data_emissao": "AAAA-MM-DD",
-        "data_vencimento": "AAAA-MM-DD (se nao houver, tente inferir pela emissao ou use a emissao)"
+        "data_vencimento": "AAAA-MM-DD (se nao houver, tente inferir pela emissao ou use a emissao)",
+        "produtos": [
+            {
+                "descricao_produto": "Nome completo do produto",
+                "ncm": "NCM (apenas numeros)",
+                "quantidade": "quantidade em formato americano (ex: 1.0 ou 2.5)",
+                "valor_unitario": "valor unitario em formato americano",
+                "valor_total": "valor total do item em formato americano"
+            }
+        ]
     }
     """
     

@@ -103,6 +103,38 @@
   </div>
 </div>
 
+{% if documento.itens.all %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header">
+    <div class="card-title">📦 Produtos / Itens da Nota</div>
+  </div>
+  <div class="table-wrap" style="border:none;">
+    <table>
+      <thead>
+        <tr>
+          <th>Produto / Serviço</th>
+          <th>NCM</th>
+          <th>Qtd</th>
+          <th>V. Unitário</th>
+          <th>V. Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in documento.itens.all %}
+        <tr>
+          <td style="font-weight:500;">{{ item.descricao_produto }}</td>
+          <td style="font-family:monospace;">{{ item.ncm|default:"—" }}</td>
+          <td>{{ item.quantidade }}</td>
+          <td>R$ {{ item.valor_unitario|floatformat:2 }}</td>
+          <td style="font-weight:600;">R$ {{ item.valor_total|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <!-- Lançamentos -->
 {% if lancamentos %}
 <div class="card" style="margin-top:20px;">

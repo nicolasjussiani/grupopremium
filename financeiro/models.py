@@ -144,3 +144,19 @@ class OrcamentoCentroCusto(models.Model):
     def __str__(self):
         mes_ano = self.competencia.strftime('%m/%Y')
         return f"Budget {self.centro_custo} ({mes_ano}) — R$ {self.valor_orcado}"
+
+
+class ItemDocumentoFinanceiro(models.Model):
+    documento = models.ForeignKey(DocumentoFinanceiro, on_delete=models.CASCADE, related_name='itens', verbose_name='Documento')
+    descricao_produto = models.CharField(max_length=255, verbose_name='Descrição do Produto/Serviço')
+    ncm = models.CharField(max_length=20, blank=True, verbose_name='NCM')
+    quantidade = models.DecimalField(max_digits=10, decimal_places=3, default=1, verbose_name='Quantidade')
+    valor_unitario = models.DecimalField(max_digits=14, decimal_places=2, verbose_name='Valor Unitário (R$)')
+    valor_total = models.DecimalField(max_digits=14, decimal_places=2, verbose_name='Valor Total (R$)')
+
+    class Meta:
+        verbose_name = 'Item do Documento'
+        verbose_name_plural = 'Itens do Documento'
+
+    def __str__(self):
+        return f'{self.descricao_produto} - R$ {self.valor_total}'
