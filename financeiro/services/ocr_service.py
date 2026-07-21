@@ -1,93 +1,61 @@
 import os
-import re
-import io
-
-try:
-    import fitz  # PyMuPDF
-    HAS_FITZ = True
-except ImportError:
-    HAS_FITZ = False
-
-try:
-    import pytesseract
-    from PIL import Image
-    HAS_OCR = True
-except ImportError:
-    HAS_OCR = False
+import json
+import google.generativeai as genai
+from django.conf import settings
 
 def extrair_dados_documento(file_bytes, file_mime_type="application/pdf"):
     """
-    Usa PyMuPDF e Tesseract para extrair texto e Regex para buscar as informações.
+    Usa o Google Gemini para extrair dados estruturados de um PDF/Imagem.
     Retorna um dicionário com os campos encontrados.
     """
-    if not HAS_FITZ:
-        raise Exception("Biblioteca de leitura de PDF (PyMuPDF) não está instalada no servidor.")
-        
-    texto = ""
-    try:
-        if file_mime_type == "application/pdf":
-            doc = fitz.open(stream=file_bytes, filetype="pdf")
-            for page in doc:
-                page_text = page.get_text()
-                if len(page_text.strip()) > 5:
-                    texto += page_text + "\n"
-                else:
-                    if HAS_OCR:
-                        try:
-                            pix = page.get_pixmap(dpi=150)
-                            img = Image.open(io.BytesIO(pix.tobytes()))
-                            texto += pytesseract.image_to_string(img, lang='por') + "\n"
-                        except Exception as ocr_e:
-                            print(f"OCR ignorado na página: {ocr_e}")
-            doc.close()
-        else:
-            if HAS_OCR:
-                img = Image.open(io.BytesIO(file_bytes))
-                texto = pytesseract.image_to_string(img, lang='por')
-    except Exception as e:
-        print(f"Erro na extração de texto: {e}")
-        raise Exception(f"Falha ao processar o arquivo: {str(e)}")
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise Exception("Chave da API do Gemini (GEMINI_API_KEY) não configurada.")
+    
+    genai.configure(api_key=api_key)
+    
+    # Prepara o modelo (gemini-1.5-flash é rápido e tem suporte a visão/pdf)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    prompt = """
+    Você é um assistente financeiro altamente especializado em extração de dados (OCR).
+    Leia o documento anexado (nota fiscal, fatura, recibo ou boleto) e extraia as seguintes informações exatamente no formato JSON abaixo.
+    Não inclua markdown, crases ou texto extra, apenas o JSON válido.
 
-    # 1. Extrair CNPJ (primeiro encontrado costuma ser do emissor na maioria dos layouts se for NF-e)
-    cnpj_match = re.search(r'\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}', texto)
-    cnpj = cnpj_match.group(0) if cnpj_match else ""
-
-    # 2. Extrair Número da NF (Nº 000.000.000 ou Numero: 12345)
-    numero_match = re.search(r'(?:Nº|No|Número|Numero|NF-e)\s*[:\-\.]?\s*0*(\d{4,9})', texto, re.IGNORECASE)
-    numero = numero_match.group(1) if numero_match else ""
-
-    # 3. Extrair Data de Emissão (DD/MM/AAAA)
-    data_match = re.search(r'(\d{2})[-/](\d{2})[-/](\d{4})', texto)
-    data_emissao = ""
-    if data_match:
-        dia, mes, ano = data_match.groups()
-        data_emissao = f"{ano}-{mes}-{dia}" # Formato AAAA-MM-DD exigido pelo HTML
-
-    # 4. Extrair Valor Total (VALOR TOTAL DA NOTA 1.500,00 ou TOTAL: R$ 1.500,00)
-    # Busca um número no padrão 1.234,56 ou 1234,56
-    valor_match = re.search(r'(?:TOTAL(?: DA NOTA)?|VALOR(?: TOTAL)?)[^\d]*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})', texto, re.IGNORECASE)
-    valor = ""
-    if valor_match:
-        # Converter 1.500,00 para 1500.50
-        valor = valor_match.group(1).replace('.', '').replace(',', '.')
-
-    # 5. Tentar pegar a Razão Social (geralmente primeira linha antes do CNPJ ou texto grande no topo)
-    # Muito difícil via Regex puro sem ancoras, deixamos em branco para a pessoa conferir, ou pegamos a primeira linha válida
-    razao_social = ""
-    linhas = texto.split('\n')
-    for linha in linhas:
-        linha = linha.strip()
-        if len(linha) > 5 and not re.search(r'\d', linha) and not 'RECEBEMOS' in linha.upper():
-            razao_social = linha[:50]
-            break
-
-    dados_json = {
-        "cnpj_emitente": cnpj,
-        "razao_social_emitente": razao_social,
-        "numero_documento": numero,
-        "valor": valor,
-        "data_emissao": data_emissao,
-        "data_vencimento": data_emissao # Fallback para vencimento
+    Estrutura JSON desejada:
+    {
+        "cnpj_emitente": "somente numeros ou vazio",
+        "razao_social_emitente": "Nome da empresa emissora",
+        "numero_documento": "Numero da nota ou documento",
+        "valor": "valor monetario em formato americano (ex: 1500.50), sem cifrao",
+        "data_emissao": "AAAA-MM-DD",
+        "data_vencimento": "AAAA-MM-DD (se nao houver, tente inferir pela emissao ou use a emissao)"
     }
-
-    return dados_json
+    """
+    
+    # Configuração de envio do arquivo em inline data
+    contents = [
+        {
+            "mime_type": file_mime_type,
+            "data": file_bytes
+        },
+        prompt
+    ]
+    
+    try:
+        response = model.generate_content(contents)
+        text_response = response.text.strip()
+        
+        # Limpar crases Markdown caso o modelo retorne
+        if text_response.startswith('```json'):
+            text_response = text_response[7:]
+        if text_response.startswith('```'):
+            text_response = text_response[3:]
+        if text_response.endswith('```'):
+            text_response = text_response[:-3]
+            
+        dados_json = json.loads(text_response.strip())
+        return dados_json
+    except Exception as e:
+        print(f"Erro no OCR: {e}")
+        raise Exception(f"Falha ao ler o documento com a IA. Motivo: {str(e)}")
