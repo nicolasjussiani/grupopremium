@@ -1,6 +1,6 @@
 import os
 import json
-import google.generativeai as genai
+from google import genai
 from django.conf import settings
 
 def extrair_dados_documento(file_bytes, file_mime_type="application/pdf"):
@@ -12,10 +12,10 @@ def extrair_dados_documento(file_bytes, file_mime_type="application/pdf"):
     if not api_key:
         raise Exception("Chave da API do Gemini (GEMINI_API_KEY) não configurada.")
     
-    genai.configure(api_key=api_key)
+    client = genai.Client(api_key=api_key)
     
-    # Prepara o modelo (gemini-1.5-flash é rápido e tem suporte a visão/pdf)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # Prepara o modelo (gemini-3.5-flash conforme solicitado)
+    model_name = 'gemini-3.5-flash'
     
     prompt = """
     Você é um assistente financeiro altamente especializado em extração de dados (OCR).
@@ -48,17 +48,19 @@ def extrair_dados_documento(file_bytes, file_mime_type="application/pdf"):
     }
     """
     
+    from google.genai import types
+    
     # Configuração de envio do arquivo em inline data
     contents = [
-        {
-            "mime_type": file_mime_type,
-            "data": file_bytes
-        },
+        types.Part.from_bytes(data=file_bytes, mime_type=file_mime_type),
         prompt
     ]
     
     try:
-        response = model.generate_content(contents)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=contents
+        )
         text_response = response.text.strip()
         
         # Limpar crases Markdown caso o modelo retorne
