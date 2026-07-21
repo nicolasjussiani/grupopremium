@@ -14,8 +14,8 @@ def extrair_dados_documento(file_bytes, file_mime_type="application/pdf"):
     
     client = genai.Client(api_key=api_key)
     
-    # Prepara o modelo (gemini-3.5-flash conforme solicitado)
-    model_name = 'gemini-3.5-flash'
+    # Prepara o modelo (gemini-2.5-flash)
+    model_name = 'gemini-2.5-flash'
     
     prompt = """
     Você é um assistente financeiro altamente especializado em extração de dados (OCR).
