@@ -27,94 +27,77 @@ class IntegracaoSeguranca(models.Model):
         return f"Integração: {self.colaborador.nome} ({self.data_integracao})"
 
 
+class EquipamentoProtecao(models.Model):
+    nome = models.CharField(max_length=150, verbose_name='Nome do EPI (ex: Luva de Raspa)')
+    numero_ca = models.CharField(max_length=20, blank=True, verbose_name='Número do CA')
+    fabricante = models.CharField(max_length=150, blank=True)
+    validade_ca = models.DateField(null=True, blank=True, verbose_name='Validade do CA')
+    dias_durabilidade = models.PositiveIntegerField(default=30, verbose_name='Durabilidade Estimada (dias)')
+    estoque_atual = models.IntegerField(default=0, verbose_name='Quantidade em Estoque')
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Equipamento de Proteção'
+        verbose_name_plural = 'Equipamentos de Proteção (Catálogo)'
+        ordering = ['nome']
+
+    def __str__(self):
+        return f"{self.nome} (CA: {self.numero_ca})"
+
 class RegistroEPI(models.Model):
-    TIPOS_EPI = [
-        ('luva', 'Luva'),
-        ('calcado', 'Calçado de Segurança'),
-        ('protetor_auricular', 'Protetor Auricular'),
-        ('respirador_p2', 'Respirador P2'),
-        ('oculos', 'Óculos de Proteção'),
-        ('uniforme', 'Uniforme'),
-        ('capacete', 'Capacete'),
-        ('cinto_seguranca', 'Cinto de Segurança'),
-        ('avental', 'Avental de Proteção'),
-    ]
-    STATUS = [
-        ('ativo', 'Ativo / Em Uso'),
-        ('vencido', 'Vencido — Substituição Necessária'),
-        ('substituido', 'Substituído'),
-        ('perdido', 'Perdido / Danificado'),
-    ]
-    MOTIVOS_SUBSTITUICAO = [
-        ('vencimento', 'Vencimento da Validade'),
-        ('dano', 'Dano / Desgaste'),
-        ('perda', 'Perda'),
-        ('troca_cargo', 'Troca de Cargo/Função'),
-        ('inicial', 'Entrega Inicial'),
+    TIPO_MOVIMENTACAO = [
+        ('retirada', 'Retirada (Entrega)'),
+        ('devolucao', 'Devolução'),
+        ('descarte', 'Descarte / Perda'),
     ]
 
-    # Periodicidades em dias por tipo de EPI
-    PERIODICIDADE = {
-        'luva': 30,
-        'calcado': 365,
-        'protetor_auricular': 90,
-        'respirador_p2': 3,
-        'oculos': None,   # Avaliação
-        'uniforme': None,  # Necessidade
-        'capacete': 730,
-        'cinto_seguranca': 365,
-        'avental': 180,
-    }
-
-    colaborador = models.ForeignKey(Colaborador, on_delete=models.CASCADE, related_name='epis')
-    tipo_epi = models.CharField(max_length=30, choices=TIPOS_EPI, verbose_name='Tipo de EPI')
-    data_entrega = models.DateField(verbose_name='Data de Entrega')
+    colaborador = models.ForeignKey(Colaborador, on_delete=models.CASCADE, related_name='movimentacoes_epi')
+    equipamento = models.ForeignKey(EquipamentoProtecao, on_delete=models.PROTECT, related_name='movimentacoes')
+    tipo_movimentacao = models.CharField(max_length=20, choices=TIPO_MOVIMENTACAO, default='retirada')
+    
+    data_movimentacao = models.DateField(verbose_name='Data da Movimentação', default=timezone.now)
     quantidade = models.PositiveIntegerField(default=1)
-    numero_ca = models.CharField(max_length=20, blank=True, verbose_name='Número CA')
-    data_validade = models.DateField(null=True, blank=True, verbose_name='Data de Validade/Substituição')
-    status = models.CharField(max_length=20, choices=STATUS, default='ativo')
-    motivo_substituicao = models.CharField(max_length=20, choices=MOTIVOS_SUBSTITUICAO,
-                                            default='inicial', verbose_name='Motivo')
+    
+    # Validade calculada no caso de 'retirada'
+    data_validade = models.DateField(null=True, blank=True, verbose_name='Data de Vencimento Previsto')
+    
     assinado = models.BooleanField(default=False, verbose_name='Colaborador Assinou?')
     assinatura_base64 = models.TextField(blank=True, null=True, verbose_name='Assinatura Digital')
     data_assinatura = models.DateTimeField(null=True, blank=True, verbose_name='Data da Assinatura')
-    registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
-                                        related_name='epis_registrados')
+    
+    registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     obs = models.TextField(blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = 'Registro de EPI'
-        verbose_name_plural = 'Registros de EPIs'
-        ordering = ['-data_entrega']
+        verbose_name = 'Movimentação de EPI'
+        verbose_name_plural = 'Movimentações de EPIs'
+        ordering = ['-data_movimentacao', '-criado_em']
 
     def __str__(self):
-        return f"{self.colaborador.nome} — {self.get_tipo_epi_display()} ({self.data_entrega})"
+        return f"{self.get_tipo_movimentacao_display()} - {self.equipamento.nome} ({self.colaborador.nome})"
 
     def calcular_validade(self):
-        """Calcula data de validade com base na periodicidade do tipo de EPI"""
-        dias = self.PERIODICIDADE.get(self.tipo_epi)
-        if dias:
-            return self.data_entrega + timedelta(days=dias)
-        return None
-
-    def esta_vencido(self):
-        if self.data_validade:
-            return timezone.now().date() > self.data_validade
-        return False
-
-    def dias_para_vencer(self):
-        if self.data_validade:
-            delta = self.data_validade - timezone.now().date()
-            return delta.days
+        if self.tipo_movimentacao == 'retirada' and self.equipamento.dias_durabilidade:
+            return self.data_movimentacao + timedelta(days=self.equipamento.dias_durabilidade)
         return None
 
     def save(self, *args, **kwargs):
-        if not self.data_validade:
+        is_new = self.pk is None
+        if not self.data_validade and self.tipo_movimentacao == 'retirada':
             self.data_validade = self.calcular_validade()
-        if self.data_validade and timezone.now().date() > self.data_validade:
-            self.status = 'vencido'
+            
         super().save(*args, **kwargs)
+        
+        # Atualiza estoque apenas na criação do registro
+        if is_new:
+            if self.tipo_movimentacao == 'retirada':
+                self.equipamento.estoque_atual -= self.quantidade
+            elif self.tipo_movimentacao == 'devolucao':
+                self.equipamento.estoque_atual += self.quantidade
+            self.equipamento.save()
+
 
 
 class OrdemServico(models.Model):

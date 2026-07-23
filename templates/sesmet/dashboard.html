@@ -64,7 +64,7 @@
           {% for epi in epis_vencidos %}
           <tr>
             <td style="font-weight:600;font-size:0.84rem;">{{ epi.colaborador.nome }}</td>
-            <td>{{ epi.get_tipo_epi_display }}</td>
+            <td>{{ epi.equipamento.nome }}</td>
             <td style="color:var(--danger);font-size:0.82rem;">{{ epi.data_validade|date:"d/m/Y" }}</td>
             <td>
               <a href="{% url 'registrar_epi_colaborador' epi.colaborador.pk %}" class="btn btn-sm btn-danger">🔄</a>
@@ -104,7 +104,7 @@
           {% for epi in epis_vencendo %}
           <tr>
             <td style="font-weight:600;font-size:0.84rem;">{{ epi.colaborador.nome }}</td>
-            <td>{{ epi.get_tipo_epi_display }}</td>
+            <td>{{ epi.equipamento.nome }}</td>
             <td style="color:var(--warning);font-size:0.82rem;">{{ epi.data_validade|date:"d/m/Y" }}</td>
             <td>
               <span class="badge badge-warning">{{ epi.dias_para_vencer }} dias</span>
@@ -145,8 +145,8 @@
         {% for epi in nao_assinados %}
         <tr>
           <td style="font-weight:600;">{{ epi.colaborador.nome }}</td>
-          <td>{{ epi.get_tipo_epi_display }}</td>
-          <td style="font-size:0.82rem;">{{ epi.data_entrega|date:"d/m/Y" }}</td>
+          <td>{{ epi.equipamento.nome }}</td>
+          <td style="font-size:0.82rem;">{{ epi.data_movimentacao|date:"d/m/Y" }}</td>
           <td style="font-size:0.82rem;color:var(--text-muted);">{{ epi.registrado_por.get_full_name|default:epi.registrado_por }}</td>
           <td>
             <form method="post" action="{% url 'assinar_epi' epi.pk %}" style="display:inline;">
@@ -162,29 +162,12 @@
 </div>
 {% endif %}
 
-<!-- Periodicidade de EPIs -->
-<div class="card" style="margin-top:20px;">
-  <div class="card-header">
-    <div class="card-title">📋 Periodicidade de Substituição por EPI</div>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
-    {% for tipo_key, tipo_label in tipos_epi %}
-    <div style="padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-base);">
-      <div style="font-weight:600;font-size:0.88rem;margin-bottom:4px;">{{ tipo_label }}</div>
-      <div style="font-size:0.78rem;color:var(--text-muted);">
-        {% if tipo_key == 'luva' %}🔄 A cada 30 dias
-        {% elif tipo_key == 'calcado' %}🔄 A cada 365 dias
-        {% elif tipo_key == 'protetor_auricular' %}🔄 A cada 90 dias
-        {% elif tipo_key == 'respirador_p2' %}🔄 A cada 3 dias
-        {% elif tipo_key == 'capacete' %}🔄 A cada 730 dias
-        {% elif tipo_key == 'cinto_seguranca' %}🔄 A cada 365 dias
-        {% elif tipo_key == 'avental' %}🔄 A cada 180 dias
-        {% else %}📋 Conforme avaliação
-        {% endif %}
-      </div>
-    </div>
-    {% endfor %}
-  </div>
+<!-- Catálogo de EPIs -->
+<div class="card" style="margin-top:20px; text-align: center; padding: 30px;">
+  <div style="font-size: 3rem; margin-bottom: 10px;">📦</div>
+  <h3 style="margin-bottom: 15px;">Catálogo de Equipamentos de Proteção</h3>
+  <p style="color: var(--text-muted); margin-bottom: 20px;">Gerencie seus EPIs, prazos de validade automáticos e o estoque disponível.</p>
+  <a href="{% url 'catalogo_equipamentos' %}" class="btn btn-mod4">Acessar Catálogo Completo</a>
 </div>
 {% endblock %}
 

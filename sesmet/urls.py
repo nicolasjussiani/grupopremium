@@ -8,4 +8,9 @@ urlpatterns = [
     path('epi/<int:epi_pk>/recibo/', views.recibo_epi, name='recibo_epi'),
     path('matriz/', views.matriz_epis, name='matriz_epis'),
     path('os/<int:colaborador_pk>/', views.emitir_os, name='emitir_os'),
+    
+    # Novas rotas para o Catálogo de Equipamentos
+    path('catalogo/', views.catalogo_equipamentos, name='catalogo_equipamentos'),
+    path('catalogo/novo/', views.novo_equipamento, name='novo_equipamento'),
+    path('catalogo/<int:pk>/editar/', views.editar_equipamento, name='editar_equipamento'),
 ]

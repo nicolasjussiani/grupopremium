@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}{% if equip %}Editar{% else %}Novo{% endif %} EPI — SESMET{% endblock %}
+{% block nav_sesmet %}active{% endblock %}
+{% block topbar_title %}{% if equip %}Editar{% else %}Novo{% endif %} EPI{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-4" style="margin-bottom:20px;">
+  <div class="mod-title">{% if equip %}✏️ Editar{% else %}➕ Cadastrar{% endif %} Equipamento</div>
+  <div class="mod-desc">Informações do EPI no Catálogo</div>
+</div>
+
+<div class="card" style="max-width: 600px;">
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label class="form-label">Nome do EPI (Ex: Luva de Raspa) <span class="required">*</span></label>
+      <input type="text" name="nome" class="form-control" required value="{{ equip.nome }}">
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Número do CA</label>
+        <input type="text" name="numero_ca" class="form-control" value="{{ equip.numero_ca }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Validade do CA</label>
+        <input type="date" name="validade_ca" class="form-control" value="{{ equip.validade_ca|date:'Y-m-d' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fabricante</label>
+        <input type="text" name="fabricante" class="form-control" value="{{ equip.fabricante }}">
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Durabilidade (dias) <span class="required">*</span></label>
+        <input type="number" name="dias_durabilidade" class="form-control" required min="1" value="{{ equip.dias_durabilidade|default:30 }}">
+        <small style="color:var(--text-muted); font-size:0.75rem;">Usado para calcular quando o EPI vence no colaborador</small>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quantidade em Estoque</label>
+        <input type="number" name="estoque_atual" class="form-control" value="{{ equip.estoque_atual|default:0 }}">
+      </div>
+    </div>
+    
+    <div class="gateway-actions" style="margin-top: 20px;">
+      <button type="submit" class="btn btn-mod4">💾 Salvar Equipamento</button>
+      <a href="{% url 'catalogo_equipamentos' %}" class="btn btn-outline">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

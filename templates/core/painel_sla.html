@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Painel de SLA - Grupo PremiumBR{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-end">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-800">⏱️ Painel de Tempo de Processos (SLA)</h1>
+        <p class="text-gray-500 mt-1">Acompanhamento do tempo de execução dos processos pendentes. Exclusivo Diretoria.</p>
+    </div>
+</div>
+
+<!-- Dashboard Stats -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white rounded-xl shadow p-6 border-l-4 border-yellow-500">
+        <h3 class="text-sm font-semibold text-gray-500 uppercase">Aprovações Gerais</h3>
+        <p class="text-3xl font-bold text-gray-800 mt-2">{{ processos|length }}</p>
+        <p class="text-sm text-gray-400 mt-1">Processos monitorados no total</p>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+        <h2 class="text-lg font-bold text-gray-700">Processos Pendentes</h2>
+        <span class="text-xs font-semibold px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">Atenção aos alertas</span>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-gray-50 text-gray-500 text-sm uppercase tracking-wider">
+                    <th class="py-3 px-6 font-semibold border-b">Tipo / Módulo</th>
+                    <th class="py-3 px-6 font-semibold border-b">Título</th>
+                    <th class="py-3 px-6 font-semibold border-b">Responsável</th>
+                    <th class="py-3 px-6 font-semibold border-b">Status</th>
+                    <th class="py-3 px-6 font-semibold border-b text-right">Tempo Decorrido</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 text-sm">
+                {% for p in processos %}
+                <tr class="hover:bg-gray-50 transition-colors {% if p.alerta %}bg-red-50{% endif %}">
+                    <td class="py-4 px-6">
+                        <span class="block font-semibold text-gray-800">{{ p.tipo }}</span>
+                        <span class="text-xs text-gray-500">{{ p.modulo }}</span>
+                    </td>
+                    <td class="py-4 px-6 text-gray-700 font-medium">
+                        {{ p.titulo|truncatechars:50 }}
+                    </td>
+                    <td class="py-4 px-6 text-gray-600">
+                        {{ p.responsavel }}
+                    </td>
+                    <td class="py-4 px-6">
+                        <span class="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-semibold">
+                            {{ p.status }}
+                        </span>
+                    </td>
+                    <td class="py-4 px-6 text-right font-bold {% if p.alerta %}text-red-600{% else %}text-gray-700{% endif %}">
+                        {% if p.dias > 0 %}
+                            {{ p.dias }} dia{{ p.dias|pluralize }} e {{ p.horas }}h
+                        {% else %}
+                            {{ p.horas }} horas
+                        {% endif %}
+                        {% if p.alerta %}
+                            <span class="ml-2" title="Tempo elevado! ⚠️">⚠️</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="py-8 text-center text-gray-500">Nenhum processo pendente no momento. Excelente! 🎉</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Catálogo de EPIs — SESMET{% endblock %}
+{% block nav_sesmet %}active{% endblock %}
+{% block topbar_title %}Catálogo de EPIs{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-4" style="margin-bottom:20px;">
+  <div class="mod-title">📦 Catálogo de Equipamentos</div>
+  <div class="mod-desc">Gerencie os modelos de EPIs e o estoque da empresa</div>
+</div>
+
+<div class="page-header" style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+  <div>
+    <h2 style="font-size: 1.25rem; font-weight: 700;">Equipamentos Cadastrados</h2>
+  </div>
+  <div>
+    <a href="{% url 'novo_equipamento' %}" class="btn btn-mod4">+ Novo EPI</a>
+    <a href="{% url 'dashboard_sesmet' %}" class="btn btn-outline">← Voltar</a>
+  </div>
+</div>
+
+<div class="card">
+  <table class="table" style="width: 100%; border-collapse: collapse;">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+        <th style="padding: 12px;">Nome do EPI</th>
+        <th style="padding: 12px;">Fabricante</th>
+        <th style="padding: 12px;">Número CA</th>
+        <th style="padding: 12px;">Durabilidade</th>
+        <th style="padding: 12px;">Estoque</th>
+        <th style="padding: 12px; text-align: right;">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for eq in equipamentos %}
+      <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);">
+        <td style="padding: 12px; font-weight: 500;">{{ eq.nome }}</td>
+        <td style="padding: 12px;">{{ eq.fabricante|default:"-" }}</td>
+        <td style="padding: 12px;">{{ eq.numero_ca|default:"-" }}</td>
+        <td style="padding: 12px;">{{ eq.dias_durabilidade }} dias</td>
+        <td style="padding: 12px;">
+          <span class="badge {% if eq.estoque_atual <= 5 %}badge-danger{% else %}badge-success{% endif %}">
+            {{ eq.estoque_atual }} und
+          </span>
+        </td>
+        <td style="padding: 12px; text-align: right;">
+          <a href="{% url 'editar_equipamento' eq.pk %}" class="btn btn-sm btn-outline">Editar</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6" style="padding: 20px; text-align: center; color: var(--text-muted);">
+          Nenhum equipamento cadastrado no catálogo ainda.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

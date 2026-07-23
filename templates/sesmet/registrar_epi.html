@@ -1,18 +1,18 @@
 {% extends 'base.html' %}
-{% block title %}Registrar EPI — SESMET ERP Grupo PremiumBR{% endblock %}
+{% block title %}Registrar Movimentação de EPI — SESMET ERP Grupo PremiumBR{% endblock %}
 {% block nav_sesmet %}active{% endblock %}
-{% block topbar_title %}Registrar Entrega de EPI{% endblock %}
+{% block topbar_title %}Registrar Movimentação de EPI{% endblock %}
 
 {% block content %}
 <div class="module-banner mod-banner-4" style="margin-bottom:20px;">
-  <div class="mod-title">🦺 Registrar Entrega de EPI</div>
-  <div class="mod-desc">Controle de equipamentos de proteção individual por colaborador</div>
+  <div class="mod-title">🦺 Registrar Movimentação de EPI</div>
+  <div class="mod-desc">Registre a Retirada ou Devolução de equipamentos para os colaboradores</div>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px;">
   <div class="card">
     <div class="card-header">
-      <div class="card-title">📋 Dados da Entrega</div>
+      <div class="card-title">📋 Dados da Movimentação</div>
     </div>
 
     <form method="post">
@@ -38,72 +38,72 @@
       {% endif %}
 
       <div class="form-group">
-        <label class="form-label">Tipo de EPI <span class="required">*</span></label>
-        <select name="tipo_epi" class="form-control" required id="tipoEpiSelect">
-          <option value="">Selecione o EPI...</option>
-          {% for val, label in tipos_epi %}
+        <label class="form-label">Tipo de Movimentação <span class="required">*</span></label>
+        <select name="tipo_movimentacao" class="form-control" required>
+          {% for val, label in tipos_movimentacao %}
           <option value="{{ val }}">{{ label }}</option>
           {% endfor %}
         </select>
       </div>
 
+      <div class="form-group">
+        <label class="form-label">Equipamento (Catálogo) <span class="required">*</span></label>
+        <select name="equipamento" class="form-control" required>
+          <option value="">Selecione o EPI...</option>
+          {% for eq in equipamentos %}
+          <option value="{{ eq.pk }}">{{ eq.nome }} (CA: {{ eq.numero_ca|default:'S/N' }}) - Estoque: {{ eq.estoque_atual }}</option>
+          {% endfor %}
+        </select>
+        {% if not equipamentos %}
+        <small style="color:var(--danger); display:block; margin-top:5px;">Nenhum EPI cadastrado no catálogo. <a href="{% url 'novo_equipamento' %}">Cadastrar agora</a>.</small>
+        {% endif %}
+      </div>
+
       <div class="form-grid">
         <div class="form-group">
-          <label class="form-label">Data de Entrega <span class="required">*</span></label>
-          <input type="date" name="data_entrega" class="form-control" required value="{{ hoje|date:'Y-m-d' }}">
+          <label class="form-label">Data da Ocorrência <span class="required">*</span></label>
+          <input type="date" name="data_movimentacao" class="form-control" required value="{{ hoje|date:'Y-m-d' }}">
         </div>
         <div class="form-group">
           <label class="form-label">Quantidade</label>
           <input type="number" name="quantidade" class="form-control" value="1" min="1">
         </div>
-        <div class="form-group">
-          <label class="form-label">Número CA</label>
-          <input type="text" name="numero_ca" class="form-control" placeholder="Ex: 12345">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Motivo</label>
-          <select name="motivo_substituicao" class="form-control">
-            {% for val, label in motivos %}
-            <option value="{{ val }}" {% if val == 'inicial' %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
       </div>
 
       <div class="form-group">
         <label class="form-label">Observações</label>
-        <textarea name="obs" class="form-control" rows="2" placeholder="Observações adicionais..."></textarea>
+        <textarea name="obs" class="form-control" rows="2" placeholder="Motivo, desgaste, etc..."></textarea>
       </div>
 
       <div class="gateway-actions">
-        <button type="submit" class="btn btn-mod4">🦺 Registrar EPI</button>
+        <button type="submit" class="btn btn-mod4" {% if not equipamentos %}disabled{% endif %}>🦺 Salvar Movimentação</button>
         <a href="{% url 'dashboard_sesmet' %}" class="btn btn-outline">← Voltar</a>
       </div>
     </form>
   </div>
 
-  <!-- Periodicidade -->
   <div class="card">
     <div class="card-header">
-      <div class="card-title">⏱️ Periodicidade por Tipo de EPI</div>
+      <div class="card-title">ℹ️ Regras de Estoque e Validade</div>
     </div>
-    <div style="display:grid;gap:10px;">
-      {% for val, label in tipos_epi %}
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.84rem;">
-        <span style="font-weight:500;">{{ label }}</span>
-        <span style="color:var(--text-muted);font-size:0.78rem;">
-          {% if val == 'luva' %}🔄 30 dias
-          {% elif val == 'calcado' %}🔄 365 dias
-          {% elif val == 'protetor_auricular' %}🔄 90 dias
-          {% elif val == 'respirador_p2' %}🔄 3 dias
-          {% elif val == 'capacete' %}🔄 730 dias
-          {% elif val == 'cinto_seguranca' %}🔄 365 dias
-          {% elif val == 'avental' %}🔄 180 dias
-          {% else %}📋 Avaliação
-          {% endif %}
-        </span>
-      </div>
-      {% endfor %}
+    <div style="padding: 10px; font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6;">
+      <p><strong>Retirada:</strong></p>
+      <ul style="margin-bottom: 15px; padding-left: 20px;">
+        <li>Deduz do estoque do catálogo automaticamente.</li>
+        <li>O vencimento do EPI no colaborador é calculado usando os "Dias de Durabilidade" configurados no cadastro do equipamento.</li>
+        <li>Fica pendente de assinatura digital.</li>
+      </ul>
+      
+      <p><strong>Devolução:</strong></p>
+      <ul style="padding-left: 20px;">
+        <li>Soma novamente ao estoque do catálogo.</li>
+        <li>Encerra a obrigatoriedade daquele EPI no painel de pendências.</li>
+      </ul>
+      
+      <p><strong>Descarte / Perda:</strong></p>
+      <ul style="padding-left: 20px;">
+        <li>Apenas registra a ocorrência no histórico do colaborador sem devolver o item ao estoque.</li>
+      </ul>
     </div>
   </div>
 </div>

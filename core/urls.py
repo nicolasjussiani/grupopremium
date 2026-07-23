@@ -22,4 +22,5 @@ urlpatterns = [
     
     # Auditoria Global (CEO)
     path('auditoria-logs/', views.auditoria_sistema, name='auditoria_sistema'),
+    path('diretoria/tempo-processos/', views.painel_sla_processos, name='painel_sla'),
 ]
