@@ -1,13 +1,22 @@
 import os
 import json
-from google import genai
 from django.conf import settings
+
+try:
+    from google import genai
+    from google.genai import types
+    HAS_GENAI = True
+except ImportError:
+    HAS_GENAI = False
 
 def extrair_dados_documento(file_bytes, file_mime_type="application/pdf"):
     """
     Usa o Google Gemini para extrair dados estruturados de um PDF/Imagem.
     Retorna um dicionário com os campos encontrados.
     """
+    if not HAS_GENAI:
+        raise Exception("Biblioteca 'google-genai' não está instalada ou falhou ao carregar.")
+        
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise Exception("Chave da API do Gemini (GEMINI_API_KEY) não configurada.")
@@ -47,8 +56,6 @@ def extrair_dados_documento(file_bytes, file_mime_type="application/pdf"):
         ]
     }
     """
-    
-    from google.genai import types
     
     # Configuração de envio do arquivo em inline data
     contents = [
