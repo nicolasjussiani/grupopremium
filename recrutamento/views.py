@@ -145,9 +145,6 @@ def adicionar_candidato(request, vaga_pk):
         )
         arquivo_upload = request.FILES.get('curriculo_pdf')
         if arquivo_upload:
-            file_bytes = arquivo_upload.read()
-            candidato.arquivo_pdf = file_bytes
-            arquivo_upload.seek(0)
             candidato.arquivo = arquivo_upload
 
         try:
