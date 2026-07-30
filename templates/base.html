@@ -125,6 +125,7 @@
         <span class="nav-badge" id="badgeAprovacoes" style="display:none;"></span>
       </a>
 
+      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
       <div class="nav-section-label">Colaboradores</div>
       <a href="{% url 'lista_colaboradores' %}" class="nav-item {% block nav_colaboradores %}{% endblock %}">
         <span class="nav-icon">🏢</span>
@@ -138,6 +139,7 @@
         <span class="nav-icon">⏳</span>
         Período de Experiência
       </a>
+      {% endif %}
     </nav>
 
     <!-- Footer do Sidebar -->
