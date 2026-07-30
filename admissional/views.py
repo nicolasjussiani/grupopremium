@@ -103,8 +103,9 @@ def avancar_admissao(request, pk):
             admissao.status = novo_status
             if novo_status == 'concluido':
                 admissao.concluido_em = timezone.now()
-                # Criar colaborador se ainda não existe
-                if not admissao.colaborador:
+                # Criar colaborador se ainda não existe E checkbox marcado
+                gerar_colab = request.POST.get('gerar_colaborador') == 'sim'
+                if not admissao.colaborador and gerar_colab:
                     data_inicio_str = request.POST.get('data_inicio')
                     data_inicio_obj = timezone.now().date()
                     if data_inicio_str:
