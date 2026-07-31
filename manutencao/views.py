@@ -87,13 +87,26 @@ def nova_manutencao(request):
             unidade_origem=request.POST['unidade_origem'],
             motivo=request.POST['motivo'],
             data_inicio=request.POST['data_inicio'],
-            status='aberta',
+            status='aguardando_aprovacao',
             fornecedor_servico=request.POST.get('fornecedor_servico', ''),
             obs=request.POST.get('obs', ''),
             registrado_por=request.user
         )
         manut.save()
-        messages.success(request, f'🔧 Manutenção aberta para {ativo.nome}.')
+        
+        from core.models import AprovacaoRegistro
+        from django.contrib.contenttypes.models import ContentType
+        AprovacaoRegistro.objects.create(
+            content_type=ContentType.objects.get_for_model(manut),
+            object_id=manut.id,
+            modulo='manutencao',
+            nivel=2,
+            titulo=f"Manutenção: {ativo.nome} ({manut.unidade_origem})",
+            descricao=f"Motivo: {manut.motivo}",
+            solicitado_por=request.user
+        )
+        
+        messages.success(request, f'🔧 Solicitação de manutenção aberta para {ativo.nome} e enviada para aprovação do CEO.')
         return redirect('lista_manutencoes')
     
     ativos = Ativo.objects.filter(status='ativo')

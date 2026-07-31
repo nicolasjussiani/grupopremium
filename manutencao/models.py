@@ -29,6 +29,7 @@ class Ativo(models.Model):
 
 class RegistroManutencao(models.Model):
     STATUS = [
+        ('aguardando_aprovacao', 'Aguardando Aprovação (CEO)'),
         ('aberta', 'Aberta / Em Análise'),
         ('andamento', 'Em Andamento (Conserto)'),
         ('concluida', 'Concluída'),

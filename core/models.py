@@ -109,6 +109,7 @@ class AprovacaoRegistro(models.Model):
         ('sesmet', 'SESMET'),
         ('compras', 'Compras'),
         ('financeiro', 'Financeiro'),
+        ('manutencao', 'Manutenção / Patrimônio'),
     ]
 
     # Objeto referenciado (qualquer model)

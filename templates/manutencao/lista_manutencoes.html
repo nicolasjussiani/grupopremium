@@ -38,8 +38,10 @@
         </td>
         <td>{% if m.custo_reparo %}R$ {{ m.custo_reparo }}{% else %}—{% endif %}</td>
         <td>
-          {% if m.status != 'concluida' and m.status != 'cancelada' %}
+          {% if m.status != 'concluida' and m.status != 'cancelada' and m.status != 'aguardando_aprovacao' %}
             <a href="{% url 'concluir_manutencao' m.pk %}" class="btn btn-sm btn-success">Concluir / Editar</a>
+          {% elif m.status == 'aguardando_aprovacao' %}
+            <span style="font-size:0.8rem; color:var(--text-muted);">Em Análise (CEO)</span>
           {% endif %}
         </td>
       </tr>

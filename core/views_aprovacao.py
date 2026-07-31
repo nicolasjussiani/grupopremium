@@ -17,14 +17,14 @@ GRUPOS_APROVADORES = {
     'SESMET_Gestor':         ['sesmet'],
     'Compras_Aprovador':     ['compras'],
     'Financeiro_Aprovador':  ['financeiro'],
-    'Admin_Global':          ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro'],
+    'Admin_Global':          ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
 }
 
 
 def _modulos_do_usuario(user):
     """Retorna a lista de módulos que o usuário pode aprovar."""
     if user.is_superuser:
-        return ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro']
+        return ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao']
     modulos = set()
     grupos_usuario = user.groups.values_list('name', flat=True)
     for grupo in grupos_usuario:
@@ -176,6 +176,8 @@ def _executar_callback_aprovacao(aprovacao, decisao, usuario):
             _callback_sesmet(obj, decisao, usuario)
         elif modulo == 'admissional':
             _callback_admissional(obj, decisao, usuario)
+        elif modulo == 'manutencao':
+            _callback_manutencao(obj, decisao, usuario)
 
     except Exception:
         # Nunca quebra o fluxo de aprovação por erro no callback
@@ -242,4 +244,14 @@ def _callback_admissional(obj, decisao, usuario):
             obj.status = 'documentos_em_analise'
         elif decisao == 'rejeitado':
             obj.status = 'documentos_pendentes'
+        obj.save(update_fields=['status'])
+
+
+def _callback_manutencao(obj, decisao, usuario):
+    from manutencao.models import RegistroManutencao
+    if isinstance(obj, RegistroManutencao):
+        if decisao == 'aprovado':
+            obj.status = 'aberta'
+        elif decisao == 'rejeitado':
+            obj.status = 'cancelada'
         obj.save(update_fields=['status'])
