@@ -118,6 +118,14 @@
       </a>
       {% endif %}
 
+      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'administrativo' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'compras' %}
+      <a href="{% url 'painel_manutencao' %}" class="nav-item mod3 {% block nav_manutencao %}{% endblock %}">
+        <span class="nav-icon">🔧</span>
+        Manutenção / Patrimônio
+      </a>
+      {% endif %}
+
+
       <div class="nav-section-label">Processos</div>
       <a href="{% url 'aprovacoes_pendentes' %}" class="nav-item {% block nav_aprovacoes %}{% endblock %}" id="navAprovacoes">
         <span class="nav-icon">✅</span>

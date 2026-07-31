@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Chamados de Manutenção — ERP Grupo PremiumBR{% endblock %}
+{% block nav_manutencao %}active{% endblock %}
+{% block topbar_title %}Chamados de Manutenção{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">🔧 Histórico e Chamados Abertos</div>
+    <div>
+      <a href="{% url 'painel_manutencao' %}" class="btn btn-sm btn-outline">Voltar</a>
+      <a href="{% url 'nova_manutencao' %}" class="btn btn-sm btn-danger">➕ Novo Chamado</a>
+    </div>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Ativo / Equipamento</th>
+        <th>Motivo / Defeito</th>
+        <th>Unidade (Origem)</th>
+        <th>Abertura</th>
+        <th>Status</th>
+        <th>Custo (R$)</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in manutencoes %}
+      <tr>
+        <td><strong>{{ m.ativo.nome }}</strong><br><small>{{ m.ativo.numero_patrimonio }}</small></td>
+        <td>{{ m.motivo|truncatechars:40 }}</td>
+        <td>{{ m.unidade_origem }}</td>
+        <td>{{ m.data_inicio|date:"d/m/Y" }}</td>
+        <td>
+          <span class="badge {% if m.status == 'concluida' %}badge-success{% elif m.status == 'cancelada' %}badge-danger{% else %}badge-warning{% endif %}">
+            {{ m.get_status_display }}
+          </span>
+        </td>
+        <td>{% if m.custo_reparo %}R$ {{ m.custo_reparo }}{% else %}—{% endif %}</td>
+        <td>
+          {% if m.status != 'concluida' and m.status != 'cancelada' %}
+            <a href="{% url 'concluir_manutencao' m.pk %}" class="btn btn-sm btn-success">Concluir / Editar</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px;">Nenhum chamado de manutenção.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

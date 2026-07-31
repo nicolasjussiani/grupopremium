@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'sesmet',
     'compras',
     'financeiro',
+    'manutencao',
 ]
 
 MIDDLEWARE = [

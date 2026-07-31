@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Abrir Chamado de Manutenção — ERP Grupo PremiumBR{% endblock %}
+{% block nav_manutencao %}active{% endblock %}
+{% block topbar_title %}Abrir Chamado de Manutenção{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:800px;">
+  <div class="card-header">
+    <div class="card-title">🔧 Registrar Nova Manutenção</div>
+    <a href="{% url 'lista_manutencoes' %}" class="btn btn-sm btn-outline">Cancelar</a>
+  </div>
+  
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label class="form-label">Equipamento / Ativo com Defeito <span class="required">*</span></label>
+      <select name="ativo" class="form-control" required>
+        <option value="">-- Selecione o Equipamento --</option>
+        {% for ativo in ativos %}
+        <option value="{{ ativo.pk }}">{{ ativo.nome }} (Patrimônio: {{ ativo.numero_patrimonio }}) - Unidade: {{ ativo.unidade_atual }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Motivo da Manutenção / Descrição do Defeito <span class="required">*</span></label>
+      <textarea name="motivo" class="form-control" rows="3" required placeholder="Ex: Equipamento não liga, fazendo barulho anormal..."></textarea>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px;">
+      <div class="form-group">
+        <label class="form-label">Unidade de Origem (Onde quebrou) <span class="required">*</span></label>
+        <input type="text" name="unidade_origem" class="form-control" required placeholder="Ex: Loja Centro, Almoxarifado...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Data de Início da Manutenção <span class="required">*</span></label>
+        <input type="date" name="data_inicio" class="form-control" required>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Técnico ou Fornecedor de Serviço (Opcional)</label>
+      <input type="text" name="fornecedor_servico" class="form-control" placeholder="Ex: Assistência Técnica Autorizada X">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Observações Iniciais</label>
+      <textarea name="obs" class="form-control" rows="2"></textarea>
+    </div>
+
+    <div style="margin-top:20px;">
+      <button type="submit" class="btn btn-danger">🔧 Abrir Chamado (O ativo ficará inoperante)</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

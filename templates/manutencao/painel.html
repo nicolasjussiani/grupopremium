@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Painel de Manutenção — ERP Grupo PremiumBR{% endblock %}
+{% block nav_manutencao %}active{% endblock %}
+{% block topbar_title %}Manutenção e Patrimônio{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-2" style="margin-bottom:20px; background:linear-gradient(135deg, #1e3a8a, #3b82f6);">
+  <div class="mod-title">🔧 Manutenção e Patrimônio</div>
+  <div class="mod-desc">Gestão de Ativos, Equipamentos e Chamados de Manutenção</div>
+</div>
+
+<div class="stats-grid" style="margin-bottom:20px;">
+  <div class="stat-card">
+    <div class="stat-title">Ativos Cadastrados</div>
+    <div class="stat-value" style="color:var(--text)">{{ total_ativos }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-title">Ativos em Manutenção</div>
+    <div class="stat-value" style="color:var(--warning)">{{ ativos_manutencao }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-title">Chamados em Aberto</div>
+    <div class="stat-value" style="color:var(--danger)">{{ manutencoes_abertas }}</div>
+  </div>
+</div>
+
+<div style="display:flex; gap:10px; margin-bottom:20px;">
+  <a href="{% url 'novo_ativo' %}" class="btn btn-mod2">➕ Cadastrar Novo Ativo</a>
+  <a href="{% url 'lista_ativos' %}" class="btn btn-outline">📋 Ver Todos os Ativos</a>
+  <a href="{% url 'nova_manutencao' %}" class="btn btn-danger">🔧 Abrir Chamado de Manutenção</a>
+  <a href="{% url 'lista_manutencoes' %}" class="btn btn-outline">Ver Chamados</a>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Chamados Recentes</div>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Ativo</th>
+        <th>Unidade (Origem)</th>
+        <th>Data Início</th>
+        <th>Status</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in manutencoes_recentes %}
+      <tr>
+        <td><strong>{{ m.ativo.nome }}</strong> <br><small>Patrimônio: {{ m.ativo.numero_patrimonio }}</small></td>
+        <td>{{ m.unidade_origem }}</td>
+        <td>{{ m.data_inicio|date:"d/m/Y" }}</td>
+        <td>
+          <span class="badge {% if m.status == 'concluida' %}badge-success{% elif m.status == 'cancelada' %}badge-danger{% else %}badge-warning{% endif %}">
+            {{ m.get_status_display }}
+          </span>
+        </td>
+        <td>
+          {% if m.status != 'concluida' and m.status != 'cancelada' %}
+            <a href="{% url 'concluir_manutencao' m.pk %}" class="btn btn-sm btn-success">Concluir Manutenção</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px;">Nenhum chamado registrado.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

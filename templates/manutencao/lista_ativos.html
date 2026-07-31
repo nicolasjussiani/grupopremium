@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Lista de Ativos — ERP Grupo PremiumBR{% endblock %}
+{% block nav_manutencao %}active{% endblock %}
+{% block topbar_title %}Gestão de Patrimônio{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">📋 Lista de Ativos e Equipamentos</div>
+    <div>
+      <a href="{% url 'painel_manutencao' %}" class="btn btn-sm btn-outline">Voltar</a>
+      <a href="{% url 'novo_ativo' %}" class="btn btn-sm btn-mod2">➕ Novo Ativo</a>
+    </div>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Patrimônio</th>
+        <th>Nome / Especificação</th>
+        <th>Unidade Atual</th>
+        <th>Status</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ativo in ativos %}
+      <tr>
+        <td><strong>{{ ativo.numero_patrimonio }}</strong></td>
+        <td>
+          {{ ativo.nome }}<br>
+          <small>{{ ativo.descricao|truncatechars:50 }}</small>
+        </td>
+        <td>{{ ativo.unidade_atual }}</td>
+        <td>
+          <span class="badge {% if ativo.status == 'ativo' %}badge-success{% elif ativo.status == 'manutencao' %}badge-warning{% else %}badge-danger{% endif %}">
+            {{ ativo.get_status_display }}
+          </span>
+        </td>
+        <td>
+          <a href="{% url 'editar_ativo' ativo.pk %}" class="btn btn-sm btn-outline">✏️ Editar</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px;">Nenhum ativo cadastrado.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

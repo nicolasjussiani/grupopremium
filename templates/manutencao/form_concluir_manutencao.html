@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Concluir Manutenção — ERP Grupo PremiumBR{% endblock %}
+{% block nav_manutencao %}active{% endblock %}
+{% block topbar_title %}Concluir Manutenção{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:800px;">
+  <div class="card-header">
+    <div class="card-title">✅ Concluir Manutenção: {{ manutencao.ativo.nome }}</div>
+    <a href="{% url 'lista_manutencoes' %}" class="btn btn-sm btn-outline">Cancelar</a>
+  </div>
+
+  <div style="background:var(--bg); padding:15px; border-radius:8px; border:1px solid var(--border); margin-bottom:20px;">
+    <strong>Motivo Inicial:</strong> {{ manutencao.motivo }}<br>
+    <strong>Aberto em:</strong> {{ manutencao.data_inicio|date:"d/m/Y" }}<br>
+    <strong>Unidade de Origem:</strong> {{ manutencao.unidade_origem }}
+  </div>
+  
+  <form method="post">
+    {% csrf_token %}
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px;">
+      <div class="form-group">
+        <label class="form-label">Alterar Status <span class="required">*</span></label>
+        <select name="status" class="form-control" required>
+          <option value="concluida" selected>Concluída (Retorna para Uso)</option>
+          <option value="andamento">Ainda em Andamento</option>
+          <option value="cancelada">Cancelada</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Data de Conclusão</label>
+        <input type="date" name="data_conclusao" class="form-control" value="{{ manutencao.data_conclusao|date:'Y-m-d' }}">
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px;">
+      <div class="form-group">
+        <label class="form-label">Custo Total do Reparo (R$)</label>
+        <input type="number" step="0.01" name="custo_reparo" class="form-control" value="{{ manutencao.custo_reparo|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unidade de Retorno <span class="required">*</span></label>
+        <input type="text" name="unidade_retorno" class="form-control" value="{{ manutencao.unidade_origem }}" required>
+        <small style="color:var(--text-muted);">Para onde o equipamento vai voltar.</small>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Laudo Técnico / Observações Finais</label>
+      <textarea name="obs" class="form-control" rows="3">{{ manutencao.obs }}</textarea>
+    </div>
+
+    <div style="margin-top:20px;">
+      <button type="submit" class="btn btn-success">✅ Salvar e Concluir Manutenção</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
