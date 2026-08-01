@@ -20,4 +20,4 @@ def notificar_nova_aprovacao_telegram(sender, instance, created, **kwargs):
             f"👉 <a href='https://erp.grupopremiumbr.com.br/aprovacoes/'>Acessar ERP para Aprovar</a>"
         )
         
-        enviar_mensagem_telegram(mensagem)
+        enviar_mensagem_telegram(instance.modulo, mensagem)
