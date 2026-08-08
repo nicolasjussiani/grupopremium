@@ -16,7 +16,7 @@
     <strong>Unidade de Origem:</strong> {{ manutencao.unidade_origem }}
   </div>
   
-  <form method="post">
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px;">
       <div class="form-group">
@@ -43,6 +43,19 @@
         <input type="text" name="unidade_retorno" class="form-control" value="{{ manutencao.unidade_origem }}" required>
         <small style="color:var(--text-muted);">Para onde o equipamento vai voltar.</small>
       </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Foto do Equipamento / Problema</label>
+      {% if manutencao.foto_equipamento %}
+      <div style="margin-bottom: 10px;">
+        <a href="{{ manutencao.foto_equipamento.url }}" target="_blank">
+          <img src="{{ manutencao.foto_equipamento.url }}" alt="Foto do Equipamento" style="max-height: 150px; border-radius: 8px; border: 1px solid var(--border);">
+        </a>
+      </div>
+      {% endif %}
+      <input type="file" name="foto_equipamento" class="form-control" accept="image/*">
+      <small style="color:var(--text-muted);">Nova foto (Opcional, substitui a atual se enviada).</small>
     </div>
 
     <div class="form-group">

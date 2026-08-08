@@ -90,7 +90,8 @@ def nova_manutencao(request):
             status='aguardando_aprovacao',
             fornecedor_servico=request.POST.get('fornecedor_servico', ''),
             obs=request.POST.get('obs', ''),
-            registrado_por=request.user
+            registrado_por=request.user,
+            foto_equipamento=request.FILES.get('foto_equipamento')
         )
         manut.save()
         
@@ -124,6 +125,9 @@ def concluir_manutencao(request, pk):
         custo = request.POST.get('custo_reparo')
         if custo:
             manut.custo_reparo = custo.replace(',', '.')
+            
+        if 'foto_equipamento' in request.FILES:
+            manut.foto_equipamento = request.FILES['foto_equipamento']
             
         manut.save()
 

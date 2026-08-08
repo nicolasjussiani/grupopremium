@@ -27,7 +27,13 @@
     <tbody>
       {% for m in manutencoes %}
       <tr>
-        <td><strong>{{ m.ativo.nome }}</strong><br><small>{{ m.ativo.numero_patrimonio }}</small></td>
+        <td>
+          <strong>{{ m.ativo.nome }}</strong><br>
+          <small>{{ m.ativo.numero_patrimonio }}</small><br>
+          {% if m.foto_equipamento %}
+            <a href="{{ m.foto_equipamento.url }}" target="_blank" style="font-size: 0.8rem;">📷 Ver Foto</a>
+          {% endif %}
+        </td>
         <td>{{ m.motivo|truncatechars:40 }}</td>
         <td>{{ m.unidade_origem }}</td>
         <td>{{ m.data_inicio|date:"d/m/Y" }}</td>

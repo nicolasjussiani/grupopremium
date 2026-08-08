@@ -10,7 +10,7 @@
     <a href="{% url 'lista_manutencoes' %}" class="btn btn-sm btn-outline">Cancelar</a>
   </div>
   
-  <form method="post">
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <div class="form-group">
       <label class="form-label">Equipamento / Ativo com Defeito <span class="required">*</span></label>
@@ -41,6 +41,11 @@
     <div class="form-group">
       <label class="form-label">Técnico ou Fornecedor de Serviço (Opcional)</label>
       <input type="text" name="fornecedor_servico" class="form-control" placeholder="Ex: Assistência Técnica Autorizada X">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Foto do Equipamento / Problema</label>
+      <input type="file" name="foto_equipamento" class="form-control" accept="image/*">
     </div>
 
     <div class="form-group">
