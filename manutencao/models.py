@@ -15,6 +15,7 @@ class Ativo(models.Model):
     status = models.CharField(max_length=20, choices=STATUS, default='ativo', verbose_name='Status')
     data_aquisicao = models.DateField(null=True, blank=True, verbose_name='Data de Aquisição')
     valor_aquisicao = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Valor de Aquisição')
+    foto = models.ImageField(upload_to='equipamentos/', null=True, blank=True, verbose_name='Foto do Equipamento')
     
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)

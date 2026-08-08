@@ -31,6 +31,7 @@ def novo_ativo(request):
             descricao=request.POST.get('descricao', ''),
             unidade_atual=request.POST['unidade_atual'],
             status=request.POST.get('status', 'ativo'),
+            foto=request.FILES.get('foto')
         )
         data_aquisicao = request.POST.get('data_aquisicao')
         if data_aquisicao:
@@ -54,6 +55,9 @@ def editar_ativo(request, pk):
         ativo.descricao = request.POST.get('descricao', '')
         ativo.unidade_atual = request.POST['unidade_atual']
         ativo.status = request.POST.get('status', 'ativo')
+        
+        if 'foto' in request.FILES:
+            ativo.foto = request.FILES['foto']
         
         data_aquisicao = request.POST.get('data_aquisicao')
         if data_aquisicao:

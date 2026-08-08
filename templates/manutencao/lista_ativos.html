@@ -28,7 +28,10 @@
         <td><strong>{{ ativo.numero_patrimonio }}</strong></td>
         <td>
           {{ ativo.nome }}<br>
-          <small>{{ ativo.descricao|truncatechars:50 }}</small>
+          <small>{{ ativo.descricao|truncatechars:50 }}</small><br>
+          {% if ativo.foto %}
+            <a href="{{ ativo.foto.url }}" target="_blank" style="font-size: 0.8rem;">📷 Ver Foto</a>
+          {% endif %}
         </td>
         <td>{{ ativo.unidade_atual }}</td>
         <td>
