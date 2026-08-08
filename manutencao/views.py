@@ -28,6 +28,9 @@ def novo_ativo(request):
         ativo = Ativo(
             numero_patrimonio=request.POST['numero_patrimonio'],
             nome=request.POST['nome'],
+            marca=request.POST.get('marca', ''),
+            modelo=request.POST.get('modelo', ''),
+            numero_serie=request.POST.get('numero_serie', ''),
             descricao=request.POST.get('descricao', ''),
             unidade_atual=request.POST['unidade_atual'],
             status=request.POST.get('status', 'ativo'),
@@ -52,6 +55,9 @@ def editar_ativo(request, pk):
     if request.method == 'POST':
         ativo.numero_patrimonio = request.POST['numero_patrimonio']
         ativo.nome = request.POST['nome']
+        ativo.marca = request.POST.get('marca', '')
+        ativo.modelo = request.POST.get('modelo', '')
+        ativo.numero_serie = request.POST.get('numero_serie', '')
         ativo.descricao = request.POST.get('descricao', '')
         ativo.unidade_atual = request.POST['unidade_atual']
         ativo.status = request.POST.get('status', 'ativo')

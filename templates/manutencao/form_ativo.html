@@ -32,6 +32,21 @@
       <input type="text" name="nome" class="form-control" value="{{ ativo.nome|default:'' }}" required>
     </div>
 
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:15px; margin-bottom:15px;">
+      <div class="form-group">
+        <label class="form-label">Marca</label>
+        <input type="text" name="marca" class="form-control" value="{{ ativo.marca|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Modelo</label>
+        <input type="text" name="modelo" class="form-control" value="{{ ativo.modelo|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Número de Série</label>
+        <input type="text" name="numero_serie" class="form-control" value="{{ ativo.numero_serie|default:'' }}">
+      </div>
+    </div>
+
     <div class="form-group">
       <label class="form-label">Descrição / Especificações Técnicas</label>
       <textarea name="descricao" class="form-control" rows="3">{{ ativo.descricao|default:'' }}</textarea>

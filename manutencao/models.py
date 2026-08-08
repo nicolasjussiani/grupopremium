@@ -10,6 +10,9 @@ class Ativo(models.Model):
 
     numero_patrimonio = models.CharField(max_length=50, unique=True, verbose_name='Número de Patrimônio')
     nome = models.CharField(max_length=200, verbose_name='Nome do Equipamento/Ativo')
+    marca = models.CharField(max_length=100, blank=True, verbose_name='Marca')
+    modelo = models.CharField(max_length=100, blank=True, verbose_name='Modelo')
+    numero_serie = models.CharField(max_length=100, blank=True, verbose_name='Número de Série')
     descricao = models.TextField(blank=True, verbose_name='Descrição / Especificações')
     unidade_atual = models.CharField(max_length=100, verbose_name='Unidade Atual')
     status = models.CharField(max_length=20, choices=STATUS, default='ativo', verbose_name='Status')
