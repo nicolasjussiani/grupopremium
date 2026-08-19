@@ -14,4 +14,11 @@ class ColaboradorForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-control'
+            
+    def clean_anexo_aso(self):
+        anexo_aso = self.cleaned_data.get('anexo_aso')
+        if not self.instance.pk and not anexo_aso:
+            raise forms.ValidationError('O ASO (Atestado de Saúde Ocupacional) é obrigatório para novos colaboradores.')
+        return anexo_aso
+
 

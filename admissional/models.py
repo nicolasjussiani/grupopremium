@@ -60,6 +60,8 @@ class Colaborador(models.Model):
     anexo_reservista = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo Reservista (Frente)')
     anexo_reservista_verso = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo Reservista (Verso)')
     
+    anexo_aso = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo ASO (Atestado de Saúde Ocupacional)')
+    
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
