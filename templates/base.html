@@ -94,7 +94,7 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' %}
+      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'dashboard_sesmet' %}" class="nav-item mod4 {% block nav_sesmet %}{% endblock %}">
         <span class="nav-icon">🦺</span>
         SESMET / Segurança
@@ -118,7 +118,7 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'compras' %}
+      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'compras' %}
       <a href="{% url 'painel_manutencao' %}" class="nav-item mod3 {% block nav_manutencao %}{% endblock %}">
         <span class="nav-icon">🔧</span>
         Manutenção / Patrimônio
