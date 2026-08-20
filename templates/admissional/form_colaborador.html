@@ -16,7 +16,7 @@
         {% for field in form %}
         <div class="form-group" style="{% if field.name == 'endereco' %}grid-column: span 2;{% endif %}">
             <label style="font-weight: 500; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px; display: block;">
-                {{ field.label }}
+                {{ field.label }} {% if field.field.required %}<span style="color: #ef4444;">*</span>{% endif %}
             </label>
             {{ field }}
             {% if field.errors %}
