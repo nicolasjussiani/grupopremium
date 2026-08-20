@@ -75,9 +75,10 @@ class AcessoModuloMiddleware(MiddlewareMixin):
             '/recrutamento/': ['rh', 'gestor'],
             '/admissional/': ['rh', 'gestor'],
             '/administrativo/': ['gestor'],
-            '/sesmet/': ['sesmet', 'gestor'],
+            '/sesmet/': ['sesmet', 'gestor', 'rh'],
             '/compras/': ['compras', 'gestor'],
             '/financeiro/': ['financeiro', 'gestor'],
+            '/manutencao/': ['sesmet', 'gestor', 'compras', 'rh'],
         }
         
         for prefix, perfis_permitidos in regras.items():
