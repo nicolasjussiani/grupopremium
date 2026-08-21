@@ -150,7 +150,7 @@ def lista_colaboradores(request):
 @login_required
 def novo_colaborador(request):
     if request.method == 'POST':
-        form = ColaboradorForm(request.POST)
+        form = ColaboradorForm(request.POST, request.FILES)
         if form.is_valid():
             colaborador = form.save()
             messages.success(request, f'Colaborador {colaborador.nome} cadastrado com sucesso!')
@@ -163,7 +163,7 @@ def novo_colaborador(request):
 def editar_colaborador(request, pk):
     colaborador = get_object_or_404(Colaborador, pk=pk)
     if request.method == 'POST':
-        form = ColaboradorForm(request.POST, instance=colaborador)
+        form = ColaboradorForm(request.POST, request.FILES, instance=colaborador)
         if form.is_valid():
             form.save()
             messages.success(request, f'Colaborador {colaborador.nome} atualizado com sucesso!')
