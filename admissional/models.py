@@ -21,8 +21,8 @@ class Colaborador(models.Model):
     cpf = models.CharField(max_length=18, unique=True, verbose_name='CPF/CNPJ')
     rg = models.CharField(max_length=20, blank=True, verbose_name='RG')
     data_nascimento = models.DateField(null=True, blank=True, verbose_name='Data de Nascimento')
-    email = models.EmailField(verbose_name='E-mail')
-    telefone = models.CharField(max_length=20, verbose_name='Telefone')
+    email = models.EmailField(blank=True, verbose_name='E-mail')
+    telefone = models.CharField(max_length=20, blank=True, verbose_name='Telefone')
     endereco = models.TextField(blank=True, verbose_name='Endereço')
     
     TIPO_CONTRATO = [
@@ -34,6 +34,7 @@ class Colaborador(models.Model):
     cargo = models.CharField(max_length=200, verbose_name='Cargo')
     setor = models.CharField(max_length=100, blank=True, verbose_name='Setor')
     unidade = models.CharField(max_length=100, verbose_name='Unidade')
+    contrato = models.CharField(max_length=200, blank=True, verbose_name='Contrato/Cliente')
     marca = models.CharField(max_length=20, choices=MARCAS, default='eco_premium', verbose_name='Marca')
     data_admissao = models.DateField(verbose_name='Data de Admissão')
     status = models.CharField(max_length=20, choices=STATUS, default='ativo')
