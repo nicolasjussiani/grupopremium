@@ -72,8 +72,8 @@ class AcessoModuloMiddleware(MiddlewareMixin):
         perfil = request.user.perfil.perfil if hasattr(request.user, 'perfil') else 'operacional'
         
         regras = {
-            '/recrutamento/': ['rh', 'gestor'],
-            '/admissional/': ['rh', 'gestor'],
+            '/recrutamento/': ['rh', 'gestor', 'sesmet'],
+            '/admissional/': ['rh', 'gestor', 'sesmet'],
             '/administrativo/': ['gestor'],
             '/sesmet/': ['sesmet', 'gestor', 'rh'],
             '/compras/': ['compras', 'gestor'],
