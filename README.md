@@ -44,6 +44,9 @@ ou o bucket configurado nos arquivos `.env`.
 - `SECRET_KEY` deve ser aleatoria e ter pelo menos 50 caracteres.
 - `DATABASE_URL` e obrigatoria sempre que `DEBUG=False`.
 - `ALLOWED_HOSTS` nao aceita `*` em producao.
+- Dominios de deploy da Vercel sao adicionados automaticamente a
+  `ALLOWED_HOSTS` e `CSRF_TRUSTED_ORIGINS`; dominios personalizados adicionais
+  devem ser informados nessas variaveis.
 - A ausencia de `DATABASE_URL` em Vercel/serverless impede a inicializacao.
 - O armazenamento S3 e obrigatorio em Vercel/serverless.
 - Migrações devem ser executadas pelo processo de deploy, nunca por uma rota HTTP.

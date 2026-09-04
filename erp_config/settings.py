@@ -4,6 +4,8 @@ ERP Grupo PremiumBR - Settings
 from pathlib import Path
 import os
 import sys
+from urllib.parse import urlsplit
+
 import dj_database_url
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
@@ -32,11 +34,33 @@ if not RUNNING_TESTS and (
 ):
     raise ImproperlyConfigured('SECRET_KEY deve ser exclusiva e ter pelo menos 50 caracteres.')
 
+def _hostname_from_value(value):
+    """Return only the hostname from a hostname or URL environment value."""
+    value = (value or '').strip()
+    if not value:
+        return None
+    parsed = urlsplit(value if '://' in value else f'//{value}')
+    return parsed.hostname
+
+
+VERCEL_HOSTS = []
+for variable_name in (
+    'VERCEL_URL',
+    'VERCEL_BRANCH_URL',
+    'VERCEL_PROJECT_PRODUCTION_URL',
+):
+    hostname = _hostname_from_value(os.environ.get(variable_name))
+    if hostname and hostname not in VERCEL_HOSTS:
+        VERCEL_HOSTS.append(hostname)
+
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
     if host.strip()
 ]
+for hostname in VERCEL_HOSTS:
+    if hostname not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(hostname)
 if not DEBUG and '*' in ALLOWED_HOSTS:
     raise ImproperlyConfigured('ALLOWED_HOSTS nao pode conter curinga em producao.')
 
@@ -209,6 +233,10 @@ CSRF_TRUSTED_ORIGINS = [
     ).split(',')
     if origin.strip()
 ]
+for hostname in VERCEL_HOSTS:
+    origin = f'https://{hostname}'
+    if origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin)
 
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
