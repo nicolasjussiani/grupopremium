@@ -1,21 +1,25 @@
+"""Diagnostico manual da tela de cadastro de colaboradores."""
 import os
-import django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'erp_config.settings')
-django.setup()
+import sys
 
-from django.test import Client
-from django.contrib.auth.models import User
-import traceback
 
-try:
-    client = Client()
+def main():
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'erp_config.settings')
+    import django
+    django.setup()
+    from django.contrib.auth.models import User
+    from django.test import Client
+
     user = User.objects.filter(username='test_no_perfil').first()
+    if user is None:
+        print("Usuario 'test_no_perfil' nao encontrado.")
+        return 2
+    client = Client()
     client.force_login(user)
-
-    print("Requesting GET /admissional/colaboradores/novo/")
     response = client.get('/admissional/colaboradores/novo/')
-    print(f"Status Code: {response.status_code}")
-    if response.status_code == 302:
-        print(f"Redirect URL: {response.url}")
-except Exception as e:
-    traceback.print_exc()
+    print(f'Status code: {response.status_code}')
+    return 1 if response.status_code >= 500 else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

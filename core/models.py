@@ -63,6 +63,7 @@ class Notificacao(models.Model):
         ('sesmet', 'SESMET'),
         ('compras', 'Compras'),
         ('financeiro', 'Financeiro'),
+        ('manutencao', 'Manutenção / Patrimônio'),
         ('sistema', 'Sistema'),
     ]
 
@@ -110,6 +111,7 @@ class AprovacaoRegistro(models.Model):
         ('compras', 'Compras'),
         ('financeiro', 'Financeiro'),
         ('manutencao', 'Manutenção / Patrimônio'),
+        ('sistema', 'Sistema'),
     ]
 
     # Objeto referenciado (qualquer model)

@@ -3,7 +3,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
+from django.db import transaction
+from django.views.decorators.http import require_POST
 from .models import DemandaAdministrativa
+from core.access import access_required
 
 
 @login_required
@@ -34,6 +37,7 @@ def lista_demandas(request):
 
 
 @login_required
+@access_required(permission='administrativo.add_demandaadministrativa', profiles=('gestor',))
 def nova_demanda(request):
     if request.method == 'POST':
         # Gateway 1: Validação de completude
@@ -41,8 +45,15 @@ def nova_demanda(request):
         descricao = request.POST.get('descricao', '').strip()
         tipo = request.POST.get('tipo', '').strip()
         requisitante = request.POST.get('requisitante', '').strip()
+        tipos_validos = {value for value, _ in DemandaAdministrativa.TIPOS}
+        prioridades_validas = {value for value, _ in DemandaAdministrativa.PRIORIDADES}
+        prioridade = request.POST.get('prioridade', 'media')
 
-        if not all([titulo, descricao, tipo, requisitante]):
+        if (
+            not all([titulo, descricao, tipo, requisitante])
+            or tipo not in tipos_validos
+            or prioridade not in prioridades_validas
+        ):
             messages.error(request,
                 '⚠️ GATEWAY: Solicitação incompleta! Preencha todos os campos obrigatórios.')
             return render(request, 'administrativo/nova_demanda.html', {
@@ -57,7 +68,7 @@ def nova_demanda(request):
             descricao=descricao,
             requisitante=requisitante,
             requisitante_usuario=request.user,
-            prioridade=request.POST.get('prioridade', 'media'),
+            prioridade=prioridade,
             status='em_triagem',
         )
         demanda.save()
@@ -80,12 +91,22 @@ def detalhe_demanda(request, pk):
 
 
 @login_required
+@access_required(permission='administrativo.change_demandaadministrativa', profiles=('gestor',))
+@require_POST
+@transaction.atomic
 def atualizar_status_demanda(request, pk):
     """Gateway 2: Finalização ou retorno para ajuste"""
     demanda = get_object_or_404(DemandaAdministrativa, pk=pk)
     if request.method == 'POST':
         novo_status = request.POST.get('status')
         obs = request.POST.get('motivo_rejeicao', '')
+        status_validos = {value for value, _ in DemandaAdministrativa.STATUS}
+        if novo_status not in status_validos:
+            messages.error(request, 'Status administrativo invalido.')
+            return redirect('detalhe_demanda', pk=pk)
+        if novo_status == 'aguardando_ajuste' and not obs.strip():
+            messages.error(request, 'Informe o motivo para solicitar ajuste.')
+            return redirect('detalhe_demanda', pk=pk)
 
         if novo_status == 'arquivada':
             demanda.concluido_em = timezone.now()
@@ -95,7 +116,8 @@ def atualizar_status_demanda(request, pk):
             messages.warning(request,
                 f'⚠️ GATEWAY: Demanda retornada para ajuste administrativo.')
         else:
-            messages.info(request, f'Status atualizado para: {demanda.get_status_display()}')
+            demanda.concluido_em = None
+            messages.info(request, 'Status da demanda atualizado.')
 
         demanda.status = novo_status
         demanda.save()

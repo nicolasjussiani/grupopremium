@@ -33,7 +33,7 @@ class DocumentoFinanceiro(models.Model):
     razao_social_emitente = models.CharField(max_length=200, verbose_name='Razão Social')
     contratos_vinculados = models.CharField(max_length=200, blank=True, verbose_name='Contratos Vinculados')
     data_emissao = models.DateField(verbose_name='Data de Emissão')
-    data_vencimento = models.DateField(verbose_name='Data de Vencimento')
+    data_vencimento = models.DateField(null=True, blank=True, verbose_name='Data de Vencimento')
     status = models.CharField(max_length=30, choices=STATUS, default='recebido')
     motivo_rejeicao = models.TextField(blank=True, verbose_name='Motivo da Rejeição')
     recebido_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
@@ -47,6 +47,9 @@ class DocumentoFinanceiro(models.Model):
         verbose_name = 'Documento Financeiro'
         verbose_name_plural = 'Documentos Financeiros'
         ordering = ['-criado_em']
+        constraints = [
+            models.CheckConstraint(check=models.Q(valor__gt=0), name='financeiro_documento_valor_positivo'),
+        ]
 
     def __str__(self):
         return f"[{self.get_tipo_display()}] {self.numero_documento} — R$ {self.valor} ({self.get_status_display()})"
@@ -120,6 +123,9 @@ class LancamentoERP(models.Model):
         verbose_name = 'Lançamento ERP'
         verbose_name_plural = 'Lançamentos ERP'
         ordering = ['-criado_em']
+        constraints = [
+            models.CheckConstraint(check=models.Q(valor__gt=0), name='financeiro_lancamento_valor_positivo'),
+        ]
 
     def __str__(self):
         return f"Lançamento {self.tipo.upper()} — R$ {self.valor} ({self.get_status_display()})"
@@ -140,6 +146,13 @@ class OrcamentoCentroCusto(models.Model):
         verbose_name_plural = 'Orçamentos por Centro de Custo'
         ordering = ['-competencia']
         unique_together = ('centro_custo', 'competencia')
+        constraints = [
+            models.CheckConstraint(check=models.Q(valor_orcado__gte=0), name='financeiro_orcamento_nao_negativo'),
+            models.CheckConstraint(
+                check=models.Q(meta_reducao_custo__gte=0, meta_reducao_custo__lte=100),
+                name='financeiro_meta_percentual_valida',
+            ),
+        ]
 
     def __str__(self):
         mes_ano = self.competencia.strftime('%m/%Y')
@@ -157,6 +170,11 @@ class ItemDocumentoFinanceiro(models.Model):
     class Meta:
         verbose_name = 'Item do Documento'
         verbose_name_plural = 'Itens do Documento'
+        constraints = [
+            models.CheckConstraint(check=models.Q(quantidade__gt=0), name='financeiro_item_quantidade_positiva'),
+            models.CheckConstraint(check=models.Q(valor_unitario__gte=0), name='financeiro_item_unitario_nao_negativo'),
+            models.CheckConstraint(check=models.Q(valor_total__gte=0), name='financeiro_item_total_nao_negativo'),
+        ]
 
     def __str__(self):
         return f'{self.descricao_produto} - R$ {self.valor_total}'

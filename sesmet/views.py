@@ -6,6 +6,12 @@ from django.utils import timezone
 from .models import IntegracaoSeguranca, RegistroEPI, OrdemServico, EquipamentoProtecao
 from admissional.models import Colaborador
 from core.models import LogAtividade
+from core.access import access_required
+from django.core.exceptions import ValidationError
+from django.db import transaction
+import base64
+import binascii
+import uuid
 
 def registrar_log(usuario, acao, detalhes):
     if usuario.is_authenticated:
@@ -33,6 +39,8 @@ def dashboard_sesmet(request):
     })
 
 @login_required
+@access_required(permission='sesmet.add_registroepi', profiles=('sesmet', 'gestor'))
+@transaction.atomic
 def registrar_epi(request, colaborador_pk=None):
     colaborador = None
     if colaborador_pk:
@@ -40,25 +48,43 @@ def registrar_epi(request, colaborador_pk=None):
 
     if request.method == 'POST':
         colab_pk = request.POST.get('colaborador') or colaborador_pk
+        if not colab_pk or not request.POST.get('equipamento'):
+            messages.error(request, 'Selecione o colaborador e o equipamento.')
+            return redirect('registrar_epi')
         colab = get_object_or_404(Colaborador, pk=colab_pk)
         
         equip_pk = request.POST.get('equipamento')
         equipamento = get_object_or_404(EquipamentoProtecao, pk=equip_pk)
         
         from datetime import datetime
-        data_movimentacao_str = request.POST['data_movimentacao']
-        data_movimentacao_obj = datetime.strptime(data_movimentacao_str, '%Y-%m-%d').date()
+        try:
+            data_movimentacao_obj = datetime.strptime(
+                request.POST.get('data_movimentacao', ''), '%Y-%m-%d'
+            ).date()
+            quantidade = int(request.POST.get('quantidade', 1))
+        except (ValueError, TypeError):
+            messages.error(request, 'Data ou quantidade invalida.')
+            return redirect('registrar_epi')
+        tipo_movimentacao = request.POST.get('tipo_movimentacao', 'retirada')
+        tipos_validos = {value for value, _ in RegistroEPI.TIPO_MOVIMENTACAO}
+        if quantidade <= 0 or tipo_movimentacao not in tipos_validos:
+            messages.error(request, 'Quantidade ou tipo de movimentacao invalido.')
+            return redirect('registrar_epi')
         
         epi = RegistroEPI(
             colaborador=colab,
             equipamento=equipamento,
-            tipo_movimentacao=request.POST.get('tipo_movimentacao', 'retirada'),
+            tipo_movimentacao=tipo_movimentacao,
             data_movimentacao=data_movimentacao_obj,
-            quantidade=int(request.POST.get('quantidade', 1)),
+            quantidade=quantidade,
             registrado_por=request.user,
             obs=request.POST.get('obs', ''),
         )
-        epi.save()
+        try:
+            epi.save()
+        except ValidationError as exc:
+            messages.error(request, exc.messages[0])
+            return redirect('registrar_epi')
         
         registrar_log(request.user, "MOVIMENTACAO_EPI", f"{epi.get_tipo_movimentacao_display()} de {equipamento.nome} para {colab.nome}")
         
@@ -86,11 +112,15 @@ def matriz_epis(request):
     })
 
 @login_required
+@access_required(permission='sesmet.add_ordemservico', profiles=('sesmet', 'gestor'))
 def emitir_os(request, colaborador_pk):
     colaborador = get_object_or_404(Colaborador, pk=colaborador_pk)
     if request.method == 'POST':
-        os_count = OrdemServico.objects.count() + 1
-        os_num = f'OS-{os_count:04d}'
+        campos = ('descricao_riscos', 'medidas_preventivas', 'epis_obrigatorios')
+        if any(not request.POST.get(campo, '').strip() for campo in campos):
+            messages.error(request, 'Preencha os riscos, medidas preventivas e EPIs obrigatorios.')
+            return render(request, 'sesmet/emitir_os.html', {'colaborador': colaborador})
+        os_num = f'OS-{timezone.now():%Y%m%d}-{uuid.uuid4().hex[:6].upper()}'
         os = OrdemServico(
             colaborador=colaborador,
             numero=os_num,
@@ -109,13 +139,28 @@ def emitir_os(request, colaborador_pk):
 from .treinamentos_data import get_video_info
 
 @login_required
+@access_required(permission='sesmet.change_registroepi', profiles=('sesmet', 'gestor'))
+@transaction.atomic
 def assinar_epi(request, epi_pk):
-    epi = get_object_or_404(RegistroEPI, pk=epi_pk)
+    epi = get_object_or_404(RegistroEPI.objects.select_for_update(), pk=epi_pk)
     video_info = get_video_info(epi.equipamento.nome.lower()) 
 
     if request.method == 'POST':
         assinatura_base64 = request.POST.get('assinatura_base64')
         if assinatura_base64:
+            try:
+                header, encoded = assinatura_base64.split(',', 1)
+                if header != 'data:image/png;base64':
+                    raise ValueError
+                assinatura_bytes = base64.b64decode(encoded, validate=True)
+                if (
+                    len(assinatura_bytes) > 1024 * 1024
+                    or not assinatura_bytes.startswith(b'\x89PNG\r\n\x1a\n')
+                ):
+                    raise ValueError
+            except (ValueError, binascii.Error):
+                messages.error(request, 'Assinatura invalida ou maior que 1 MB.')
+                return redirect('assinar_epi', epi_pk=epi.pk)
             epi.assinado = True
             epi.assinatura_base64 = assinatura_base64
             epi.data_assinatura = timezone.now()
@@ -140,33 +185,63 @@ def catalogo_equipamentos(request):
     return render(request, 'sesmet/catalogo_equipamentos.html', {'equipamentos': equipamentos})
 
 @login_required
+@access_required(permission='sesmet.add_equipamentoprotecao', profiles=('sesmet', 'gestor'))
 def novo_equipamento(request):
     if request.method == 'POST':
+        try:
+            dias_durabilidade = int(request.POST.get('dias_durabilidade', 30))
+            estoque_atual = int(request.POST.get('estoque_atual', 0))
+        except (TypeError, ValueError):
+            dias_durabilidade = 0
+            estoque_atual = -1
+        if dias_durabilidade <= 0 or estoque_atual < 0 or not request.POST.get('nome', '').strip():
+            messages.error(request, 'Nome, durabilidade ou estoque invalido.')
+            return render(request, 'sesmet/form_equipamento.html')
         equip = EquipamentoProtecao(
             nome=request.POST['nome'],
             numero_ca=request.POST.get('numero_ca', ''),
             fabricante=request.POST.get('fabricante', ''),
             validade_ca=request.POST.get('validade_ca') or None,
-            dias_durabilidade=int(request.POST.get('dias_durabilidade', 30)),
-            estoque_atual=int(request.POST.get('estoque_atual', 0))
+            dias_durabilidade=dias_durabilidade,
+            estoque_atual=estoque_atual,
         )
-        equip.save()
+        try:
+            equip.full_clean()
+            equip.save()
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages))
+            return render(request, 'sesmet/form_equipamento.html')
         registrar_log(request.user, "CADASTRO_EPI", f"EPI {equip.nome} cadastrado.")
         messages.success(request, f'✅ Equipamento {equip.nome} cadastrado com sucesso!')
         return redirect('catalogo_equipamentos')
     return render(request, 'sesmet/form_equipamento.html')
 
 @login_required
+@access_required(permission='sesmet.change_equipamentoprotecao', profiles=('sesmet', 'gestor'))
 def editar_equipamento(request, pk):
     equip = get_object_or_404(EquipamentoProtecao, pk=pk)
     if request.method == 'POST':
+        try:
+            dias_durabilidade = int(request.POST.get('dias_durabilidade', 30))
+            estoque_atual = int(request.POST.get('estoque_atual', 0))
+        except (TypeError, ValueError):
+            dias_durabilidade = 0
+            estoque_atual = -1
+        if dias_durabilidade <= 0 or estoque_atual < 0 or not request.POST.get('nome', '').strip():
+            messages.error(request, 'Nome, durabilidade ou estoque invalido.')
+            return render(request, 'sesmet/form_equipamento.html', {'equip': equip})
         equip.nome = request.POST['nome']
         equip.numero_ca = request.POST.get('numero_ca', '')
         equip.fabricante = request.POST.get('fabricante', '')
         equip.validade_ca = request.POST.get('validade_ca') or None
-        equip.dias_durabilidade = int(request.POST.get('dias_durabilidade', 30))
-        equip.estoque_atual = int(request.POST.get('estoque_atual', 0))
-        equip.save()
+        equip.dias_durabilidade = dias_durabilidade
+        equip.estoque_atual = estoque_atual
+        try:
+            equip.full_clean()
+            equip.save()
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages))
+            return render(request, 'sesmet/form_equipamento.html', {'equip': equip})
         registrar_log(request.user, "EDICAO_EPI", f"EPI {equip.nome} editado.")
         messages.success(request, f'✅ Equipamento {equip.nome} atualizado.')
         return redirect('catalogo_equipamentos')

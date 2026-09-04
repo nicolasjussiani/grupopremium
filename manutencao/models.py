@@ -27,6 +27,12 @@ class Ativo(models.Model):
         verbose_name = 'Ativo (Patrimônio)'
         verbose_name_plural = 'Ativos (Patrimônio)'
         ordering = ['nome']
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(valor_aquisicao__isnull=True) | models.Q(valor_aquisicao__gte=0),
+                name='manutencao_valor_ativo_nao_negativo',
+            ),
+        ]
 
     def __str__(self):
         return f"[{self.numero_patrimonio}] {self.nome} - {self.unidade_atual}"
@@ -59,6 +65,16 @@ class RegistroManutencao(models.Model):
         verbose_name = 'Registro de Manutenção'
         verbose_name_plural = 'Registros de Manutenção'
         ordering = ['-data_inicio']
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(custo_reparo__isnull=True) | models.Q(custo_reparo__gte=0),
+                name='manutencao_custo_nao_negativo',
+            ),
+            models.CheckConstraint(
+                check=models.Q(data_conclusao__isnull=True) | models.Q(data_conclusao__gte=models.F('data_inicio')),
+                name='manutencao_conclusao_apos_inicio',
+            ),
+        ]
 
     def __str__(self):
         return f"Manutenção: {self.ativo.nome} ({self.get_status_display()})"

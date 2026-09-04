@@ -45,6 +45,10 @@ class Material(models.Model):
         verbose_name = 'Material'
         verbose_name_plural = 'Materiais'
         ordering = ['nome']
+        constraints = [
+            models.CheckConstraint(check=models.Q(quantidade_estoque__gte=0), name='compras_estoque_nao_negativo'),
+            models.CheckConstraint(check=models.Q(estoque_minimo__gte=0), name='compras_estoque_minimo_nao_negativo'),
+        ]
 
     def __str__(self):
         return f"[{self.codigo}] {self.nome} — Estoque: {self.quantidade_estoque} {self.get_unidade_medida_display()}"
@@ -83,6 +87,9 @@ class SolicitacaoMaterial(models.Model):
         verbose_name = 'Solicitação de Material'
         verbose_name_plural = 'Solicitações de Material'
         ordering = ['-criado_em']
+        constraints = [
+            models.CheckConstraint(check=models.Q(quantidade_solicitada__gte=0), name='compras_quantidade_solicitada_nao_negativa'),
+        ]
 
     def __str__(self):
         return f"Solicitação: {self.material.nome} x{self.quantidade_solicitada} — {self.get_status_display()}"
@@ -121,6 +128,10 @@ class PedidoCompra(models.Model):
         verbose_name = 'Pedido de Compra'
         verbose_name_plural = 'Pedidos de Compra'
         ordering = ['-criado_em']
+        constraints = [
+            models.CheckConstraint(check=models.Q(valor_unitario__gte=0), name='compras_valor_unitario_nao_negativo'),
+            models.CheckConstraint(check=models.Q(valor_total__gte=0), name='compras_valor_total_nao_negativo'),
+        ]
 
     def __str__(self):
         return f"PC-{self.id:04d} | {self.solicitacao.material.nome} — {self.fornecedor}"

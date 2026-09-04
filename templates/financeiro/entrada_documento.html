@@ -105,6 +105,7 @@
     try {
       const res = await fetch("{% url 'extrair_ocr_documento' %}", {
         method: 'POST',
+        headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
         body: formData
       });
       const data = await res.json();
@@ -123,7 +124,12 @@
           let html = `<table class="table" style="margin-top:10px; font-size:12px;">
                         <thead><tr><th>Produto</th><th>NCM</th><th>Qtd</th><th>V.Unit</th><th>V.Total</th></tr></thead><tbody>`;
           info.produtos.forEach(p => {
-             html += `<tr><td>${p.descricao_produto}</td><td>${p.ncm}</td><td>${p.quantidade}</td><td>R$ ${p.valor_unitario}</td><td>R$ ${p.valor_total}</td></tr>`;
+             const safe = value => {
+               const element = document.createElement('span');
+               element.textContent = value ?? '';
+               return element.innerHTML;
+             };
+             html += `<tr><td>${safe(p.descricao_produto)}</td><td>${safe(p.ncm)}</td><td>${safe(p.quantidade)}</td><td>R$ ${safe(p.valor_unitario)}</td><td>R$ ${safe(p.valor_total)}</td></tr>`;
           });
           html += `</tbody></table>`;
           document.getElementById('produtos_preview').innerHTML = html;

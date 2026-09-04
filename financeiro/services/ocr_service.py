@@ -1,6 +1,10 @@
 import os
 import json
+import logging
 from django.conf import settings
+
+
+logger = logging.getLogger(__name__)
 
 try:
     from google import genai
@@ -80,6 +84,6 @@ def extrair_dados_documento(file_bytes, file_mime_type="application/pdf"):
             
         dados_json = json.loads(text_response.strip())
         return dados_json
-    except Exception as e:
-        print(f"Erro no OCR: {e}")
-        raise Exception(f"Falha ao ler o documento com a IA. Motivo: {str(e)}")
+    except Exception as exc:
+        logger.exception('Falha no servico de OCR')
+        raise RuntimeError('Falha ao ler o documento com a IA.') from exc

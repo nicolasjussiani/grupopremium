@@ -1,32 +1,56 @@
+"""Cria usuarios operacionais usando senhas fornecidas pelo ambiente."""
+
 import os
+import sys
+
 import django
+
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'erp_config.settings')
 django.setup()
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from core.models import PerfilUsuario
 
-usuarios = [
-    # (username, password, is_superuser, setor)
-    ('ceo_premium', 'Ceo@MasterPremium26!', True, 'Diretoria'),
-    ('rh_premium', 'Rh!Premium2026@x9', False, 'Recursos Humanos'),
-    ('compras_premium', 'Compras#Eco26$v4', False, 'Compras'),
-    ('financeiro_premium', 'Fin@Premium!2026z', False, 'Financeiro'),
-    ('sesmet_premium', 'Seg!Trabalho26#w', False, 'SESMET'),
+
+USUARIOS = [
+    ('ceo_premium', 'ERP_CEO_PASSWORD', True, 'admin', 'Admin_Global'),
+    ('rh_premium', 'ERP_RH_PASSWORD', False, 'rh', 'Admissional_RH'),
+    ('compras_premium', 'ERP_COMPRAS_PASSWORD', False, 'compras', 'Compras_Aprovador'),
+    ('financeiro_premium', 'ERP_FINANCEIRO_PASSWORD', False, 'financeiro', 'Financeiro_Aprovador'),
+    ('sesmet_premium', 'ERP_SESMET_PASSWORD', False, 'sesmet', 'SESMET_Gestor'),
 ]
 
-for username, password, is_superuser, setor in usuarios:
-    # is_staff=True garante que eles consigam entrar no painel de administração (se for usado)
-    if not User.objects.filter(username=username).exists():
-        user = User.objects.create_user(username=username, password=password)
-        user.is_staff = True 
+
+def main():
+    faltantes = [password_env for _, password_env, *_ in USUARIOS if not os.environ.get(password_env)]
+    if faltantes:
+        print('Variaveis de senha ausentes: ' + ', '.join(faltantes), file=sys.stderr)
+        raise SystemExit(1)
+
+    for username, password_env, *_ in USUARIOS:
+        try:
+            validate_password(os.environ[password_env], User(username=username))
+        except ValidationError as exc:
+            print(f'Senha invalida para {username}: {"; ".join(exc.messages)}', file=sys.stderr)
+            raise SystemExit(1)
+
+    for username, password_env, is_superuser, perfil, grupo_nome in USUARIOS:
+        user, created = User.objects.get_or_create(username=username)
+        user.set_password(os.environ[password_env])
+        user.is_active = True
+        user.is_staff = is_superuser
         user.is_superuser = is_superuser
         user.save()
-        print(f'[+] Criado usuário: {username} ({setor})')
-    else:
-        user = User.objects.get(username=username)
-        user.set_password(password)
-        user.is_staff = True
-        user.is_superuser = is_superuser
-        user.save()
-        print(f'[*] Atualizado usuário existente: {username} ({setor})')
+        PerfilUsuario.objects.update_or_create(usuario=user, defaults={'perfil': perfil})
+        grupo = Group.objects.filter(name=grupo_nome).first()
+        if grupo:
+            user.groups.add(grupo)
+        verbo = 'Criado' if created else 'Atualizado'
+        print(f'{verbo}: {username} ({perfil})')
+
+
+if __name__ == '__main__':
+    main()

@@ -65,4 +65,4 @@ def enviar_mensagem_telegram(modulo, mensagem):
             print(f"[Telegram Erro Modulo {modulo}] Falha ao enviar notificação: {e}")
 
     # Roda em uma thread separada
-    threading.Thread(target=_enviar).start()
+    threading.Thread(target=_enviar, daemon=True).start()

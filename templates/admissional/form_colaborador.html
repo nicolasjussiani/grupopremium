@@ -12,6 +12,11 @@
 <div class="card" style="max-width: 800px; margin: 0 auto;">
   <form method="post" enctype="multipart/form-data" class="flex flex-col gap-4">
     {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="alert alert-error" role="alert">
+        {{ form.non_field_errors.0 }}
+      </div>
+    {% endif %}
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
         {% for field in form %}
         <div class="form-group" style="{% if field.name == 'endereco' %}grid-column: span 2;{% endif %}">

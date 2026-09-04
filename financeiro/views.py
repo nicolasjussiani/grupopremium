@@ -4,8 +4,19 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.db.models import Sum
+from django.db import transaction
+import logging
+import json
+from decimal import Decimal, InvalidOperation
 from .models import DocumentoFinanceiro, AuditoriaItem, LancamentoERP, OrcamentoCentroCusto, ItemDocumentoFinanceiro
 from django.http import HttpResponse
+from core.access import access_required
+from core.validators import validate_document_upload
+from django.core.exceptions import ValidationError
+from django.utils.text import get_valid_filename
+
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
@@ -14,7 +25,8 @@ def painel_financeiro(request):
     lancamentos_pendentes = LancamentoERP.objects.filter(status__in=['rascunho', 'em_validacao'])
     finalizados_mes = LancamentoERP.objects.filter(
         status='finalizado',
-        finalizado_em__month=timezone.now().month
+        finalizado_em__month=timezone.now().month,
+        finalizado_em__year=timezone.now().year,
     )
     # Calcula Orcamento/Budget do Mês
     mes_atual = timezone.now().date().replace(day=1)
@@ -27,7 +39,8 @@ def painel_financeiro(request):
             gasto = LancamentoERP.objects.filter(
                 centro_custo=orcamento.centro_custo,
                 status='finalizado',
-                finalizado_em__month=timezone.now().month
+                finalizado_em__month=timezone.now().month,
+                finalizado_em__year=timezone.now().year,
             ).aggregate(total=Sum('valor'))['total'] or 0
             
             economia_valor = orcamento.valor_orcado - gasto
@@ -42,14 +55,9 @@ def painel_financeiro(request):
                 'meta_reducao_percentual': orcamento.meta_reducao_custo,
                 'atingiu_meta': atingiu_meta
             })
-    except Exception as e:
-        # Se a tabela não existir, tenta migrar automaticamente
-        from django.core.management import call_command
-        try:
-            call_command('migrate', interactive=False)
-            messages.info(request, "🔄 Banco de dados atualizado automaticamente. Atualize a página.")
-        except Exception as mig_e:
-            messages.error(request, f"⚠️ Erro ao carregar orçamentos (tabela ausente): {e}")
+    except Exception:
+        logger.exception('Falha ao carregar orcamentos do painel financeiro')
+        messages.error(request, 'Nao foi possivel carregar os orcamentos.')
 
     return render(request, 'financeiro/painel.html', {
         'docs_pendentes': docs_pendentes,
@@ -62,13 +70,34 @@ def painel_financeiro(request):
 
 
 @login_required
+@access_required(permission='financeiro.add_documentofinanceiro', profiles=('financeiro', 'gestor'))
+@transaction.atomic
 def entrada_documento(request):
     if request.method == 'POST':
+        campos_obrigatorios = (
+            'tipo', 'numero_documento', 'descricao', 'valor', 'centro_custo',
+            'unidade', 'cnpj_emitente', 'razao_social_emitente', 'data_emissao',
+        )
+        if any(not request.POST.get(campo, '').strip() for campo in campos_obrigatorios):
+            messages.error(request, 'Preencha todos os campos obrigatorios.')
+            return render(request, 'financeiro/entrada_documento.html', {
+                'tipos': DocumentoFinanceiro.TIPOS,
+            })
+        try:
+            valor_documento = Decimal(request.POST['valor'].replace(',', '.'))
+        except (InvalidOperation, ValueError):
+            valor_documento = Decimal('-1')
+        if valor_documento <= 0:
+            messages.error(request, 'O valor do documento deve ser maior que zero.')
+            return render(request, 'financeiro/entrada_documento.html', {
+                'tipos': DocumentoFinanceiro.TIPOS,
+            })
+
         doc = DocumentoFinanceiro(
             tipo=request.POST['tipo'],
             numero_documento=request.POST['numero_documento'],
             descricao=request.POST['descricao'],
-            valor=request.POST['valor'],
+            valor=valor_documento,
             centro_custo=request.POST['centro_custo'],
             unidade=request.POST['unidade'],
             cnpj_emitente=request.POST.get('cnpj_emitente', ''),
@@ -82,25 +111,59 @@ def entrada_documento(request):
         
         arquivo_upload = request.FILES.get('arquivo_pdf')
         if arquivo_upload:
+            try:
+                validate_document_upload(arquivo_upload)
+            except ValidationError as exc:
+                messages.error(request, exc.messages[0])
+                return render(request, 'financeiro/entrada_documento.html', {
+                    'tipos': DocumentoFinanceiro.TIPOS,
+                })
             doc.arquivo = arquivo_upload
+        else:
+            messages.error(request, 'Envie o documento em PDF ou imagem valida.')
+            return render(request, 'financeiro/entrada_documento.html', {
+                'tipos': DocumentoFinanceiro.TIPOS,
+            })
 
-        doc.save()
+        try:
+            doc.full_clean()
+            doc.save()
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages))
+            return render(request, 'financeiro/entrada_documento.html', {
+                'tipos': DocumentoFinanceiro.TIPOS,
+            })
+        except OSError:
+            transaction.set_rollback(True)
+            messages.error(request, 'Nao foi possivel armazenar o documento. Tente novamente.')
+            return render(request, 'financeiro/entrada_documento.html', {
+                'tipos': DocumentoFinanceiro.TIPOS,
+            })
 
         produtos_json = request.POST.get('produtos_json', '[]')
         try:
-            import json
             produtos = json.loads(produtos_json)
+            if not isinstance(produtos, list) or len(produtos) > 200:
+                raise ValueError('Lista de itens invalida')
             for prod in produtos:
-                ItemDocumentoFinanceiro.objects.create(
+                if not isinstance(prod, dict):
+                    raise ValueError('Item invalido')
+                item = ItemDocumentoFinanceiro(
                     documento=doc,
                     descricao_produto=prod.get('descricao_produto', 'Produto sem nome')[:255],
                     ncm=prod.get('ncm', '')[:20],
                     quantidade=prod.get('quantidade') or 1,
                     valor_unitario=prod.get('valor_unitario') or 0,
-                    valor_total=prod.get('valor_total') or 0
+                    valor_total=prod.get('valor_total') or 0,
                 )
-        except Exception as e:
-            print(f"Erro ao salvar itens do documento: {e}")
+                item.full_clean()
+                item.save()
+        except (TypeError, ValueError, json.JSONDecodeError, ValidationError):
+            transaction.set_rollback(True)
+            messages.error(request, 'A lista de itens do documento e invalida.')
+            return render(request, 'financeiro/entrada_documento.html', {
+                'tipos': DocumentoFinanceiro.TIPOS,
+            })
 
         # Criar checklist de auditoria automaticamente
         for item_key, _ in AuditoriaItem.ITENS_CHECKLIST:
@@ -115,28 +178,43 @@ def entrada_documento(request):
     })
 
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from .services.ocr_service import extrair_dados_documento
 
 @login_required
-@csrf_exempt
+@access_required(
+    permission='financeiro.add_documentofinanceiro',
+    groups=('Financeiro_Operador', 'Financeiro_Auditor', 'Financeiro_Aprovador'),
+)
 def extrair_ocr_documento(request):
     if request.method == 'POST' and request.FILES.get('arquivo'):
         arquivo = request.FILES['arquivo']
         try:
+            validate_document_upload(arquivo)
             dados = extrair_dados_documento(arquivo.read(), arquivo.content_type)
             return JsonResponse({'sucesso': True, 'dados': dados})
-        except Exception as e:
-            return JsonResponse({'sucesso': False, 'erro': str(e)}, status=400)
+        except ValidationError as exc:
+            return JsonResponse({'sucesso': False, 'erro': exc.messages[0]}, status=400)
+        except Exception:
+            logger.exception('Falha na extracao OCR')
+            return JsonResponse({'sucesso': False, 'erro': 'Nao foi possivel ler o documento.'}, status=400)
     return JsonResponse({'sucesso': False, 'erro': 'Arquivo não enviado.'}, status=400)
 
 
 @login_required
+@access_required(
+    permission='financeiro.change_documentofinanceiro',
+    groups=('Financeiro_Auditor', 'Financeiro_Aprovador'),
+)
+@transaction.atomic
 def auditoria_documento(request, pk):
-    doc = get_object_or_404(DocumentoFinanceiro, pk=pk)
+    doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=pk)
     itens = doc.auditoria.all()
 
     if request.method == 'POST':
+        status_validos = {value for value, _ in AuditoriaItem.STATUS}
+        if any(request.POST.get(f'item_{item.pk}', 'pendente') not in status_validos for item in itens):
+            messages.error(request, 'Status de auditoria invalido.')
+            return redirect('auditoria_documento', pk=pk)
         # Atualizar cada item da auditoria
         for item in itens:
             novo_status = request.POST.get(f'item_{item.pk}', 'pendente')
@@ -183,21 +261,47 @@ def detalhe_documento(request, pk):
 
 
 @login_required
+@access_required(
+    permission='financeiro.add_lancamentoerp',
+    groups=('Financeiro_Operador', 'Financeiro_Aprovador'),
+)
+@transaction.atomic
 def lancar_erp(request, doc_pk):
     """Lançamento oficial no ERP Grupo PremiumBR"""
-    doc = get_object_or_404(DocumentoFinanceiro, pk=doc_pk)
+    doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=doc_pk)
     if request.method == 'POST':
+        if doc.status != 'aprovado_lancamento' or doc.lancamentos.exclude(status='rejeitado').exists():
+            messages.error(request, 'O documento nao esta disponivel para um novo lancamento.')
+            return redirect('detalhe_documento', pk=doc.pk)
+        descricao = request.POST.get('descricao', '').strip()
+        tipo = request.POST.get('tipo', '')
+        competencia = request.POST.get('competencia', '')
+        tipos_validos = {value for value, _ in LancamentoERP.TIPOS}
+        if not descricao or not competencia or tipo not in tipos_validos:
+            messages.error(request, 'Dados do lancamento invalidos ou incompletos.')
+            return render(request, 'financeiro/lancar_erp.html', {
+                'documento': doc,
+                'tipos': LancamentoERP.TIPOS,
+            })
         lancamento = LancamentoERP(
             documento=doc,
-            descricao=request.POST['descricao'],
-            tipo=request.POST['tipo'],
+            descricao=descricao,
+            tipo=tipo,
             valor=doc.valor,
             centro_custo=doc.centro_custo,
-            competencia=request.POST['competencia'],
+            competencia=competencia,
             status='em_validacao',
             lancado_por=request.user,
         )
-        lancamento.save()
+        try:
+            lancamento.full_clean()
+            lancamento.save()
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages))
+            return render(request, 'financeiro/lancar_erp.html', {
+                'documento': doc,
+                'tipos': LancamentoERP.TIPOS,
+            })
         doc.status = 'lancado'
         doc.save()
         messages.info(request, f'📊 Lançamento criado. Aguardando validação final.')
@@ -209,37 +313,45 @@ def lancar_erp(request, doc_pk):
 
 
 @login_required
+@access_required(
+    permission='financeiro.change_lancamentoerp',
+    groups=('Financeiro_Aprovador', 'Diretoria_Final'),
+)
+@transaction.atomic
 def validar_lancamento(request, pk):
     """Gateway 2: Lançamento validado → FINALIZADO NO ERP GRUPO PREMIUMBR"""
-    lancamento = get_object_or_404(LancamentoERP, pk=pk)
+    lancamento = get_object_or_404(LancamentoERP.objects.select_for_update(), pk=pk)
+    documento = DocumentoFinanceiro.objects.select_for_update().get(pk=lancamento.documento_id)
     if request.method == 'POST':
+        if lancamento.status != 'em_validacao':
+            messages.error(request, 'Este lancamento nao esta aguardando validacao.')
+            return redirect('painel_financeiro')
         acao = request.POST.get('acao')
         if acao == 'validar':
-            # Validação Final do Luiz para o centro de custo "Financeiro Compras RH"
-            # O último a aprovar as cargas e processos é o Luiz
-            centro = lancamento.centro_custo.lower()
-            eh_luiz = request.user.username.lower() == 'luiz' or 'luiz' in request.user.get_full_name().lower()
-
-            if ('compras' in centro or 'rh' in centro or 'financeiro' in centro) and not eh_luiz:
-                messages.error(request, '❌ Apenas o "Luiz" pode aprovar e finalizar processos do Financeiro Compras RH.')
-                return redirect('validar_lancamento', pk=pk)
-
             lancamento.status = 'finalizado'
             lancamento.validado_por = request.user
             lancamento.finalizado_em = timezone.now()
             lancamento.save()
-            lancamento.documento.status = 'arquivado'
-            lancamento.documento.save()
+            documento.status = 'arquivado'
+            documento.save(update_fields=['status', 'atualizado_em'])
             messages.success(request,
                 '🏆 GATEWAY FINAL: Lançamento VALIDADO e FINALIZADO NO ERP GRUPO PREMIUMBR! '
                 'Documento arquivado digitalmente. Prestação de contas concluída.')
-        else:
-            motivo = request.POST.get('motivo_rejeicao', '')
+        elif acao == 'rejeitar':
+            motivo = request.POST.get('motivo_rejeicao', '').strip()
+            if not motivo:
+                messages.error(request, 'Informe o motivo da rejeicao.')
+                return redirect('validar_lancamento', pk=pk)
             lancamento.status = 'rejeitado'
             lancamento.motivo_rejeicao = motivo
             lancamento.save()
+            documento.status = 'aprovado_lancamento'
+            documento.save(update_fields=['status', 'atualizado_em'])
             messages.error(request,
                 '❌ GATEWAY: Lançamento rejeitado. Registro reaberto para correção.')
+        else:
+            messages.error(request, 'Acao de validacao invalida.')
+            return redirect('validar_lancamento', pk=pk)
         return redirect('painel_financeiro')
     return render(request, 'financeiro/validar_lancamento.html', {'lancamento': lancamento})
 
@@ -255,7 +367,8 @@ def download_pdf_financeiro(request, pk):
     # 2. Fallback: Banco de Dados Legado
     if doc.arquivo_pdf:
         response = HttpResponse(doc.arquivo_pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="NF_{doc.numero_documento}.pdf"'
+        filename = get_valid_filename(f'NF_{doc.numero_documento}.pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
         return response
         
     messages.error(request, '❌ Arquivo PDF não encontrado.')

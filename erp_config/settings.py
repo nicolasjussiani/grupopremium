@@ -6,31 +6,39 @@ import os
 import sys
 import dj_database_url
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+RUNNING_TESTS = 'test' in sys.argv
 
 # Carrega .env explicitamente do diretório raiz do projeto
 env_path = BASE_DIR / '.env'
 env_local_path = BASE_DIR / '.env.local'
-load_dotenv(dotenv_path=env_path)
-load_dotenv(dotenv_path=env_local_path, override=True)
-
-# Diagnóstico: mostra se DATABASE_URL foi encontrada
-_db_url_found = os.environ.get('DATABASE_URL')
-print(f'[ERP-DIAG] .env path: {env_path} (exists: {env_path.exists()})', file=sys.stderr)
-print(f'[ERP-DIAG] DATABASE_URL found: {bool(_db_url_found)}', file=sys.stderr)
-if _db_url_found:
-    # Mostra só o host para não expor a senha
-    print(f'[ERP-DIAG] DATABASE_URL host: ...{_db_url_found.split("@")[-1] if "@" in _db_url_found else "N/A"}', file=sys.stderr)
+if not RUNNING_TESTS:
+    load_dotenv(dotenv_path=env_path)
+    load_dotenv(dotenv_path=env_local_path, override=False)
 
 # ── Segurança ─────────────────────────────────────────────────────────────────
-SECRET_KEY = os.environ.get(
-    'SECRET_KEY',
-    'django-insecure-erp-ecopremium-2025-trip-eco-log-premium-key'
-)
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEBUG = os.environ.get('DEBUG', 'False').lower() in {'1', 'true', 'yes'}
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if RUNNING_TESTS:
+    DEBUG = True
+    SECRET_KEY = 'django-insecure-test-only'
+if not RUNNING_TESTS and (
+    not SECRET_KEY
+    or SECRET_KEY == 'change-me'
+    or SECRET_KEY.startswith('replace-')
+    or len(SECRET_KEY) < 50
+):
+    raise ImproperlyConfigured('SECRET_KEY deve ser exclusiva e ter pelo menos 50 caracteres.')
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+    if host.strip()
+]
+if not DEBUG and '*' in ALLOWED_HOSTS:
+    raise ImproperlyConfigured('ALLOWED_HOSTS nao pode conter curinga em producao.')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -59,7 +67,6 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'core.middleware.StatelessDemoMiddleware',
     'core.middleware.AcessoModuloMiddleware',
     'core.middleware.AuditLogMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -88,7 +95,11 @@ WSGI_APPLICATION = 'erp_config.wsgi.application'
 # ── Banco de Dados ────────────────────────────────────────────────────────────
 # Em produção (Vercel), usa DATABASE_URL → Supabase PostgreSQL
 # Em desenvolvimento local, usa SQLite como fallback
-db_url = os.environ.get('DATABASE_URL')
+db_url = None if RUNNING_TESTS else os.environ.get('DATABASE_URL')
+is_serverless = os.environ.get('VERCEL') == '1' or os.environ.get('AWS_EXECUTION_ENV') is not None
+
+if not db_url and not DEBUG:
+    raise ImproperlyConfigured('DATABASE_URL e obrigatoria quando DEBUG=False.')
 
 if db_url:
     DATABASES = {
@@ -102,7 +113,7 @@ else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': ':memory:' if RUNNING_TESTS else BASE_DIR / 'db.sqlite3',
         }
     }
 
@@ -111,21 +122,6 @@ if DATABASES['default'].get('ENGINE') == 'django.db.backends.sqlite3':
     # dj_database_url might add ssl_require for sqlite which is invalid
     DATABASES['default'].pop('OPTIONS', None)
     
-    is_serverless = os.environ.get('VERCEL') == '1' or os.environ.get('AWS_EXECUTION_ENV') is not None
-    if is_serverless:
-        import shutil
-        source_db = BASE_DIR / 'db.sqlite3'
-        tmp_db = '/tmp/db.sqlite3'
-        try:
-            if not os.path.exists(tmp_db) and os.path.exists(source_db):
-                shutil.copy2(source_db, tmp_db)
-            DATABASES['default']['NAME'] = tmp_db
-        except Exception:
-            pass
-
-# Diagnóstico final do banco configurado
-print(f'[ERP-DIAG] DB ENGINE: {DATABASES["default"]["ENGINE"]}', file=sys.stderr)
-print(f'[ERP-DIAG] DB HOST: {DATABASES["default"].get("HOST", "N/A")}', file=sys.stderr)
 
 # ── Supabase ──────────────────────────────────────────────────────────────────
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
@@ -133,7 +129,12 @@ SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
 SUPABASE_PUBLISHABLE_KEY = os.environ.get('SUPABASE_PUBLISHABLE_KEY', '')
 
-AUTH_PASSWORD_VALIDATORS = []
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
 
 LANGUAGE_CODE = 'pt-br'
 TIME_ZONE = 'America/Sao_Paulo'
@@ -143,23 +144,32 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
-
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # ── Configuração Supabase Storage (S3) ────────────────────────────────────────
 SUPABASE_S3_ENDPOINT_URL = os.environ.get('SUPABASE_S3_ENDPOINT_URL')
-if SUPABASE_S3_ENDPOINT_URL:
+if is_serverless and not RUNNING_TESTS and not SUPABASE_S3_ENDPOINT_URL:
+    raise ImproperlyConfigured('O armazenamento S3 e obrigatorio em ambiente serverless.')
+if RUNNING_TESTS:
+    STORAGES = {
+        'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    }
+elif SUPABASE_S3_ENDPOINT_URL:
     AWS_ACCESS_KEY_ID = os.environ.get('SUPABASE_S3_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = os.environ.get('SUPABASE_S3_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = os.environ.get('SUPABASE_S3_BUCKET_NAME', 'arquivos')
+    if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY or not AWS_STORAGE_BUCKET_NAME:
+        raise ImproperlyConfigured('As credenciais e o bucket S3 devem ser configurados em conjunto.')
     AWS_S3_ENDPOINT_URL = SUPABASE_S3_ENDPOINT_URL
     AWS_S3_REGION_NAME = os.environ.get('SUPABASE_S3_REGION_NAME', 'sa-east-1')
     AWS_S3_SIGNATURE_VERSION = 's3v4'
     AWS_S3_ADDRESSING_STYLE = 'path'
-    AWS_S3_FILE_OVERWRITE = True
+    AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = True
+    AWS_QUERYSTRING_EXPIRE = 300
     
     STORAGES = {
         "default": {
@@ -188,14 +198,31 @@ LOGOUT_REDIRECT_URL = '/login/'
 
 AUTH_USER_MODEL = 'auth.User'
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 
 # ── Configurações de Proxy e CSRF para Vercel ─────────────────────────────────
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = [
-    'https://*.vercel.app',
-    'https://*.ecopremium.com.br',
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
+    origin.strip()
+    for origin in os.environ.get(
+        'CSRF_TRUSTED_ORIGINS',
+        'http://localhost:8000,http://127.0.0.1:8000',
+    ).split(',')
+    if origin.strip()
 ]
+
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = 'Lax'
+SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', str(not DEBUG)).lower() in {'1', 'true', 'yes'}
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+X_FRAME_OPTIONS = 'DENY'
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 

@@ -4,6 +4,8 @@ from django.contrib.auth.models import User
 from admissional.models import Colaborador
 from django.utils import timezone
 from datetime import timedelta
+from django.core.exceptions import ValidationError
+from django.db import transaction
 
 
 class IntegracaoSeguranca(models.Model):
@@ -41,6 +43,9 @@ class EquipamentoProtecao(models.Model):
         verbose_name = 'Equipamento de Proteção'
         verbose_name_plural = 'Equipamentos de Proteção (Catálogo)'
         ordering = ['nome']
+        constraints = [
+            models.CheckConstraint(check=models.Q(estoque_atual__gte=0), name='sesmet_estoque_epi_nao_negativo'),
+        ]
 
     def __str__(self):
         return f"{self.nome} (CA: {self.numero_ca})"
@@ -74,6 +79,9 @@ class RegistroEPI(models.Model):
         verbose_name = 'Movimentação de EPI'
         verbose_name_plural = 'Movimentações de EPIs'
         ordering = ['-data_movimentacao', '-criado_em']
+        constraints = [
+            models.CheckConstraint(check=models.Q(quantidade__gt=0), name='sesmet_quantidade_epi_positiva'),
+        ]
 
     def __str__(self):
         return f"{self.get_tipo_movimentacao_display()} - {self.equipamento.nome} ({self.colaborador.nome})"
@@ -87,16 +95,29 @@ class RegistroEPI(models.Model):
         is_new = self.pk is None
         if not self.data_validade and self.tipo_movimentacao == 'retirada':
             self.data_validade = self.calcular_validade()
-            
-        super().save(*args, **kwargs)
-        
-        # Atualiza estoque apenas na criação do registro
-        if is_new:
+
+        if not is_new:
+            original = type(self).objects.get(pk=self.pk)
+            campos_estoque = ('equipamento_id', 'tipo_movimentacao', 'quantidade')
+            if any(getattr(original, campo) != getattr(self, campo) for campo in campos_estoque):
+                raise ValidationError(
+                    'Equipamento, tipo e quantidade nao podem ser alterados apos a movimentacao.'
+                )
+            return super().save(*args, **kwargs)
+        if self.quantidade <= 0:
+            raise ValidationError('A quantidade deve ser maior que zero.')
+
+        with transaction.atomic():
+            equipamento = EquipamentoProtecao.objects.select_for_update().get(pk=self.equipamento_id)
             if self.tipo_movimentacao == 'retirada':
-                self.equipamento.estoque_atual -= self.quantidade
+                if equipamento.estoque_atual < self.quantidade:
+                    raise ValidationError('Estoque insuficiente para esta retirada.')
+                equipamento.estoque_atual -= self.quantidade
             elif self.tipo_movimentacao == 'devolucao':
-                self.equipamento.estoque_atual += self.quantidade
-            self.equipamento.save()
+                equipamento.estoque_atual += self.quantidade
+            super().save(*args, **kwargs)
+            equipamento.save(update_fields=['estoque_atual', 'atualizado_em'])
+            self.equipamento = equipamento
 
 
 

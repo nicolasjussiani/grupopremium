@@ -29,7 +29,7 @@ class AprovacaoProcessoTest(TestCase):
         )
 
         # 2. Cria a aprovação (normalmente acionada por um gatilho na view do módulo)
-        aprovacao = AprovacaoRegistro.criar_aprovacao(
+        aprovacao = AprovacaoRegistro.criar_para(
             objeto=demanda,
             modulo='administrativo',
             titulo=f'Aprovação da demanda: {demanda.titulo}',
@@ -71,7 +71,7 @@ class AprovacaoProcessoTest(TestCase):
             requisitante_usuario=self.solicitante,
             status='recebida'
         )
-        aprovacao = AprovacaoRegistro.criar_aprovacao(
+        aprovacao = AprovacaoRegistro.criar_para(
             objeto=demanda, modulo='administrativo', titulo='Aprovação Rejeitada', solicitado_por=self.solicitante, nivel=1
         )
 

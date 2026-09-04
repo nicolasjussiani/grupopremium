@@ -1,146 +1,93 @@
-import os
-from django.contrib.auth.models import User, AnonymousUser
-from django.utils.deprecation import MiddlewareMixin
-from django.shortcuts import redirect
+import logging
+
 from django.contrib import messages
+from django.shortcuts import redirect
+from django.utils.deprecation import MiddlewareMixin
 
 
-class StatelessDemoMiddleware(MiddlewareMixin):
-    """
-    Middleware inteligente para o ERP Grupo PremiumBR:
-
-    - Se DATABASE_URL estiver configurada (Supabase/produção):
-        Deixa o Django Auth normal funcionar (login real).
-
-    - Se DATABASE_URL NÃO estiver configurada (demo local / Vercel sem DB):
-        Injeta um superusuário fake em memória, sem tocar no banco.
-        Isso evita o erro "attempt to write a readonly database" no Vercel.
-    """
-
-    _demo_user = None  # Cache do usuário demo (evita query repetida)
-
-    def process_request(self, request):
-        # Se tiver Supabase configurado, deixa o Django Auth normal agir
-        if os.environ.get('DATABASE_URL'):
-            return  # Auth real — não interfere
-
-        # Modo Demo: injeta usuário fake sem nenhuma query ao banco
-        if StatelessDemoMiddleware._demo_user is None:
-            # Tenta pegar um usuário real uma única vez (pode falhar no Vercel)
-            try:
-                StatelessDemoMiddleware._demo_user = User.objects.first()
-            except Exception:
-                StatelessDemoMiddleware._demo_user = None
-
-        if StatelessDemoMiddleware._demo_user:
-            request.user = StatelessDemoMiddleware._demo_user
-        else:
-            # Fallback total: usuário fake em memória, zero queries
-            fake = User()
-            fake.id = 1
-            fake.pk = 1
-            fake.username = 'admin_demo'
-            fake.first_name = 'Admin'
-            fake.last_name = 'Demo'
-            fake.email = 'admin@ecopremium.com.br'
-            fake.is_active = True
-            fake.is_staff = True
-            fake.is_superuser = True
-            fake._state.adding = False  # Evita que Django tente salvar
-            request.user = fake
+logger = logging.getLogger(__name__)
 
 
 class AcessoModuloMiddleware(MiddlewareMixin):
-    """
-    Middleware que restringe o acesso aos módulos com base no perfil do usuário.
-    O Admin (superuser) e o usuário Luiz têm acesso irrestrito.
-    """
+    """Restringe a navegacao de cada modulo conforme o perfil do usuario."""
+
+    REGRAS = {
+        '/recrutamento/': {'rh', 'gestor', 'sesmet'},
+        '/admissional/': {'rh', 'gestor', 'sesmet'},
+        '/administrativo/': {'gestor'},
+        '/sesmet/': {'sesmet', 'gestor', 'rh'},
+        '/compras/': {'compras', 'gestor'},
+        '/financeiro/': {'financeiro', 'gestor'},
+        '/manutencao/': {'sesmet', 'gestor', 'compras', 'rh'},
+    }
+
+    ROTAS_LIVRES = ('/admin/', '/static/', '/media/', '/login', '/logout')
+
     def process_request(self, request):
         if not request.user.is_authenticated:
             return None
-            
+
         path = request.path_info
-        
-        # Ignorar URLs liberadas ou de sistema
-        if path.startswith('/admin/') or path.startswith('/static/') or path.startswith('/media/') or path == '/' or path.startswith('/login') or path.startswith('/logout') or path.startswith('/api/'):
+        if path == '/' or path.startswith(self.ROTAS_LIVRES):
             return None
-            
-        # Acesso irrestrito
-        if request.user.is_superuser or request.user.username.lower() == 'luiz':
+
+        if request.user.is_superuser or request.user.groups.filter(name='Admin_Global').exists():
             return None
-            
-        perfil = request.user.perfil.perfil if hasattr(request.user, 'perfil') else 'operacional'
-        
-        regras = {
-            '/recrutamento/': ['rh', 'gestor', 'sesmet'],
-            '/admissional/': ['rh', 'gestor', 'sesmet'],
-            '/administrativo/': ['gestor'],
-            '/sesmet/': ['sesmet', 'gestor', 'rh'],
-            '/compras/': ['compras', 'gestor'],
-            '/financeiro/': ['financeiro', 'gestor'],
-            '/manutencao/': ['sesmet', 'gestor', 'compras', 'rh'],
-        }
-        
-        for prefix, perfis_permitidos in regras.items():
-            if path.startswith(prefix):
-                if perfil not in perfis_permitidos:
-                    messages.error(request, '⛔ Acesso negado! Você não tem permissão para acessar este módulo.')
-                    return redirect('dashboard')
-                break
-                
+
+        perfil_obj = getattr(request.user, 'perfil', None)
+        perfil = getattr(perfil_obj, 'perfil', 'operacional')
+
+        for prefix, perfis_permitidos in self.REGRAS.items():
+            if path.startswith(prefix) and perfil not in perfis_permitidos:
+                messages.error(request, 'Acesso negado: seu perfil nao permite acessar este modulo.')
+                return redirect('dashboard')
         return None
+
 
 class AuditLogMiddleware(MiddlewareMixin):
-    """
-    Middleware para interceptar ações de escrita (POST) e gravar log de auditoria automaticamente.
-    """
-    def process_request(self, request):
-        if request.method == 'POST' and request.user.is_authenticated:
-            path = request.path_info
-            
-            # Ignora ações repetitivas ou irrelevantes para auditoria de negócio
-            if path.startswith('/login') or path.startswith('/logout') or path.startswith('/api/notificacoes'):
-                return None
-            
-            partes = path.strip('/').split('/')
-            modulo = partes[0] if partes else 'sistema'
-            
-            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-            if x_forwarded_for:
-                ip = x_forwarded_for.split(',')[0]
-            else:
-                ip = request.META.get('REMOTE_ADDR')
+    """Registra POSTs concluidos sem copiar dados pessoais ou credenciais."""
 
-            # Sanitização dos dados (remove tokens e senhas)
-            dados = request.POST.copy()
-            if 'password' in dados:
-                dados['password'] = '***'
-            if 'csrfmiddlewaretoken' in dados:
-                del dados['csrfmiddlewaretoken']
+    ROTAS_IGNORADAS = ('/login', '/logout', '/api/notificacoes')
 
-            # Inferência da ação baseada na URL
-            acao = f"Ação submetida em: {path}"
-            if 'aprovar' in path:
-                acao = "Aprovou um registro/documento"
-            elif 'rejeitar' in path:
-                acao = "Rejeitou um registro/documento"
-            elif 'novo' in path or 'criar' in path:
-                acao = "Criou um novo registro"
-            elif 'editar' in path or 'atualizar' in path:
-                acao = "Editou um registro existente"
+    def process_response(self, request, response):
+        if not (
+            request.method == 'POST'
+            and getattr(request, 'user', None)
+            and request.user.is_authenticated
+            and response.status_code < 400
+        ):
+            return response
 
-            from core.models import LogAtividade
-            try:
-                LogAtividade.objects.create(
-                    usuario=request.user,
-                    acao=acao,
-                    modulo=modulo,
-                    url=path,
-                    ip_address=ip,
-                    detalhes=str(dados.dict())[:1000]
-                )
-            except Exception:
-                pass # Evita quebrar o sistema se o log falhar
+        path = request.path_info
+        if path.startswith(self.ROTAS_IGNORADAS):
+            return response
 
-        return None
+        partes = path.strip('/').split('/')
+        modulo = partes[0] if partes and partes[0] else 'sistema'
+        campos = sorted(k for k in request.POST.keys() if k != 'csrfmiddlewaretoken')
 
+        acao = f'Acao submetida em: {path}'
+        if 'aprovar' in path:
+            acao = 'Aprovou um registro/documento'
+        elif 'rejeitar' in path:
+            acao = 'Rejeitou um registro/documento'
+        elif 'novo' in path or 'criar' in path:
+            acao = 'Criou um novo registro'
+        elif 'editar' in path or 'atualizar' in path:
+            acao = 'Editou um registro existente'
+
+        from core.models import LogAtividade
+
+        try:
+            LogAtividade.objects.create(
+                usuario=request.user,
+                acao=acao,
+                modulo=modulo,
+                url=path,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                detalhes=f"Campos enviados: {', '.join(campos)}"[:1000],
+            )
+        except Exception:
+            logger.exception('Falha ao registrar auditoria para %s', path)
+
+        return response

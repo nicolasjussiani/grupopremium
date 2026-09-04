@@ -5,9 +5,22 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.utils import timezone
 from django.db.models import Q
+from django.db import transaction
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from core.models import AprovacaoRegistro
+
+
+def _redirect_seguro(request):
+    destino = request.POST.get('next')
+    if destino and url_has_allowed_host_and_scheme(
+        destino,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(destino)
+    return redirect('aprovacoes_pendentes')
 
 # Mapa: grupo → módulos que ele pode aprovar
 GRUPOS_APROVADORES = {
@@ -17,6 +30,7 @@ GRUPOS_APROVADORES = {
     'SESMET_Gestor':         ['sesmet'],
     'Compras_Aprovador':     ['compras'],
     'Financeiro_Aprovador':  ['financeiro'],
+    'Diretoria_Final':       ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
     'Admin_Global':          ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
 }
 
@@ -76,11 +90,15 @@ def aprovacoes_pendentes(request):
 
 @login_required
 @require_POST
+@transaction.atomic
 def aprovar_registro(request, pk):
     """Aprova um registro pendente."""
     modulos = _modulos_do_usuario(request.user)
     aprovacao = get_object_or_404(
-        AprovacaoRegistro, pk=pk, status='pendente', modulo__in=modulos
+        AprovacaoRegistro.objects.select_for_update(),
+        pk=pk,
+        status='pendente',
+        modulo__in=modulos,
     )
 
     comentario = request.POST.get('comentario', '').strip()
@@ -97,16 +115,20 @@ def aprovar_registro(request, pk):
         return JsonResponse({'status': 'ok', 'mensagem': 'Registro aprovado com sucesso!'})
 
     messages.success(request, f'✅ "{aprovacao.titulo}" aprovado com sucesso!')
-    return redirect(request.POST.get('next', 'aprovacoes_pendentes'))
+    return _redirect_seguro(request)
 
 
 @login_required
 @require_POST
+@transaction.atomic
 def rejeitar_registro(request, pk):
     """Rejeita um registro pendente."""
     modulos = _modulos_do_usuario(request.user)
     aprovacao = get_object_or_404(
-        AprovacaoRegistro, pk=pk, status='pendente', modulo__in=modulos
+        AprovacaoRegistro.objects.select_for_update(),
+        pk=pk,
+        status='pendente',
+        modulo__in=modulos,
     )
 
     motivo = request.POST.get('motivo_rejeicao', '').strip()
@@ -114,7 +136,7 @@ def rejeitar_registro(request, pk):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({'status': 'erro', 'mensagem': 'Informe o motivo da rejeição.'}, status=400)
         messages.error(request, '❌ Informe o motivo da rejeição.')
-        return redirect(request.POST.get('next', 'aprovacoes_pendentes'))
+        return _redirect_seguro(request)
 
     aprovacao.status = 'rejeitado'
     aprovacao.aprovado_por = request.user
@@ -128,7 +150,7 @@ def rejeitar_registro(request, pk):
         return JsonResponse({'status': 'ok', 'mensagem': 'Registro rejeitado.'})
 
     messages.warning(request, f'🚫 "{aprovacao.titulo}" rejeitado.')
-    return redirect(request.POST.get('next', 'aprovacoes_pendentes'))
+    return _redirect_seguro(request)
 
 
 @login_required
@@ -157,31 +179,25 @@ def _executar_callback_aprovacao(aprovacao, decisao, usuario):
     Chama o callback correto conforme o módulo e decisão.
     Cada módulo define o que acontece quando um item é aprovado/rejeitado.
     """
-    try:
-        obj = aprovacao.objeto
-        if obj is None:
-            return
+    obj = aprovacao.objeto
+    if obj is None:
+        return
 
-        modulo = aprovacao.modulo
-
-        if modulo == 'recrutamento':
-            _callback_recrutamento(obj, decisao, usuario)
-        elif modulo == 'compras':
-            _callback_compras(obj, decisao, usuario, aprovacao)
-        elif modulo == 'financeiro':
-            _callback_financeiro(obj, decisao, usuario, aprovacao)
-        elif modulo == 'administrativo':
-            _callback_administrativo(obj, decisao, usuario)
-        elif modulo == 'sesmet':
-            _callback_sesmet(obj, decisao, usuario)
-        elif modulo == 'admissional':
-            _callback_admissional(obj, decisao, usuario)
-        elif modulo == 'manutencao':
-            _callback_manutencao(obj, decisao, usuario)
-
-    except Exception:
-        # Nunca quebra o fluxo de aprovação por erro no callback
-        pass
+    modulo = aprovacao.modulo
+    if modulo == 'recrutamento':
+        _callback_recrutamento(obj, decisao, usuario)
+    elif modulo == 'compras':
+        _callback_compras(obj, decisao, usuario, aprovacao)
+    elif modulo == 'financeiro':
+        _callback_financeiro(obj, decisao, usuario, aprovacao)
+    elif modulo == 'administrativo':
+        _callback_administrativo(obj, decisao, usuario)
+    elif modulo == 'sesmet':
+        _callback_sesmet(obj, decisao, usuario)
+    elif modulo == 'admissional':
+        _callback_admissional(obj, decisao, usuario)
+    elif modulo == 'manutencao':
+        _callback_manutencao(obj, decisao, usuario)
 
 
 def _callback_recrutamento(obj, decisao, usuario):
@@ -254,4 +270,6 @@ def _callback_manutencao(obj, decisao, usuario):
             obj.status = 'aberta'
         elif decisao == 'rejeitado':
             obj.status = 'cancelada'
+            obj.ativo.status = 'ativo'
+            obj.ativo.save(update_fields=['status', 'atualizado_em'])
         obj.save(update_fields=['status'])

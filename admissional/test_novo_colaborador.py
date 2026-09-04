@@ -18,7 +18,10 @@ import datetime
 
 def _make_user(username='testuser', password='testpass123'):
     """Cria e retorna um usuario de teste."""
-    return User.objects.create_user(username=username, password=password)
+    user = User.objects.create_user(username=username, password=password)
+    from core.models import PerfilUsuario
+    PerfilUsuario.objects.create(usuario=user, perfil='rh')
+    return user
 
 
 def _colaborador_data(**overrides):

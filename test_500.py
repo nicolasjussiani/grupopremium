@@ -1,24 +1,25 @@
+"""Diagnostico manual da tela de cadastro de ativos."""
 import os
-import django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'erp_config.settings')
-django.setup()
+import sys
 
-from django.test import Client
-from django.contrib.auth.models import User
-import traceback
 
-try:
-    client = Client()
+def main():
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'erp_config.settings')
+    import django
+    django.setup()
+    from django.contrib.auth.models import User
+    from django.test import Client
+
     user = User.objects.first()
-    if user:
-        client.force_login(user)
-    else:
-        print("No users found.")
-
+    if user is None:
+        print('Nenhum usuario encontrado.')
+        return 2
+    client = Client()
+    client.force_login(user)
     response = client.get('/manutencao/ativos/novo/')
-    print(f"Status Code: {response.status_code}")
-    if response.status_code >= 500:
-        print("Response Content:")
-        print(response.content.decode('utf-8', errors='ignore'))
-except Exception as e:
-    traceback.print_exc()
+    print(f'Status code: {response.status_code}')
+    return 1 if response.status_code >= 500 else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

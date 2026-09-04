@@ -8,14 +8,24 @@ from admissional.models import Admissao, DocumentoAdmissional
 from core.models import Notificacao
 from django.contrib.auth.models import User
 from django.http import JsonResponse
+from core.access import access_required
+from core.validators import validate_document_upload
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.utils.text import get_valid_filename
+from decimal import Decimal, InvalidOperation
+import logging
 import json
 import re
 import io
 import os
 
+
+logger = logging.getLogger(__name__)
+
 # OCR imports — opcionais (não disponíveis na Vercel)
 try:
-    import fitz  # PyMuPDF
+    import pymupdf as fitz
     HAS_FITZ = True
 except ImportError:
     HAS_FITZ = False
@@ -54,6 +64,7 @@ def lista_vagas(request):
 
 
 @login_required
+@access_required(permission='recrutamento.add_vaga', profiles=('rh', 'gestor'))
 def nova_vaga(request):
     if request.method == 'POST':
         # Gateway 1: Validar campos obrigatórios
@@ -76,16 +87,34 @@ def nova_vaga(request):
                 'tipo_choices': Vaga.TIPO_CONTRATACAO,
             })
 
+        try:
+            quantidade_colaboradores = int(request.POST['quantidade_colaboradores'])
+            valor_salario = Decimal(request.POST['valor_salario'].replace(',', '.'))
+        except (ValueError, InvalidOperation):
+            quantidade_colaboradores = 0
+            valor_salario = Decimal('-1')
+        tipos_validos = {value for value, _ in Vaga.TIPO_CONTRATACAO}
+        if (
+            quantidade_colaboradores <= 0
+            or valor_salario < 0
+            or request.POST['tipo_contratacao'] not in tipos_validos
+        ):
+            messages.error(request, 'Quantidade, salario ou tipo de contratacao invalido.')
+            return render(request, 'recrutamento/nova_vaga.html', {
+                'post_data': request.POST,
+                'tipo_choices': Vaga.TIPO_CONTRATACAO,
+            })
+
         vaga = Vaga(
             nome_vaga=request.POST['nome_vaga'],
-            quantidade_colaboradores=int(request.POST['quantidade_colaboradores']),
+            quantidade_colaboradores=quantidade_colaboradores,
             cidade=request.POST['cidade'],
             unidade=request.POST['unidade'],
             perfil_desejado=request.POST['perfil_desejado'],
             atividades=request.POST['atividades'],
             horario_trabalho=request.POST['horario_trabalho'],
             tipo_contratacao=request.POST['tipo_contratacao'],
-            valor_salario=request.POST['valor_salario'],
+            valor_salario=valor_salario,
             previsao_inicio=request.POST['previsao_inicio'],
             exige_experiencia=request.POST.get('exige_experiencia') == 'on',
             descricao_experiencia=request.POST.get('descricao_experiencia', ''),
@@ -94,7 +123,15 @@ def nova_vaga(request):
             gestor_usuario=request.user,
             status='em_selecao',
         )
-        vaga.save()
+        try:
+            vaga.full_clean()
+            vaga.save()
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages))
+            return render(request, 'recrutamento/nova_vaga.html', {
+                'post_data': request.POST,
+                'tipo_choices': Vaga.TIPO_CONTRATACAO,
+            })
         messages.success(request, f'✅ Vaga "{vaga.nome_vaga}" criada com sucesso! Aguardando candidatos.')
         return redirect('detalhe_vaga', pk=vaga.pk)
 
@@ -122,6 +159,8 @@ def detalhe_vaga(request, pk):
 
 
 @login_required
+@access_required(permission='recrutamento.add_candidato', profiles=('rh', 'gestor'))
+@transaction.atomic
 def adicionar_candidato(request, vaga_pk):
     vaga = get_object_or_404(Vaga, pk=vaga_pk)
     if request.method == 'POST':
@@ -145,15 +184,24 @@ def adicionar_candidato(request, vaga_pk):
         )
         arquivo_upload = request.FILES.get('curriculo_pdf')
         if arquivo_upload:
+            try:
+                validate_document_upload(arquivo_upload)
+            except ValidationError as exc:
+                messages.error(request, exc.messages[0])
+                return render(request, 'recrutamento/adicionar_candidato.html', {'vaga': vaga})
             candidato.arquivo = arquivo_upload
 
         try:
+            candidato.full_clean()
             candidato.save()
-        except Exception as e:
-            # Falha silenciosa do S3: Salva apenas no banco de dados (BinaryField)
-            candidato.arquivo = None
-            candidato.save()
-            
+        except (ValidationError, OSError) as exc:
+            if isinstance(exc, OSError):
+                transaction.set_rollback(True)
+                mensagem = 'Nao foi possivel armazenar o curriculo. Tente novamente.'
+            else:
+                mensagem = '; '.join(exc.messages)
+            messages.error(request, mensagem)
+            return render(request, 'recrutamento/adicionar_candidato.html', {'vaga': vaga})
 
         # Salva no Banco de Talentos ou atualiza a última vaga aplicada
         if email:
@@ -172,8 +220,7 @@ def adicionar_candidato(request, vaga_pk):
                 talento.telefone = telefone
                 talento.cidade = cidade
             if arquivo_upload:
-                talento.arquivo = arquivo_upload
-                talento.arquivo_pdf = file_bytes
+                talento.arquivo = candidato.arquivo.name
             talento.save()
 
         messages.success(request, f'✅ Candidato {candidato.nome} adicionado à vaga {vaga.nome_vaga}.')
@@ -182,9 +229,11 @@ def adicionar_candidato(request, vaga_pk):
 
 
 @login_required
+@access_required(permission='recrutamento.change_candidato', profiles=('rh', 'gestor'))
+@transaction.atomic
 def avancar_etapa(request, candidato_pk):
     """Gateway: avança candidato para próxima etapa ou reprova"""
-    candidato = get_object_or_404(Candidato, pk=candidato_pk)
+    candidato = get_object_or_404(Candidato.objects.select_for_update(), pk=candidato_pk)
     if request.method == 'POST':
         acao = request.POST.get('acao')
         obs = request.POST.get('obs', '')
@@ -208,12 +257,15 @@ def avancar_etapa(request, candidato_pk):
                 elif candidato.etapa_atual == 'aprovado':
                     candidato.aprovado = True
                     candidato.resultado_entrevista = obs
-                    # GATEWAY SIM → Dispara gatilho automático para Módulo 2
-                    _disparar_admissao(candidato, request.user)
                 candidato.save()
+                if candidato.etapa_atual == 'aprovado':
+                    _disparar_admissao(candidato, request.user)
                 messages.success(request, f'✅ Candidato {candidato.nome} avançou para: {candidato.get_etapa_atual_display()}')
             else:
                 messages.info(request, 'Candidato já está na etapa final.')
+
+        else:
+            messages.error(request, 'Acao de etapa invalida.')
 
         return redirect('detalhe_vaga', pk=candidato.vaga.pk)
 
@@ -290,7 +342,8 @@ def baixar_curriculo_candidato(request, pk):
         return redirect(candidato.arquivo.url)
     if candidato.arquivo_pdf:
         response = HttpResponse(candidato.arquivo_pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="curriculo_{candidato.nome}.pdf"'
+        filename = get_valid_filename(f'curriculo_{candidato.nome}.pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
     return HttpResponseNotFound("Currículo não encontrado.")
 
@@ -302,11 +355,13 @@ def baixar_curriculo_talento(request, pk):
         return redirect(talento.arquivo.url)
     if talento.arquivo_pdf:
         response = HttpResponse(talento.arquivo_pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="curriculo_{talento.nome}.pdf"'
+        filename = get_valid_filename(f'curriculo_{talento.nome}.pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
     return HttpResponseNotFound("Currículo não encontrado.")
 
 @login_required
+@access_required(permission='recrutamento.view_candidato', profiles=('rh', 'gestor', 'sesmet'))
 def parse_curriculo(request):
     """Lê um PDF enviado por AJAX e tenta extrair nome, email e telefone."""
     if not HAS_FITZ:
@@ -315,6 +370,10 @@ def parse_curriculo(request):
         }, status=400)
     if request.method == 'POST' and request.FILES.get('curriculo'):
         arquivo = request.FILES['curriculo']
+        try:
+            validate_document_upload(arquivo)
+        except ValidationError as exc:
+            return JsonResponse({'error': exc.messages[0]}, status=400)
         texto = ""
         try:
             # Lê os bytes apenas uma vez
@@ -334,8 +393,9 @@ def parse_curriculo(request):
                         except Exception as ocr_e:
                             print(f"OCR ignorado na página: {ocr_e}")
             doc.close()
-        except Exception as e:
-            return JsonResponse({'error': 'Erro ao ler o PDF: ' + str(e)}, status=400)
+        except Exception:
+            logger.exception('Falha ao extrair texto do curriculo')
+            return JsonResponse({'error': 'Nao foi possivel ler o PDF enviado.'}, status=400)
             
         # Extração de Email
         # Corrige possíveis erros de OCR (ex: copyright ou grau lidos no lugar do @)

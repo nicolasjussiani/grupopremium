@@ -50,8 +50,8 @@
         Dashboard
       </a>
 
-      <!-- Visível Apenas para CEO / Diretoria (Admin ou Luiz) -->
-      {% if request.user.is_superuser or 'luiz' in request.user.username.lower or 'luiz' in request.user.get_full_name.lower %}
+      <!-- Visível apenas para administradores e diretoria autorizada -->
+      {% if request.user.is_superuser or perms.core.view_logatividade %}
       <div class="nav-section-label">DIRETORIA</div>
       <a href="{% url 'auditoria_sistema' %}" class="nav-item" style="color: #FCD34D;">
         <span class="nav-icon">🔍</span>
@@ -69,7 +69,7 @@
 
       <div class="nav-section-label">Módulos</div>
 
-      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'sesmet' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'sesmet' %}
       <a href="{% url 'lista_vagas' %}" class="nav-item mod1 {% block nav_recrutamento %}{% endblock %}">
         <span class="nav-icon">👥</span>
         Recrutamento e Seleção
@@ -77,7 +77,7 @@
       </a>
       {% endif %}
       
-      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'sesmet' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'sesmet' %}
       <a href="{% url 'banco_talentos' %}" class="nav-item mod1 {% block nav_talentos %}{% endblock %}">
         <span class="nav-icon">🌟</span>
         Banco de Talentos
@@ -90,7 +90,7 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'gestor' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'lista_demandas' %}" class="nav-item mod3 {% block nav_administrativo %}{% endblock %}">
         <span class="nav-icon">🗂️</span>
         Administrativo
@@ -98,7 +98,7 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'dashboard_sesmet' %}" class="nav-item mod4 {% block nav_sesmet %}{% endblock %}">
         <span class="nav-icon">🦺</span>
         SESMET / Segurança
@@ -106,7 +106,7 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'painel_compras' %}" class="nav-item mod5 {% block nav_compras %}{% endblock %}">
         <span class="nav-icon">🛒</span>
         Compras / Almoxarifado
@@ -114,7 +114,7 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'painel_financeiro' %}" class="nav-item mod6 {% block nav_financeiro %}{% endblock %}">
         <span class="nav-icon">💰</span>
         Financeiro / Fiscal
@@ -122,7 +122,7 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'compras' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'compras' %}
       <a href="{% url 'painel_manutencao' %}" class="nav-item mod3 {% block nav_manutencao %}{% endblock %}">
         <span class="nav-icon">🔧</span>
         Manutenção / Patrimônio
@@ -137,7 +137,7 @@
         <span class="nav-badge" id="badgeAprovacoes" style="display:none;"></span>
       </a>
 
-      {% if request.user.is_superuser or request.user.username|lower == 'luiz' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'sesmet' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'sesmet' %}
       <div class="nav-section-label">Colaboradores</div>
       <a href="{% url 'lista_colaboradores' %}" class="nav-item {% block nav_colaboradores %}{% endblock %}">
         <span class="nav-icon">🏢</span>
@@ -164,7 +164,10 @@
           <div class="user-name">{{ user.get_full_name|default:user.username }}</div>
           <div class="user-role">{% if user.perfil %}{{ user.perfil.get_perfil_display }}{% else %}Usuário{% endif %}</div>
         </div>
-        <a href="{% url 'logout' %}" class="btn-logout" title="Sair">⏏</a>
+        <form method="post" action="{% url 'logout' %}" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit" class="btn-logout" title="Sair">⏏</button>
+        </form>
       </div>
     </div>
   </aside>

@@ -16,10 +16,6 @@ urlpatterns = [
     path('aprovacoes/<int:pk>/rejeitar/', views_aprovacao.rejeitar_registro, name='rejeitar_registro'),
     path('aprovacoes/<int:pk>/detalhe/', views_aprovacao.detalhe_aprovacao, name='detalhe_aprovacao'),
     path('api/aprovacoes/pendentes/count/', views_aprovacao.api_aprovacoes_pendentes_count, name='aprovacoes_count_api'),
-    # TEMPORÁRIO: diagnóstico de variáveis de ambiente
-    path('debug-env/', views.debug_env, name='debug_env'),
-    path('run-migrations/', views.run_migrations_view, name='run_migrations_view'),
-    
     # Auditoria Global (CEO)
     path('auditoria-logs/', views.auditoria_sistema, name='auditoria_sistema'),
     path('diretoria/tempo-processos/', views.painel_sla_processos, name='painel_sla'),

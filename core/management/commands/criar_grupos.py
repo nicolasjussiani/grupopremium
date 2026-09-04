@@ -64,12 +64,14 @@ class Command(BaseCommand):
 
         # ── SESMET ────────────────────────────────────────────────────────────
         'SESMET_Tecnico': {
+            'sesmet.EquipamentoProtecao': ['add', 'change', 'view'],
             'sesmet.IntegracaoSeguranca': ['add', 'change', 'view'],
             'sesmet.OrdemServico':        ['add', 'change', 'view'],
             'sesmet.RegistroEPI':         ['add', 'change', 'view'],
             'core.AprovacaoRegistro':     ['add', 'view'],
         },
         'SESMET_Gestor': {
+            'sesmet.EquipamentoProtecao': ['add', 'change', 'view', 'delete'],
             'sesmet.IntegracaoSeguranca': ['add', 'change', 'view', 'delete'],
             'sesmet.OrdemServico':        ['add', 'change', 'view', 'delete'],
             'sesmet.RegistroEPI':         ['add', 'change', 'view', 'delete'],
@@ -114,6 +116,13 @@ class Command(BaseCommand):
             'core.AprovacaoRegistro':         ['view'],
         },
 
+        'Diretoria_Final': {
+            'compras.PedidoCompra':        ['change', 'view'],
+            'financeiro.LancamentoERP':    ['change', 'view'],
+            'core.AprovacaoRegistro':      ['change', 'view'],
+            'core.LogAtividade':           ['view'],
+        },
+
         # ── ADMIN GLOBAL ──────────────────────────────────────────────────────
         'Admin_Global': {
             'recrutamento.Vaga':                    ['add', 'change', 'view', 'delete'],
@@ -123,6 +132,7 @@ class Command(BaseCommand):
             'admissional.DocumentoAdmissional':     ['add', 'change', 'view', 'delete'],
             'administrativo.DemandaAdministrativa': ['add', 'change', 'view', 'delete'],
             'sesmet.IntegracaoSeguranca':            ['add', 'change', 'view', 'delete'],
+            'sesmet.EquipamentoProtecao':            ['add', 'change', 'view', 'delete'],
             'sesmet.OrdemServico':                  ['add', 'change', 'view', 'delete'],
             'sesmet.RegistroEPI':                   ['add', 'change', 'view', 'delete'],
             'compras.Material':                     ['add', 'change', 'view', 'delete'],
@@ -131,9 +141,12 @@ class Command(BaseCommand):
             'financeiro.DocumentoFinanceiro':       ['add', 'change', 'view', 'delete'],
             'financeiro.AuditoriaItem':             ['add', 'change', 'view', 'delete'],
             'financeiro.LancamentoERP':             ['add', 'change', 'view', 'delete'],
+            'manutencao.Ativo':                     ['add', 'change', 'view', 'delete'],
+            'manutencao.RegistroManutencao':        ['add', 'change', 'view', 'delete'],
             'core.AprovacaoRegistro':               ['add', 'change', 'view', 'delete'],
             'core.PerfilUsuario':                   ['add', 'change', 'view', 'delete'],
             'core.Notificacao':                     ['add', 'change', 'view', 'delete'],
+            'core.LogAtividade':                    ['view'],
         },
     }
 

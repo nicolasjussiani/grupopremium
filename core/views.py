@@ -1,5 +1,5 @@
 """ERP Grupo PremiumBR — Views do Core (Login, Dashboard, Notificações)"""
-import os
+import logging
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -7,6 +7,8 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
 
 from core.models import PerfilUsuario, Notificacao
 from recrutamento.models import Vaga, Candidato
@@ -17,49 +19,42 @@ from compras.models import SolicitacaoMaterial, Material
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
 
 
-from django.views.decorators.csrf import csrf_exempt
+logger = logging.getLogger(__name__)
 
-_MODO_DEMO = not bool(os.environ.get('DATABASE_URL'))
 
-@csrf_exempt
+def _next_url_segura(request, default='/'):
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return next_url
+    return default
+
+
 def login_view(request):
     # ── Modo Demo (sem Supabase configurado) ──────────────────────────────────
     # Não toca no banco de dados. Qualquer acesso é permitido.
-    if _MODO_DEMO:
-        if request.method == 'POST':
-            next_url = request.GET.get('next', '/')
-            response = redirect(next_url)
-            response.set_cookie('demo_logged_in', 'true', max_age=86400)
-            return response
-        # Se já tem cookie, vai direto pro dashboard
-        if request.COOKIES.get('demo_logged_in'):
-            return redirect('dashboard')
-        return render(request, 'login.html', {'modo_demo': True})
-
     # ── Modo Real (Supabase configurado) ─────────────────────────────────────
     if request.user.is_authenticated:
         return redirect('dashboard')
 
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
-        password = request.POST.get('password', '').strip()
+        password = request.POST.get('password', '')
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            next_url = request.GET.get('next', '/')
-            return redirect(next_url)
+            return redirect(_next_url_segura(request))
         else:
             messages.error(request, 'Usuário ou senha incorretos.')
 
-    return render(request, 'login.html', {'modo_demo': False})
+    return render(request, 'login.html')
 
 
+@require_POST
 def logout_view(request):
-    if _MODO_DEMO:
-        response = redirect('login')
-        response.delete_cookie('demo_logged_in')
-        return response
-    # Modo real
     logout(request)
     return redirect('login')
 
@@ -74,6 +69,7 @@ def dashboard(request):
     try:
         perfil = request.user.perfil
     except Exception:
+        logger.debug('Usuario sem perfil associado', exc_info=True)
         pass
 
     # Todos os KPIs são protegidos — se o banco não estiver disponível,
@@ -124,7 +120,8 @@ def dashboard(request):
         demandas_recentes = DemandaAdministrativa.objects.order_by('-criado_em')[:3]
 
     except Exception:
-        # Banco indisponível (modo demo sem Supabase) — retorna zeros
+        logger.exception('Falha ao carregar os indicadores do dashboard')
+        # Banco indisponível — retorna zeros
         vagas_abertas = vagas_em_selecao = candidatos_pendentes = 0
         admissoes_em_andamento = colaboradores_ativos = 0
         demandas_abertas = demandas_urgentes = 0
@@ -155,7 +152,7 @@ def dashboard(request):
         'admissoes_recentes': admissoes_recentes,
         'demandas_recentes': demandas_recentes,
         'hoje': hoje,
-        'modo_demo': _MODO_DEMO,
+        'modo_demo': False,
     }
     return render(request, 'dashboard.html', context)
 
@@ -175,69 +172,11 @@ def notificacoes_json(request):
 
 
 @login_required
+@require_POST
 def marcar_notificacao_lida(request, pk):
-    if request.method == 'POST':
-        try:
-            Notificacao.objects.filter(pk=pk, destinatario=request.user).update(lida=True)
-        except Exception:
-            pass
-        return JsonResponse({'status': 'ok'})
-    return JsonResponse({'status': 'error'}, status=400)
+    Notificacao.objects.filter(pk=pk, destinatario=request.user).update(lida=True)
+    return JsonResponse({'status': 'ok'})
 
-
-
-@login_required
-def marcar_notificacao_lida(request, pk):
-    if request.method == 'POST':
-        Notificacao.objects.filter(pk=pk, destinatario=request.user).update(lida=True)
-        return JsonResponse({'status': 'ok'})
-    return JsonResponse({'status': 'error'}, status=400)
-
-
-# ── TEMPORÁRIO: View de diagnóstico para debug da Vercel ──────────────────────
-from django.views.decorators.csrf import csrf_exempt
-from django.conf import settings as django_settings
-
-@csrf_exempt
-def debug_env(request):
-    """View temporária para diagnosticar variáveis de ambiente na Vercel.
-    REMOVER DEPOIS DE RESOLVER O PROBLEMA!"""
-    import sys
-    info = {
-        'DATABASE_URL_exists': bool(os.environ.get('DATABASE_URL')),
-        'DATABASE_URL_starts_with': (os.environ.get('DATABASE_URL', '')[:30] + '...') if os.environ.get('DATABASE_URL') else 'NOT SET',
-        'DB_ENGINE': django_settings.DATABASES['default']['ENGINE'],
-        'DB_HOST': django_settings.DATABASES['default'].get('HOST', 'N/A'),
-        'DB_NAME': str(django_settings.DATABASES['default'].get('NAME', 'N/A')),
-        'SESSION_ENGINE': django_settings.SESSION_ENGINE,
-        'VERCEL_env': os.environ.get('VERCEL', 'NOT SET'),
-        'env_file_exists': (django_settings.BASE_DIR / '.env').exists(),
-        'MIDDLEWARE_count': len(django_settings.MIDDLEWARE),
-        'MIDDLEWARE': django_settings.MIDDLEWARE,
-        'CSRF_TRUSTED_ORIGINS': django_settings.CSRF_TRUSTED_ORIGINS,
-        'python_path': sys.path[:5],
-        'cwd': os.getcwd(),
-        'BASE_DIR': str(django_settings.BASE_DIR),
-        'all_env_keys_with_DB_or_SUPA': [k for k in os.environ.keys() if 'DB' in k.upper() or 'SUPA' in k.upper() or 'DATABASE' in k.upper()],
-    }
-    return JsonResponse(info, json_dumps_params={'indent': 2})
-
-
-from django.core.management import call_command
-from django.http import HttpResponse
-
-@login_required
-def run_migrations_view(request):
-    if not request.user.is_superuser:
-        return HttpResponse("Acesso negado", status=403)
-    try:
-        call_command("migrate", interactive=False)
-        return HttpResponse("✅ Migrações aplicadas no banco de dados!")
-    except Exception as e:
-        import traceback
-        erro = traceback.format_exc()
-        # Retornamos 200 propositalmente para o Vercel não engolir o erro
-        return HttpResponse(f"<h1>Erro ao rodar migrações</h1><pre>{erro}</pre>", status=200)
 
 
 from core.models import LogAtividade
@@ -247,15 +186,15 @@ def auditoria_sistema(request):
     """
     Dashboard de Auditoria Global. Exclusivo para CEO/Admin.
     """
-    eh_luiz = request.user.username.lower() == 'luiz' or 'luiz' in request.user.get_full_name().lower()
-    if not (request.user.is_superuser or eh_luiz):
+    if not (request.user.is_superuser or request.user.groups.filter(name='Admin_Global').exists()):
         messages.error(request, '⛔ Acesso restrito à Diretoria.')
         return redirect('dashboard')
 
     try:
         logs = list(LogAtividade.objects.all().select_related('usuario')[:500])
-    except Exception as e:
-        messages.warning(request, f"O banco de dados ainda não foi atualizado. Execute as migrações primeiro. Detalhes: {e}")
+    except Exception:
+        logger.exception('Falha ao carregar os registros de auditoria')
+        messages.warning(request, 'Não foi possível carregar os registros de auditoria.')
         logs = []
     
     return render(request, 'core/auditoria.html', {
@@ -273,8 +212,7 @@ def painel_sla_processos(request):
     """
     Dashboard de Tempo de Processos (SLA). Exclusivo para CEO/Admin.
     """
-    eh_luiz = request.user.username.lower() == 'luiz' or 'luiz' in request.user.get_full_name().lower()
-    if not (request.user.is_superuser or eh_luiz):
+    if not (request.user.is_superuser or request.user.groups.filter(name='Admin_Global').exists()):
         messages.error(request, '⛔ Acesso restrito à Diretoria.')
         return redirect('dashboard')
 

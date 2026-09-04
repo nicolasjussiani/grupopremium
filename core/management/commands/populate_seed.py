@@ -3,19 +3,35 @@ ERP Grupo PremiumBR — Management Command: populate_seed
 Popula o banco de dados com dados de demonstração para apresentação.
 Uso: python manage.py populate_seed
 """
-from django.core.management.base import BaseCommand
-from django.contrib.auth.models import User
+from django.core.management.base import BaseCommand, CommandError
+from django.contrib.auth.models import Group, User
+from django.core.management import call_command
+from django.conf import settings
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from datetime import date, timedelta
 import random
+import os
 
 
 class Command(BaseCommand):
     help = 'Popula o banco de dados com dados de demonstração do ERP Grupo PremiumBR'
 
     def handle(self, *args, **options):
+        if not settings.DEBUG or os.environ.get('ALLOW_DEMO_SEED', 'False').lower() not in {'1', 'true', 'yes'}:
+            raise CommandError('O seed exige DEBUG=True e ALLOW_DEMO_SEED=True.')
+        self.seed_password = os.environ.get('SEED_DEFAULT_PASSWORD')
+        if not self.seed_password or self.seed_password == 'change-me':
+            raise CommandError('Configure uma SEED_DEFAULT_PASSWORD forte.')
+        try:
+            validate_password(self.seed_password, User(username='demo'))
+        except ValidationError as exc:
+            raise CommandError('SEED_DEFAULT_PASSWORD invalida: ' + '; '.join(exc.messages)) from exc
+
         self.stdout.write('🌱 Iniciando seed de demonstração do ERP Grupo PremiumBR...')
 
+        call_command('criar_grupos')
         self._criar_usuarios()
         self._criar_vagas_candidatos()
         self._criar_colaboradores_admissoes()
@@ -25,24 +41,19 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS('✅ Seed concluído com sucesso! O sistema está pronto para demonstração.'))
         self.stdout.write('\n📋 USUÁRIOS CRIADOS:')
-        self.stdout.write('  admin          / admin123    (Administrador)')
-        self.stdout.write('  ana.gestora    / gestor123   (Gestora)')
-        self.stdout.write('  carlos.rh      / rh123       (RH)')
-        self.stdout.write('  fernanda.fin   / fin123      (Financeiro)')
-        self.stdout.write('  roberto.sesmet / sesmet123   (SESMET)')
-        self.stdout.write('  paula.compras  / compras123  (Compras)')
+        self.stdout.write('  admin, ana.gestora, carlos.rh, fernanda.fin, roberto.sesmet, paula.compras')
 
     def _criar_usuarios(self):
         from core.models import PerfilUsuario
         self.stdout.write('  👤 Criando usuários...')
 
         usuarios = [
-            {'username': 'admin',          'first_name': 'Admin',     'last_name': 'ERP',              'email': 'admin@ecopremium.com.br',     'senha': 'admin123',    'perfil': 'admin',      'marca': 'matriz',       'unidade': 'Matriz'},
-            {'username': 'ana.gestora',    'first_name': 'Ana',       'last_name': 'Gestora Silva',    'email': 'ana@ecopremium.com.br',        'senha': 'gestor123',   'perfil': 'gestor',     'marca': 'eco_premium',  'unidade': 'São Paulo'},
-            {'username': 'carlos.rh',      'first_name': 'Carlos',    'last_name': 'RH Santos',        'email': 'carlos@ecopremium.com.br',     'senha': 'rh123',       'perfil': 'rh',         'marca': 'trip_premium', 'unidade': 'São Paulo'},
-            {'username': 'fernanda.fin',   'first_name': 'Fernanda',  'last_name': 'Fiscal Oliveira',  'email': 'fernanda@ecopremium.com.br',   'senha': 'fin123',      'perfil': 'financeiro', 'marca': 'log_premium',  'unidade': 'Curitiba'},
-            {'username': 'roberto.sesmet', 'first_name': 'Roberto',   'last_name': 'Segurança Costa',  'email': 'roberto@ecopremium.com.br',    'senha': 'sesmet123',   'perfil': 'sesmet',     'marca': 'eco_premium',  'unidade': 'Campinas'},
-            {'username': 'paula.compras',  'first_name': 'Paula',     'last_name': 'Compras Lima',     'email': 'paula@ecopremium.com.br',      'senha': 'compras123',  'perfil': 'compras',    'marca': 'trip_premium', 'unidade': 'Guarulhos'},
+            {'username': 'admin',          'first_name': 'Admin',     'last_name': 'ERP',              'email': 'admin@ecopremium.com.br',     'perfil': 'admin',      'marca': 'matriz',       'unidade': 'Matriz'},
+            {'username': 'ana.gestora',    'first_name': 'Ana',       'last_name': 'Gestora Silva',    'email': 'ana@ecopremium.com.br',        'perfil': 'gestor',     'marca': 'eco_premium',  'unidade': 'São Paulo'},
+            {'username': 'carlos.rh',      'first_name': 'Carlos',    'last_name': 'RH Santos',        'email': 'carlos@ecopremium.com.br',     'perfil': 'rh',         'marca': 'trip_premium', 'unidade': 'São Paulo'},
+            {'username': 'fernanda.fin',   'first_name': 'Fernanda',  'last_name': 'Fiscal Oliveira',  'email': 'fernanda@ecopremium.com.br',   'perfil': 'financeiro', 'marca': 'log_premium',  'unidade': 'Curitiba'},
+            {'username': 'roberto.sesmet', 'first_name': 'Roberto',   'last_name': 'Segurança Costa',  'email': 'roberto@ecopremium.com.br',    'perfil': 'sesmet',     'marca': 'eco_premium',  'unidade': 'Campinas'},
+            {'username': 'paula.compras',  'first_name': 'Paula',     'last_name': 'Compras Lima',     'email': 'paula@ecopremium.com.br',      'perfil': 'compras',    'marca': 'trip_premium', 'unidade': 'Guarulhos'},
         ]
 
         for u in usuarios:
@@ -50,10 +61,13 @@ class Command(BaseCommand):
             user.first_name = u['first_name']
             user.last_name = u['last_name']
             user.email = u['email']
-            user.set_password(u['senha'])
+            user.set_password(self.seed_password)
             if u['perfil'] == 'admin':
                 user.is_staff = True
                 user.is_superuser = True
+            else:
+                user.is_staff = False
+                user.is_superuser = False
             user.save()
 
             PerfilUsuario.objects.update_or_create(
@@ -64,6 +78,15 @@ class Command(BaseCommand):
                     'unidade': u['unidade'],
                 }
             )
+            grupos_por_perfil = {
+                'admin': ['Admin_Global'],
+                'gestor': ['Recrutamento_Gestor', 'Administrativo_Gestor', 'SESMET_Gestor', 'Compras_Aprovador', 'Financeiro_Aprovador'],
+                'rh': ['Recrutamento_RH', 'Admissional_RH'],
+                'financeiro': ['Financeiro_Operador', 'Financeiro_Auditor', 'Financeiro_Aprovador'],
+                'sesmet': ['SESMET_Gestor'],
+                'compras': ['Compras_Aprovador'],
+            }
+            user.groups.set(Group.objects.filter(name__in=grupos_por_perfil.get(u['perfil'], [])))
             if created:
                 self.stdout.write(f'    ✓ {user.get_full_name()} ({u["perfil"]})')
 

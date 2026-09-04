@@ -1,0 +1,179 @@
+from datetime import date
+from io import StringIO
+
+from django.contrib.auth.models import Group, User
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
+from django.test import TestCase
+from django.urls import reverse
+
+from administrativo.models import DemandaAdministrativa
+from admissional.models import Colaborador
+from core.models import AprovacaoRegistro, PerfilUsuario
+from core.validators import validate_document_upload
+from financeiro.models import DocumentoFinanceiro, LancamentoERP
+from manutencao.models import Ativo, RegistroManutencao
+from sesmet.models import EquipamentoProtecao, RegistroEPI
+
+
+class UploadValidationTests(TestCase):
+    def test_rejeita_conteudo_incompativel_com_extensao(self):
+        upload = SimpleUploadedFile(
+            'documento.pdf', b'\xff\xd8\xffconteudo-jpeg', content_type='application/pdf'
+        )
+        with self.assertRaises(ValidationError):
+            validate_document_upload(upload)
+
+
+class SecurityHTTPTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='usuario', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=self.user, perfil='rh')
+
+    def test_logout_exige_post(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('logout')).status_code, 405)
+
+    def test_login_rejeita_redirecionamento_externo(self):
+        response = self.client.post(
+            reverse('login') + '?next=https://example.invalid/roubo',
+            {'username': 'usuario', 'password': 'senha-forte-123'},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, '/')
+
+    def test_perfil_sem_acesso_nao_abre_financeiro(self):
+        self.user.perfil.perfil = 'operacional'
+        self.user.perfil.save(update_fields=['perfil'])
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('painel_financeiro'))
+        self.assertRedirects(response, reverse('dashboard'))
+
+
+class PageSmokeTests(TestCase):
+    def test_paginas_principais_renderizam(self):
+        user = User.objects.create_superuser(
+            username='admin-smoke', email='admin@example.com', password='senha-forte-123'
+        )
+        PerfilUsuario.objects.create(usuario=user, perfil='admin')
+        self.client.force_login(user)
+        rotas = (
+            'dashboard', 'lista_vagas', 'banco_talentos', 'lista_admissoes',
+            'lista_colaboradores', 'controle_presenca', 'periodo_experiencia',
+            'lista_demandas', 'dashboard_sesmet', 'matriz_epis',
+            'catalogo_equipamentos', 'painel_compras', 'lista_materiais',
+            'painel_financeiro', 'painel_manutencao', 'lista_ativos',
+            'lista_manutencoes', 'aprovacoes_pendentes', 'auditoria_sistema',
+            'painel_sla',
+        )
+        for rota in rotas:
+            with self.subTest(rota=rota):
+                response = self.client.get(reverse(rota))
+                self.assertEqual(response.status_code, 200)
+
+
+class GroupCommandTests(TestCase):
+    def test_admin_global_recebe_permissoes_criticas(self):
+        call_command('criar_grupos', stdout=StringIO())
+        group = Group.objects.get(name='Admin_Global')
+        permissoes = set(group.permissions.values_list('content_type__app_label', 'codename'))
+        self.assertIn(('core', 'view_logatividade'), permissoes)
+        self.assertIn(('sesmet', 'change_equipamentoprotecao'), permissoes)
+        self.assertIn(('manutencao', 'change_registromanutencao'), permissoes)
+
+
+class WorkflowIntegrityTests(TestCase):
+    def _user(self, username, perfil, group=None):
+        user = User.objects.create_user(username=username, password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=user, perfil=perfil)
+        if group:
+            user.groups.add(Group.objects.create(name=group))
+        return user
+
+    def test_rejeicao_de_manutencao_libera_ativo(self):
+        solicitante = self._user('solicitante-manut', 'sesmet')
+        aprovador = self._user('diretor', 'gestor', 'Diretoria_Final')
+        ativo = Ativo.objects.create(
+            numero_patrimonio='PAT-001', nome='Empilhadeira', unidade_atual='Matriz',
+            status='manutencao',
+        )
+        registro = RegistroManutencao.objects.create(
+            ativo=ativo, unidade_origem='Matriz', motivo='Reparo',
+            data_inicio=date.today(), status='aguardando_aprovacao',
+            registrado_por=solicitante,
+        )
+        aprovacao = AprovacaoRegistro.objects.create(
+            content_type=ContentType.objects.get_for_model(registro),
+            object_id=registro.pk,
+            modulo='manutencao',
+            nivel=2,
+            titulo='Reparo da empilhadeira',
+            solicitado_por=solicitante,
+        )
+        self.client.force_login(aprovador)
+        response = self.client.post(
+            reverse('rejeitar_registro', args=[aprovacao.pk]),
+            {'motivo_rejeicao': 'Orcamento incompleto'},
+        )
+        self.assertEqual(response.status_code, 302)
+        registro.refresh_from_db()
+        ativo.refresh_from_db()
+        self.assertEqual(registro.status, 'cancelada')
+        self.assertEqual(ativo.status, 'ativo')
+
+    def test_rejeicao_de_lancamento_reabre_documento(self):
+        aprovador = self._user('financeiro-aprovador', 'financeiro', 'Financeiro_Aprovador')
+        documento = DocumentoFinanceiro.objects.create(
+            tipo='nota_fiscal', numero_documento='NF-1', descricao='Teste', valor='10.00',
+            centro_custo='ADM', unidade='Matriz', cnpj_emitente='00000000000100',
+            razao_social_emitente='Fornecedor', data_emissao=date.today(), status='lancado',
+        )
+        lancamento = LancamentoERP.objects.create(
+            documento=documento, descricao='Teste', tipo='debito', valor='10.00',
+            centro_custo='ADM', competencia=date.today().replace(day=1), status='em_validacao',
+        )
+        self.client.force_login(aprovador)
+        response = self.client.post(
+            reverse('validar_lancamento', args=[lancamento.pk]),
+            {'acao': 'rejeitar', 'motivo_rejeicao': 'Centro de custo incorreto'},
+        )
+        self.assertEqual(response.status_code, 302)
+        lancamento.refresh_from_db()
+        documento.refresh_from_db()
+        self.assertEqual(lancamento.status, 'rejeitado')
+        self.assertEqual(documento.status, 'aprovado_lancamento')
+
+    def test_movimentacao_epi_preserva_estoque(self):
+        colaborador = Colaborador.objects.create(
+            nome='Pessoa Teste', cpf='000.000.000-00', email='pessoa@example.com',
+            cargo='Operador', unidade='Matriz', data_admissao=date.today(),
+        )
+        equipamento = EquipamentoProtecao.objects.create(
+            nome='Capacete', dias_durabilidade=30, estoque_atual=5,
+        )
+        registro = RegistroEPI.objects.create(
+            colaborador=colaborador, equipamento=equipamento,
+            tipo_movimentacao='retirada', quantidade=3, data_movimentacao=date.today(),
+        )
+        equipamento.refresh_from_db()
+        self.assertEqual(equipamento.estoque_atual, 2)
+        registro.quantidade = 1
+        with self.assertRaises(ValidationError):
+            registro.save()
+
+    def test_status_administrativo_invalido_nao_e_salvo(self):
+        gestor = self._user('gestor', 'gestor')
+        demanda = DemandaAdministrativa.objects.create(
+            tipo='contratos', titulo='Contrato', descricao='Revisar contrato',
+            requisitante='Area', prioridade='media', status='em_triagem',
+        )
+        self.client.force_login(gestor)
+        response = self.client.post(
+            reverse('atualizar_status_demanda', args=[demanda.pk]),
+            {'status': 'status-inexistente'},
+        )
+        self.assertEqual(response.status_code, 302)
+        demanda.refresh_from_db()
+        self.assertEqual(demanda.status, 'em_triagem')

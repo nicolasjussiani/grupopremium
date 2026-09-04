@@ -15,7 +15,7 @@ class TestVercelUpload500(TestCase):
         self.user = User.objects.create_user(username='test_rh', password='123')
         # Criamos o perfil para passar no middleware
         from core.models import PerfilUsuario
-        PerfilUsuario.objects.create(user=self.user, perfil='rh')
+        PerfilUsuario.objects.create(usuario=self.user, perfil='rh')
         self.client.force_login(self.user)
         self.url = reverse('novo_colaborador')
 
@@ -33,7 +33,7 @@ class TestVercelUpload500(TestCase):
             'marca': 'eco_premium',
         }
 
-    @patch('django.core.files.storage.FileSystemStorage.save')
+    @patch('django.core.files.storage.Storage.save')
     def test_erro_500_upload_read_only_vercel(self, mock_save):
         """
         Simula a Vercel (Sistema de Arquivos Read-Only) quando o S3 não está configurado.
@@ -56,10 +56,8 @@ class TestVercelUpload500(TestCase):
         # Para que a view não quebre com 500, precisaríamos de um try/except na view.
         # Como a view atual não tem tratamento, o teste irá falhar com OSError, 
         # o que comprova que esta é uma das causas do Erro 500!
-        with self.assertRaises(OSError) as contexto:
-            self.client.post(self.url, data=data, format='multipart')
-        
-        self.assertIn('Read-only file system', str(contexto.exception))
-        
+        response = self.client.post(self.url, data=data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Nao foi possivel armazenar os anexos')
         # Conclusão: Se este teste passa (ou seja, a exceção é levantada), 
         # está provado que tentar salvar arquivos em disco na Vercel derruba a aplicação com Erro 500.

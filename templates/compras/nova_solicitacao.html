@@ -74,8 +74,13 @@ document.getElementById('materialSelect').addEventListener('change', function() 
   const info = document.getElementById('estoqueInfo');
   const val = document.getElementById('estoqueValor');
   if (this.value) {
-    const estoque = opt.dataset.estoque;
-    const unidade = opt.dataset.unidade;
+    const escapeHtml = (value) => {
+      const span = document.createElement('span');
+      span.textContent = String(value ?? '');
+      return span.innerHTML;
+    };
+    const estoque = escapeHtml(opt.dataset.estoque);
+    const unidade = escapeHtml(opt.dataset.unidade);
     const critico = opt.dataset.critico === 'true';
     val.innerHTML = `<strong style="color:${critico ? 'var(--danger)' : 'var(--success)'};">${estoque} ${unidade}</strong>${critico ? ' <span style="color:var(--danger);">⚠️ Estoque Crítico!</span>' : ''}`;
     info.style.display = 'block';
