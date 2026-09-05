@@ -7,7 +7,7 @@
   <meta name="description" content="ERP Grupo PremiumBR — Sistema integrado de gestão para Trip Premium e Log Premium">
   <title>{% block title %}ERP Grupo PremiumBR{% endblock %}</title>
   <link rel="icon" href="{% static 'favicon.jpeg' %}" type="image/jpeg">
-  <link rel="stylesheet" href="{% static 'css/main.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'css/main.css' %}?v=4">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -31,8 +31,9 @@
 {% endif %}
 
 <div class="erp-layout">
+  <button class="sidebar-backdrop" id="sidebarBackdrop" type="button" aria-label="Fechar menu"></button>
   <!-- SIDEBAR -->
-  <aside class="sidebar" id="sidebar">
+  <aside class="sidebar" id="sidebar" aria-label="Menu principal">
     <!-- Logo -->
     <div class="sidebar-logo">
       <img src="{% static 'logo.jpeg' %}" alt="Grupo PremiumBR Logo" onerror="this.style.display='none'">
@@ -180,6 +181,10 @@
   <div class="main-content">
     <!-- TOPBAR -->
     <div class="topbar">
+      <button class="mobile-menu-button" id="mobileMenuButton" type="button"
+              aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
       <div class="topbar-title">
         <span class="breadcrumb">ERP Grupo PremiumBR</span>
         {% block topbar_title %}Dashboard{% endblock %}
@@ -208,6 +213,36 @@
 </div>
 
 <script>
+const sidebar = document.getElementById('sidebar');
+const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+const mobileMenuButton = document.getElementById('mobileMenuButton');
+
+function setMobileMenu(open) {
+  if (!sidebar || !mobileMenuButton) return;
+  sidebar.classList.toggle('is-open', open);
+  document.body.classList.toggle('sidebar-open', open);
+  mobileMenuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+  mobileMenuButton.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+}
+
+if (mobileMenuButton) {
+  mobileMenuButton.addEventListener('click', () => {
+    setMobileMenu(!sidebar.classList.contains('is-open'));
+  });
+}
+if (sidebarBackdrop) sidebarBackdrop.addEventListener('click', () => setMobileMenu(false));
+if (sidebar) {
+  sidebar.querySelectorAll('a.nav-item').forEach(link => {
+    link.addEventListener('click', () => setMobileMenu(false));
+  });
+}
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') setMobileMenu(false);
+});
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 1024) setMobileMenu(false);
+});
+
 // Auto-dismiss alerts after 5s
 setTimeout(() => {
   document.querySelectorAll('.alert:not([data-persistent-alert])').forEach(el => {

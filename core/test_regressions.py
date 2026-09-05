@@ -118,6 +118,22 @@ class PageSmokeTests(TestCase):
                 response = self.client.get(reverse(rota))
                 self.assertEqual(response.status_code, 200)
 
+    def test_layout_principal_oferece_menu_para_celular(self):
+        user = User.objects.create_superuser(
+            username='admin-layout-mobile',
+            email='layout@example.com',
+            password='senha-forte-123',
+        )
+        PerfilUsuario.objects.create(usuario=user, perfil='admin')
+        self.client.force_login(user)
+
+        response = self.client.get(reverse('dashboard'))
+
+        self.assertContains(response, 'id="mobileMenuButton"')
+        self.assertContains(response, 'aria-controls="sidebar"')
+        self.assertContains(response, 'id="sidebarBackdrop"')
+        self.assertContains(response, 'function setMobileMenu(open)')
+
 
 class MobilePwaTests(TestCase):
     def test_painel_mobile_restrito_a_diretoria(self):
