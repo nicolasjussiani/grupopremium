@@ -8,7 +8,7 @@ from .forms import ColaboradorForm
 from core.models import Notificacao
 from sesmet.models import IntegracaoSeguranca, RegistroEPI, OrdemServico
 from django.contrib.auth.models import User
-from core.access import access_required
+from core.access import access_required, user_has_access
 from core.validators import validate_document_upload
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -193,6 +193,21 @@ def lista_colaboradores(request):
     return render(request, 'admissional/lista_colaboradores.html', {
         'colaboradores': colaboradores,
         'total': colaboradores.count(),
+        'can_add_colaborador': user_has_access(
+            request.user,
+            permission='admissional.add_colaborador',
+            profiles=('rh',),
+        ),
+        'can_edit_colaborador': user_has_access(
+            request.user,
+            permission='admissional.change_colaborador',
+            profiles=('rh', 'sesmet'),
+        ),
+        'can_delete_colaborador': user_has_access(
+            request.user,
+            permission='admissional.delete_colaborador',
+            profiles=('rh',),
+        ),
     })
 
 @login_required
@@ -215,7 +230,7 @@ def novo_colaborador(request):
     return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Novo'})
 
 @login_required
-@access_required(permission='admissional.change_colaborador', profiles=('rh',))
+@access_required(permission='admissional.change_colaborador', profiles=('rh', 'sesmet'))
 @transaction.atomic
 def editar_colaborador(request, pk):
     colaborador = get_object_or_404(Colaborador, pk=pk)

@@ -9,9 +9,11 @@
   <div class="mod-desc">{{ total }} colaborador(es) ativo(s) no sistema</div>
 </div>
 
-<div style="margin-bottom: 20px;">
-  <a href="{% url 'novo_colaborador' %}" class="btn btn-mod1">➕ Novo Colaborador</a>
-</div>
+{% if can_add_colaborador %}
+  <div style="margin-bottom: 20px;">
+    <a href="{% url 'novo_colaborador' %}" class="btn btn-mod1">➕ Novo Colaborador</a>
+  </div>
+{% endif %}
 
 {% if colaboradores %}
 <div class="table-wrap">
@@ -50,8 +52,15 @@
           <a href="{% url 'registrar_epi_colaborador' c.pk %}" class="btn btn-sm btn-mod4">🦺 EPI</a>
         </td>
         <td>
-          <a href="{% url 'editar_colaborador' c.pk %}" class="btn btn-sm btn-mod1" title="Editar">✏️</a>
-          <a href="{% url 'excluir_colaborador' c.pk %}" class="btn btn-sm btn-danger" title="Excluir">🗑️</a>
+          {% if can_edit_colaborador %}
+            <a href="{% url 'editar_colaborador' c.pk %}" class="btn btn-sm btn-mod1" title="Editar">✏️</a>
+          {% endif %}
+          {% if can_delete_colaborador %}
+            <a href="{% url 'excluir_colaborador' c.pk %}" class="btn btn-sm btn-danger" title="Excluir">🗑️</a>
+          {% endif %}
+          {% if not can_edit_colaborador and not can_delete_colaborador %}
+            <span style="color:var(--text-muted);">—</span>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}

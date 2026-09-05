@@ -83,6 +83,55 @@ class GroupCommandTests(TestCase):
         self.assertIn(('sesmet', 'change_equipamentoprotecao'), permissoes)
         self.assertIn(('manutencao', 'change_registromanutencao'), permissoes)
 
+        sesmet_group = Group.objects.get(name='SESMET_Gestor')
+        self.assertTrue(
+            sesmet_group.permissions.filter(
+                content_type__app_label='admissional',
+                codename='change_colaborador',
+            ).exists()
+        )
+
+
+class ColaboradorAccessTests(TestCase):
+    def setUp(self):
+        self.colaborador = Colaborador.objects.create(
+            nome='Colaborador SESMET',
+            cpf='111.222.333-44',
+            email='colaborador@example.com',
+            cargo='Operador',
+            unidade='Matriz',
+            data_admissao=date.today(),
+        )
+
+    def _login(self, perfil):
+        user = User.objects.create_user(
+            username=f'usuario-{perfil}', password='senha-forte-123'
+        )
+        PerfilUsuario.objects.create(usuario=user, perfil=perfil)
+        self.client.force_login(user)
+
+    def test_sesmet_pode_editar_colaborador(self):
+        self._login('sesmet')
+        editar_url = reverse('editar_colaborador', args=[self.colaborador.pk])
+
+        response = self.client.get(editar_url)
+
+        self.assertEqual(response.status_code, 200)
+        lista = self.client.get(reverse('lista_colaboradores'))
+        self.assertContains(lista, editar_url)
+        self.assertNotContains(lista, reverse('novo_colaborador'))
+        self.assertNotContains(
+            lista, reverse('excluir_colaborador', args=[self.colaborador.pk])
+        )
+
+    def test_gestor_sem_permissao_nao_ve_acao_de_editar(self):
+        self._login('gestor')
+        editar_url = reverse('editar_colaborador', args=[self.colaborador.pk])
+
+        self.assertEqual(self.client.get(editar_url).status_code, 403)
+        lista = self.client.get(reverse('lista_colaboradores'))
+        self.assertNotContains(lista, editar_url)
+
 
 class WorkflowIntegrityTests(TestCase):
     def _user(self, username, perfil, group=None):
