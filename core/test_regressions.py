@@ -149,6 +149,21 @@ class ColaboradorAccessTests(TestCase):
         lista = self.client.get(reverse('lista_colaboradores'))
         self.assertNotContains(lista, editar_url)
 
+    def test_anexos_usam_interface_compacta_sem_expor_caminho_como_texto(self):
+        self.colaborador.anexo_cpf.name = 'colaboradores/docs/documento-teste.pdf'
+        self.colaborador.save(update_fields=['anexo_cpf'])
+        self._login('sesmet')
+
+        response = self.client.get(
+            reverse('editar_colaborador', args=[self.colaborador.pk])
+        )
+
+        self.assertContains(response, 'Documento armazenado')
+        self.assertContains(response, 'Visualizar')
+        self.assertContains(response, 'Substituir arquivo')
+        self.assertContains(response, 'name="anexo_cpf-clear"')
+        self.assertNotContains(response, 'Atualmente:')
+
     def test_pesquisa_colaborador_por_nome_e_codigo(self):
         outro = Colaborador.objects.create(
             nome='Maria da Silva',

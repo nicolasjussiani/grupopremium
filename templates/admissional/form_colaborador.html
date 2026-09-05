@@ -9,8 +9,8 @@
   <div class="mod-desc">Preencha os dados do colaborador no sistema.</div>
 </div>
 
-<div class="card" style="max-width: 800px; margin: 0 auto;">
-  <form id="colaborador-form" method="post" enctype="multipart/form-data" class="flex flex-col gap-4">
+<div class="card collaborator-form-card">
+  <form id="colaborador-form" method="post" enctype="multipart/form-data" class="collaborator-form">
     {% csrf_token %}
     <div class="alert alert-error" role="alert" data-upload-size-error data-persistent-alert hidden></div>
     {% if form.non_field_errors %}
@@ -18,29 +18,104 @@
         {{ form.non_field_errors.0 }}
       </div>
     {% endif %}
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-        {% for field in form %}
-        <div class="form-group" style="{% if field.name == 'endereco' %}grid-column: span 2;{% endif %}">
-            <label style="font-weight: 500; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px; display: block;">
-                {{ field.label }} {% if field.field.required %}<span style="color: #ef4444;">*</span>{% endif %}
-            </label>
-            {{ field }}
-            {% if field.errors %}
-                <div style="color: var(--danger); font-size: 0.8rem; margin-top: 4px;">
-                    {{ field.errors.0 }}
-                </div>
-            {% endif %}
+    <section class="form-section" aria-labelledby="dados-colaborador-title">
+      <div class="form-section-heading">
+        <span class="form-section-icon" aria-hidden="true">01</span>
+        <div>
+          <h2 id="dados-colaborador-title">Dados do colaborador</h2>
+          <p>Informações pessoais, profissionais e contratuais.</p>
         </div>
+      </div>
+      <div class="collaborator-fields-grid">
+        {% for field in form %}
+          {% if field.name|slice:":6" != "anexo_" %}
+            <div class="form-group {% if field.name == 'endereco' %}field-span-2{% endif %}">
+              <label class="form-label" for="{{ field.id_for_label }}">
+                {{ field.label }} {% if field.field.required %}<span class="required">*</span>{% endif %}
+              </label>
+              {{ field }}
+              {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+          {% endif %}
         {% endfor %}
+      </div>
+    </section>
+
+    <section class="form-section documents-section" aria-labelledby="documentos-title">
+      <div class="form-section-heading documents-heading">
+        <span class="form-section-icon" aria-hidden="true">02</span>
+        <div>
+          <h2 id="documentos-title">Documentos e anexos</h2>
+          <p>PDF, PNG ou JPG. Cada arquivo pode ter até 50 MB.</p>
+        </div>
+        <span class="direct-upload-badge">Upload direto e seguro</span>
+      </div>
+      <div class="document-grid">
+        {% for field in form %}
+          {% if field.name|slice:":6" == "anexo_" %}
+            <div class="document-card {% if field.value %}has-document{% endif %}">
+              <div class="document-card-header">
+                <div class="document-type-icon" aria-hidden="true">▤</div>
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+              </div>
+
+              {% if field.value %}
+                <div class="current-document">
+                  <span class="document-status-dot" aria-hidden="true"></span>
+                  <span>Documento armazenado</span>
+                  <a href="{{ field.value.url }}" target="_blank" rel="noopener">Visualizar</a>
+                </div>
+              {% else %}
+                <div class="current-document empty-document">
+                  <span class="document-status-dot" aria-hidden="true"></span>
+                  <span>Nenhum documento enviado</span>
+                </div>
+              {% endif %}
+
+              <label class="document-file-picker" for="{{ field.id_for_label }}">
+                <span class="file-picker-action">{% if field.value %}Substituir arquivo{% else %}Escolher arquivo{% endif %}</span>
+                <span class="file-picker-name" data-file-name>Nenhum arquivo novo</span>
+              </label>
+              <input type="file" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+                     class="document-file-input" accept=".pdf,.png,.jpg,.jpeg">
+
+              {% if field.value and not field.field.required %}
+                <label class="remove-document" for="{{ field.id_for_label }}_clear">
+                  <input type="checkbox" name="{{ field.html_name }}-clear" id="{{ field.id_for_label }}_clear">
+                  Remover documento atual
+                </label>
+              {% endif %}
+              {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+
+    <div class="collaborator-form-actions">
+      <div class="upload-privacy-note">
+        <span aria-hidden="true">✓</span>
+        Arquivos enviados diretamente ao Supabase Storage.
+      </div>
+      <div class="form-action-buttons">
+        <a href="{% url 'lista_colaboradores' %}" class="btn btn-outline">Cancelar</a>
+        <button type="submit" class="btn btn-mod1">Salvar colaborador</button>
+      </div>
     </div>
-    
-    <div class="flex gap-2" style="margin-top: 20px;">
-      <button type="submit" class="btn btn-mod1">Salvar Colaborador</button>
-      <a href="{% url 'lista_colaboradores' %}" class="btn btn-outline">Cancelar</a>
-    </div>
-    <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">
-      Os anexos são enviados diretamente ao Supabase Storage (até 50 MB por arquivo).
-    </p>
   </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.document-file-input').forEach(input => {
+  input.addEventListener('change', () => {
+    const card = input.closest('.document-card');
+    const name = card.querySelector('[data-file-name]');
+    const file = input.files && input.files[0];
+    name.textContent = file ? file.name : 'Nenhum arquivo novo';
+    card.classList.toggle('has-new-file', Boolean(file));
+  });
+});
+</script>
 {% endblock %}
