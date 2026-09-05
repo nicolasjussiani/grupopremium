@@ -22,8 +22,11 @@
 
   <section class="install-card" id="installCard">
     <div class="install-icon">⌂</div>
-    <div><strong>Use como aplicativo</strong><p>No iPhone: Compartilhar → Adicionar à Tela de Início.</p></div>
-    <button id="enableAlerts" type="button">Ativar alertas</button>
+    <div class="install-copy"><strong>Use como aplicativo</strong><p id="installHelp">Android: toque em Instalar app. iPhone: Compartilhar → Adicionar à Tela de Início.</p></div>
+    <div class="install-actions">
+      <button id="installApp" type="button">Instalar app</button>
+      <button id="enableAlerts" type="button">Ativar alertas</button>
+    </div>
   </section>
 
   <section class="mobile-section" id="aprovacoes">
@@ -86,6 +89,10 @@
 <script>
 (function () {
   const statusUrl = '{% url "status_mobile" %}';
+  const installCard = document.getElementById('installCard');
+  const installButton = document.getElementById('installApp');
+  const installHelp = document.getElementById('installHelp');
+  let deferredInstallPrompt = null;
   let previousPending = {{ total_pendentes }};
   let previousNotifications = {{ total_nao_lidas }};
 
@@ -116,6 +123,41 @@
   }
 
   document.getElementById('refreshMobile').addEventListener('click', () => refreshStatus(true));
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    installButton.disabled = false;
+    installButton.textContent = 'Instalar app';
+  });
+  installButton.addEventListener('click', async () => {
+    if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
+      installButton.textContent = 'Aplicativo instalado';
+      installButton.disabled = true;
+      return;
+    }
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      if (choice.outcome === 'accepted') {
+        installButton.textContent = 'Instalando...';
+        installButton.disabled = true;
+      }
+      return;
+    }
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    installHelp.textContent = isIOS
+      ? 'No Safari, toque em Compartilhar e depois em Adicionar à Tela de Início.'
+      : 'No menu ⋮ do navegador, toque em Instalar app ou Adicionar à tela inicial.';
+    installCard.classList.add('show-install-help');
+    installButton.textContent = 'Veja a instrução acima';
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    installCard.classList.add('installed');
+    installButton.textContent = 'Aplicativo instalado';
+    installButton.disabled = true;
+  });
   document.getElementById('enableAlerts').addEventListener('click', async event => {
     if (!('Notification' in window)) return;
     const permission = await Notification.requestPermission();
@@ -157,7 +199,9 @@
     }
   });
   if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
-    document.getElementById('installCard').classList.add('installed');
+    installCard.classList.add('installed');
+    installButton.textContent = 'Aplicativo instalado';
+    installButton.disabled = true;
   }
   refreshStatus(false);
   setInterval(() => {

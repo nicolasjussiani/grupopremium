@@ -156,6 +156,8 @@ def pwa_manifest(request):
         'start_url': '/mobile/',
         'scope': '/',
         'display': 'standalone',
+        'orientation': 'portrait-primary',
+        'prefer_related_applications': False,
         'background_color': '#f5f7fb',
         'theme_color': '#0d2149',
         'icons': [
@@ -177,8 +179,8 @@ def pwa_manifest(request):
 
 def service_worker(request):
     script = """
-const CACHE = 'premiumbr-mobile-v2';
-const ASSETS = ['/static/css/mobile.css?v=1', '/static/pwa-icon-192.png', '/static/pwa-icon-512.png', '/static/favicon.jpeg'];
+const CACHE = 'premiumbr-mobile-v3';
+const ASSETS = ['/static/css/mobile.css?v=2', '/static/pwa-icon-192.png', '/static/pwa-icon-512.png', '/static/favicon.jpeg'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))));
 self.addEventListener('fetch', event => {

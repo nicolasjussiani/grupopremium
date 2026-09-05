@@ -379,6 +379,8 @@ class MobilePwaTests(TestCase):
         self.assertEqual(response['Content-Type'], 'application/manifest+json')
         self.assertEqual(response.json()['start_url'], '/mobile/')
         self.assertEqual(response.json()['display'], 'standalone')
+        self.assertEqual(response.json()['orientation'], 'portrait-primary')
+        self.assertFalse(response.json()['prefer_related_applications'])
         icons = response.json()['icons']
         self.assertEqual(icons[0]['src'], '/static/pwa-icon-192.png')
         self.assertEqual(icons[0]['sizes'], '192x192')
@@ -399,6 +401,21 @@ class MobilePwaTests(TestCase):
         self.assertEqual(response['Service-Worker-Allowed'], '/')
         self.assertContains(response, "event.request.mode === 'navigate'")
         self.assertContains(response, '/static/pwa-icon-192.png')
+
+    def test_painel_mobile_oferece_instalacao_no_android(self):
+        intermediario = User.objects.create_user(
+            'intermediario-install', password='senha-forte-123'
+        )
+        PerfilUsuario.objects.create(usuario=intermediario, perfil='gestor')
+        intermediario.groups.add(Group.objects.create(name='Intermediario_Gestor'))
+        self.client.force_login(intermediario)
+
+        response = self.client.get(reverse('painel_mobile'))
+
+        self.assertContains(response, 'id="installApp"')
+        self.assertContains(response, 'beforeinstallprompt')
+        self.assertContains(response, 'Instalar app')
+        self.assertContains(response, 'Adicionar à tela inicial')
 
     def test_admin_pode_criar_notificacao_de_teste_para_si(self):
         admin = User.objects.create_superuser(
