@@ -52,9 +52,12 @@
   <section class="mobile-section" id="notificacoes">
     <div class="section-title">
       <div><span>ATUALIZAÇÕES</span><h2>Notificações</h2></div>
-      {% if total_nao_lidas %}
-        <form method="post" action="{% url 'marcar_notificacoes_mobile' %}">{% csrf_token %}<button class="mark-read-button" type="submit">Marcar lidas</button></form>
-      {% endif %}
+      <div class="notification-actions">
+        <form method="post" action="{% url 'criar_notificacao_teste_mobile' %}">{% csrf_token %}<button class="mark-read-button" type="submit">Enviar teste</button></form>
+        {% if total_nao_lidas %}
+          <form method="post" action="{% url 'marcar_notificacoes_mobile' %}">{% csrf_token %}<button class="mark-read-button" type="submit">Marcar lidas</button></form>
+        {% endif %}
+      </div>
     </div>
     <div class="notification-list">
       {% for notificacao in notificacoes %}

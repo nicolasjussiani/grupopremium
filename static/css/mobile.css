@@ -73,6 +73,8 @@ a { color: inherit; }
 .section-title h2 { margin: 3px 0 0; font-size: 1.08rem; }
 .section-title b { display: grid; place-items: center; min-width: 27px; height: 27px; padding: 0 7px; border-radius: 999px; background: #fff2de; color: var(--orange); font-size: .72rem; }
 .mark-read-button { padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--navy); font-size: .64rem; font-weight: 700; }
+.notification-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.notification-actions form { margin: 0; }
 
 .approval-list, .notification-list, .history-list { display: flex; flex-direction: column; gap: 10px; }
 .mobile-approval-card { padding: 16px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: 0 5px 18px rgba(13,33,73,.045); }

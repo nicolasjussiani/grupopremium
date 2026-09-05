@@ -299,6 +299,19 @@ class MobilePwaTests(TestCase):
         self.assertContains(response, "event.request.mode === 'navigate'")
         self.assertContains(response, '/static/pwa-icon-192.png')
 
+    def test_admin_pode_criar_notificacao_de_teste_para_si(self):
+        admin = User.objects.create_superuser(
+            'admin-notificacao-teste', 'notificacao@example.com', 'senha-forte-123'
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(reverse('criar_notificacao_teste_mobile'))
+
+        self.assertRedirects(response, reverse('painel_mobile') + '#notificacoes')
+        notificacao = Notificacao.objects.get(destinatario=admin)
+        self.assertEqual(notificacao.titulo, 'Notificação de teste')
+        self.assertFalse(notificacao.lida)
+
 
 class GroupCommandTests(TestCase):
     def test_admin_global_recebe_permissoes_criticas(self):

@@ -49,7 +49,7 @@ class AcessoModuloMiddleware(MiddlewareMixin):
 class AuditLogMiddleware(MiddlewareMixin):
     """Registra POSTs concluidos sem copiar dados pessoais ou credenciais."""
 
-    ROTAS_IGNORADAS = ('/login', '/logout', '/api/', '/mobile/notificacoes/lidas/')
+    ROTAS_IGNORADAS = ('/login', '/logout', '/api/', '/mobile/notificacoes/')
 
     def process_response(self, request, response):
         if not (

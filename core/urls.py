@@ -22,6 +22,7 @@ urlpatterns = [
     path('mobile/', views_aprovacao.painel_mobile, name='painel_mobile'),
     path('mobile/status/', views_aprovacao.status_mobile, name='status_mobile'),
     path('mobile/notificacoes/lidas/', views_aprovacao.marcar_notificacoes_mobile, name='marcar_notificacoes_mobile'),
+    path('mobile/notificacoes/teste/', views_aprovacao.criar_notificacao_teste_mobile, name='criar_notificacao_teste_mobile'),
     path('mobile/aprovacoes/<int:pk>/', views_aprovacao.detalhe_aprovacao_mobile, name='detalhe_aprovacao_mobile'),
     path('manifest.webmanifest', views_aprovacao.pwa_manifest, name='pwa_manifest'),
     path('service-worker.js', views_aprovacao.service_worker, name='service_worker'),

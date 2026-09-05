@@ -211,6 +211,7 @@ class FullSiteRouteTests(TestCase):
             ('painel_mobile', (), 200),
             ('status_mobile', (), 200),
             ('marcar_notificacoes_mobile', (), 405),
+            ('criar_notificacao_teste_mobile', (), 405),
             ('detalhe_aprovacao_mobile', (self.aprovacao.pk,), 200),
             ('pwa_manifest', (), 200),
             ('service_worker', (), 200),
@@ -303,6 +304,7 @@ class FullSiteRouteTests(TestCase):
         post_routes = (
             ('marcar_lida', (self.notificacao.pk,)),
             ('marcar_notificacoes_mobile', ()),
+            ('criar_notificacao_teste_mobile', ()),
             ('aprovar_registro', (self.aprovacao.pk,)),
             ('rejeitar_registro', (self.aprovacao.pk,)),
             ('nova_vaga', ()),
