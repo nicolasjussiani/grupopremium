@@ -4,9 +4,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d2149">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="PremiumBR">
   <meta name="description" content="ERP Grupo PremiumBR — Sistema integrado de gestão para Trip Premium e Log Premium">
   <title>{% block title %}ERP Grupo PremiumBR{% endblock %}</title>
   <link rel="icon" href="{% static 'favicon.jpeg' %}" type="image/jpeg">
+  <link rel="manifest" href="{% url 'pwa_manifest' %}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{% static 'pwa-icon-180.png' %}">
   <link rel="stylesheet" href="{% static 'css/main.css' %}?v=5">
   {% block extra_css %}{% endblock %}
 </head>

@@ -223,12 +223,26 @@ class MobilePwaTests(TestCase):
         self.assertEqual(response['Content-Type'], 'application/manifest+json')
         self.assertEqual(response.json()['start_url'], '/mobile/')
         self.assertEqual(response.json()['display'], 'standalone')
+        icons = response.json()['icons']
+        self.assertEqual(icons[0]['src'], '/static/pwa-icon-192.png')
+        self.assertEqual(icons[0]['sizes'], '192x192')
+        self.assertEqual(icons[1]['src'], '/static/pwa-icon-512.png')
+        self.assertIn('maskable', icons[1]['purpose'])
+
+    def test_icones_do_iphone_estao_publicados(self):
+        for size in (180, 192, 512):
+            with self.subTest(size=size):
+                source = Path(settings.BASE_DIR, 'static', f'pwa-icon-{size}.png')
+                published = Path(settings.BASE_DIR, 'staticfiles', f'pwa-icon-{size}.png')
+                self.assertTrue(source.exists())
+                self.assertEqual(source.read_bytes(), published.read_bytes())
 
     def test_service_worker_nao_armazena_paginas_sigilosas(self):
         response = self.client.get(reverse('service_worker'))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Service-Worker-Allowed'], '/')
         self.assertContains(response, "event.request.mode === 'navigate'")
+        self.assertContains(response, '/static/pwa-icon-192.png')
 
 
 class GroupCommandTests(TestCase):
