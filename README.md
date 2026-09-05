@@ -53,6 +53,18 @@ ou o bucket configurado nos arquivos `.env`.
   Supabase Storage por URL S3 temporaria. O PostgreSQL guarda somente a
   referencia do objeto; isso evita o limite de 4,5 MB das Functions da Vercel.
 - O limite da aplicacao para upload direto e 50 MB por arquivo.
+
+## PWA de aprovacoes no iPhone
+
+- Acesse `/mobile/` com um superusuario ou membro dos grupos `Admin_Global` ou
+  `Diretoria_Final`.
+- No Safari do iPhone, use **Compartilhar > Adicionar a Tela de Inicio**.
+- O aplicativo instalado abre somente a central de notificacoes, aprovacoes,
+  detalhes dos processos e historico de decisoes.
+- O botao **Ativar alertas** habilita avisos enquanto a PWA estiver ativa. Para
+  alertas em segundo plano sera necessario configurar Web Push/VAPID em uma
+  etapa posterior.
+- Paginas e dados autenticados nao sao armazenados para uso offline.
 - Na Vercel, cada salvamento aceita no maximo 4 MB somando os novos anexos;
   documentos adicionais devem ser enviados em etapas.
 - Migrações devem ser executadas pelo processo de deploy, nunca por uma rota HTTP.

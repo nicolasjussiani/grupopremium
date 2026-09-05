@@ -65,9 +65,13 @@ class SecurityHTTPTests(TestCase):
 
 class PageSmokeTests(TestCase):
     def test_css_publicado_permanece_sincronizado_com_a_fonte(self):
-        source_css = Path(settings.BASE_DIR, 'static', 'css', 'main.css').read_bytes()
-        published_css = Path(settings.BASE_DIR, 'staticfiles', 'css', 'main.css').read_bytes()
-        self.assertEqual(published_css, source_css)
+        for filename in ('main.css', 'mobile.css'):
+            with self.subTest(filename=filename):
+                source_css = Path(settings.BASE_DIR, 'static', 'css', filename).read_bytes()
+                published_css = Path(
+                    settings.BASE_DIR, 'staticfiles', 'css', filename
+                ).read_bytes()
+                self.assertEqual(published_css, source_css)
 
     def test_paginas_principais_renderizam(self):
         user = User.objects.create_superuser(
@@ -88,6 +92,36 @@ class PageSmokeTests(TestCase):
             with self.subTest(rota=rota):
                 response = self.client.get(reverse(rota))
                 self.assertEqual(response.status_code, 200)
+
+
+class MobilePwaTests(TestCase):
+    def test_painel_mobile_restrito_a_diretoria(self):
+        regular = User.objects.create_user('regular-mobile', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=regular, perfil='rh')
+        self.client.force_login(regular)
+        self.assertEqual(self.client.get(reverse('painel_mobile')).status_code, 403)
+
+        admin = User.objects.create_superuser(
+            'admin-mobile', 'admin-mobile@example.com', 'senha-forte-123'
+        )
+        self.client.force_login(admin)
+        response = self.client.get(reverse('painel_mobile'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'CENTRAL DA DIRETORIA')
+        self.assertContains(response, reverse('pwa_manifest'))
+
+    def test_manifesto_abre_o_pwa_no_painel_mobile(self):
+        response = self.client.get(reverse('pwa_manifest'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/manifest+json')
+        self.assertEqual(response.json()['start_url'], '/mobile/')
+        self.assertEqual(response.json()['display'], 'standalone')
+
+    def test_service_worker_nao_armazena_paginas_sigilosas(self):
+        response = self.client.get(reverse('service_worker'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Service-Worker-Allowed'], '/')
+        self.assertContains(response, "event.request.mode === 'navigate'")
 
 
 class GroupCommandTests(TestCase):

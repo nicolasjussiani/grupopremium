@@ -1,0 +1,51 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d2149">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Aprovações">
+  <meta name="description" content="Aprovações da diretoria do Grupo PremiumBR">
+  <link rel="manifest" href="{% url 'pwa_manifest' %}">
+  <link rel="apple-touch-icon" href="{% static 'logo.jpeg' %}">
+  <link rel="icon" href="{% static 'favicon.jpeg' %}" type="image/jpeg">
+  <link rel="stylesheet" href="{% static 'css/mobile.css' %}?v=1">
+  <title>{% block title %}Aprovações — PremiumBR{% endblock %}</title>
+</head>
+<body>
+  <header class="mobile-header">
+    <a href="{% url 'painel_mobile' %}" class="mobile-brand" aria-label="Painel de aprovações">
+      <img src="{% static 'logo.jpeg' %}" alt="">
+      <span><strong>PREMIUMBR</strong><small>Diretoria</small></span>
+    </a>
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button class="icon-button" type="submit" aria-label="Sair">↪</button>
+    </form>
+  </header>
+
+  {% if messages %}
+    <div class="mobile-messages">
+      {% for message in messages %}<div class="mobile-message {{ message.tags }}">{{ message }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <main class="mobile-main">{% block content %}{% endblock %}</main>
+
+  <nav class="mobile-bottom-nav" aria-label="Navegação principal">
+    <a href="{% url 'painel_mobile' %}#aprovacoes"><span>✓</span>Aprovações</a>
+    <a href="{% url 'painel_mobile' %}#notificacoes"><span>●</span>Notificações</a>
+    <a href="{% url 'painel_mobile' %}#historico"><span>↻</span>Histórico</a>
+  </nav>
+
+  <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('{% url "service_worker" %}'));
+  }
+  </script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

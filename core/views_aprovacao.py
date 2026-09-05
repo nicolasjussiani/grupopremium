@@ -2,14 +2,17 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from django.db.models import Q
 from django.db import transaction
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from core.models import AprovacaoRegistro
+from core.models import Notificacao
 
 
 def _redirect_seguro(request):
@@ -44,6 +47,116 @@ def _modulos_do_usuario(user):
     for grupo in grupos_usuario:
         modulos.update(GRUPOS_APROVADORES.get(grupo, []))
     return list(modulos)
+
+
+def _exigir_admin_mobile(user):
+    if user.is_superuser or user.groups.filter(
+        name__in=('Admin_Global', 'Diretoria_Final')
+    ).exists():
+        return
+    raise PermissionDenied
+
+
+@login_required
+def painel_mobile(request):
+    """PWA enxuta da diretoria para notificacoes e decisoes."""
+    _exigir_admin_mobile(request.user)
+    modulos = _modulos_do_usuario(request.user)
+    aprovacoes = AprovacaoRegistro.objects.filter(
+        status='pendente', modulo__in=modulos
+    ).select_related('solicitado_por').order_by('-criado_em')
+    notificacoes = Notificacao.objects.filter(
+        destinatario=request.user
+    ).order_by('-criado_em')[:20]
+    historico = AprovacaoRegistro.objects.filter(
+        modulo__in=modulos, status__in=('aprovado', 'rejeitado')
+    ).select_related('aprovado_por').order_by('-decidido_em')[:10]
+    return render(request, 'mobile/painel.html', {
+        'aprovacoes': aprovacoes,
+        'notificacoes': notificacoes,
+        'historico': historico,
+        'total_pendentes': aprovacoes.count(),
+        'total_nao_lidas': Notificacao.objects.filter(
+            destinatario=request.user, lida=False
+        ).count(),
+    })
+
+
+@login_required
+def detalhe_aprovacao_mobile(request, pk):
+    _exigir_admin_mobile(request.user)
+    aprovacao = get_object_or_404(
+        AprovacaoRegistro,
+        pk=pk,
+        modulo__in=_modulos_do_usuario(request.user),
+    )
+    return render(request, 'mobile/detalhe_aprovacao.html', {'aprovacao': aprovacao})
+
+
+@login_required
+def status_mobile(request):
+    _exigir_admin_mobile(request.user)
+    pendentes = AprovacaoRegistro.objects.filter(
+        status='pendente', modulo__in=_modulos_do_usuario(request.user)
+    ).count()
+    nao_lidas = Notificacao.objects.filter(
+        destinatario=request.user, lida=False
+    ).count()
+    return JsonResponse({'pendentes': pendentes, 'nao_lidas': nao_lidas})
+
+
+@login_required
+@require_POST
+def marcar_notificacoes_mobile(request):
+    _exigir_admin_mobile(request.user)
+    Notificacao.objects.filter(destinatario=request.user, lida=False).update(lida=True)
+    return redirect(f"{reverse('painel_mobile')}#notificacoes")
+
+
+def pwa_manifest(request):
+    return JsonResponse({
+        'id': '/mobile/',
+        'name': 'PremiumBR Aprovações',
+        'short_name': 'Aprovações',
+        'description': 'Notificações e aprovações da diretoria do Grupo PremiumBR.',
+        'start_url': '/mobile/',
+        'scope': '/',
+        'display': 'standalone',
+        'background_color': '#f5f7fb',
+        'theme_color': '#0d2149',
+        'icons': [
+            {
+                'src': '/static/logo.jpeg',
+                'sizes': '1600x1600',
+                'type': 'image/jpeg',
+                'purpose': 'any',
+            }
+        ],
+    }, content_type='application/manifest+json')
+
+
+def service_worker(request):
+    script = """
+const CACHE = 'premiumbr-mobile-v1';
+const ASSETS = ['/static/css/mobile.css?v=1', '/static/logo.jpeg', '/static/favicon.jpeg'];
+self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
+self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))));
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET' || event.request.mode === 'navigate') return;
+  const url = new URL(event.request.url);
+  if (url.origin === self.location.origin && url.pathname.startsWith('/static/')) {
+    event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
+  }
+});
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(clients.openWindow('/mobile/'));
+});
+""".strip()
+    response = HttpResponse(script, content_type='application/javascript')
+    response['Service-Worker-Allowed'] = '/'
+    response['Cache-Control'] = 'no-cache'
+    return response
 
 
 @login_required

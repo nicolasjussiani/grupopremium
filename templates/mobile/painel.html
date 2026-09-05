@@ -1,0 +1,117 @@
+{% extends 'mobile/base.html' %}
+{% block content %}
+  <section class="mobile-welcome">
+    <div>
+      <span class="eyebrow">CENTRAL DA DIRETORIA</span>
+      <h1>Olá, {{ request.user.first_name|default:request.user.username }}</h1>
+      <p>Acompanhe processos e tome decisões pelo celular.</p>
+    </div>
+    <button id="refreshMobile" class="refresh-button" type="button" aria-label="Atualizar">↻</button>
+  </section>
+
+  <section class="mobile-summary" aria-label="Resumo">
+    <a href="#aprovacoes" class="summary-card pending">
+      <span class="summary-value" data-pending-count>{{ total_pendentes }}</span>
+      <span>Aguardando decisão</span>
+    </a>
+    <a href="#notificacoes" class="summary-card unread">
+      <span class="summary-value" data-notification-count>{{ total_nao_lidas }}</span>
+      <span>Não lidas</span>
+    </a>
+  </section>
+
+  <section class="install-card" id="installCard">
+    <div class="install-icon">⌂</div>
+    <div><strong>Use como aplicativo</strong><p>No iPhone: Compartilhar → Adicionar à Tela de Início.</p></div>
+    <button id="enableAlerts" type="button">Ativar alertas</button>
+  </section>
+
+  <section class="mobile-section" id="aprovacoes">
+    <div class="section-title"><div><span>DECISÕES</span><h2>Aprovações pendentes</h2></div><b>{{ total_pendentes }}</b></div>
+    <div class="approval-list">
+      {% for aprovacao in aprovacoes %}
+        <article class="mobile-approval-card">
+          <div class="approval-card-top">
+            <span class="module-pill {{ aprovacao.modulo }}">{{ aprovacao.get_modulo_display }}</span>
+            <time>{{ aprovacao.criado_em|timesince }} atrás</time>
+          </div>
+          <h3>{{ aprovacao.titulo }}</h3>
+          {% if aprovacao.descricao %}<p>{{ aprovacao.descricao|truncatechars:150 }}</p>{% endif %}
+          <div class="approval-meta">
+            <span>Nível {{ aprovacao.nivel }}</span>
+            {% if aprovacao.solicitado_por %}<span>{{ aprovacao.solicitado_por.get_full_name|default:aprovacao.solicitado_por.username }}</span>{% endif %}
+          </div>
+          <a class="decision-button" href="{% url 'detalhe_aprovacao_mobile' aprovacao.pk %}">Analisar e decidir <span>›</span></a>
+        </article>
+      {% empty %}
+        <div class="mobile-empty"><span>✓</span><h3>Tudo aprovado</h3><p>Nenhum processo aguardando sua decisão.</p></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="mobile-section" id="notificacoes">
+    <div class="section-title">
+      <div><span>ATUALIZAÇÕES</span><h2>Notificações</h2></div>
+      {% if total_nao_lidas %}
+        <form method="post" action="{% url 'marcar_notificacoes_mobile' %}">{% csrf_token %}<button class="mark-read-button" type="submit">Marcar lidas</button></form>
+      {% endif %}
+    </div>
+    <div class="notification-list">
+      {% for notificacao in notificacoes %}
+        <article class="notification-item {% if not notificacao.lida %}is-unread{% endif %}">
+          <span class="notification-dot"></span>
+          <div><h3>{{ notificacao.titulo }}</h3><p>{{ notificacao.mensagem|truncatechars:135 }}</p><time>{{ notificacao.criado_em|date:'d/m/Y H:i' }}</time></div>
+          {% if notificacao.url_acao %}<a href="{{ notificacao.url_acao }}" aria-label="Abrir notificação">›</a>{% endif %}
+        </article>
+      {% empty %}
+        <div class="mobile-empty compact"><p>Nenhuma notificação.</p></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="mobile-section" id="historico">
+    <div class="section-title"><div><span>PROCESSOS</span><h2>Decisões recentes</h2></div></div>
+    <div class="history-list">
+      {% for item in historico %}
+        <div class="history-item"><span class="history-icon {{ item.status }}">{% if item.status == 'aprovado' %}✓{% else %}×{% endif %}</span><div><strong>{{ item.titulo }}</strong><small>{{ item.get_status_display }} · {{ item.decidido_em|date:'d/m H:i' }}</small></div></div>
+      {% empty %}<div class="mobile-empty compact"><p>Nenhuma decisão recente.</p></div>{% endfor %}
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const statusUrl = '{% url "status_mobile" %}';
+  let previousPending = {{ total_pendentes }};
+
+  async function refreshStatus(reloadPage) {
+    const response = await fetch(statusUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+    if (!response.ok) return;
+    const status = await response.json();
+    document.querySelectorAll('[data-pending-count]').forEach(el => el.textContent = status.pendentes);
+    document.querySelectorAll('[data-notification-count]').forEach(el => el.textContent = status.nao_lidas);
+    const badge = status.pendentes + status.nao_lidas;
+    if ('setAppBadge' in navigator) badge ? navigator.setAppBadge(badge) : navigator.clearAppBadge();
+    if (status.pendentes > previousPending && Notification.permission === 'granted') {
+      const registration = await navigator.serviceWorker.ready;
+      registration.showNotification('Nova aprovação pendente', {body: 'Abra o app para analisar o novo processo.', icon: '/static/logo.jpeg'});
+    }
+    previousPending = status.pendentes;
+    if (reloadPage) window.location.reload();
+  }
+
+  document.getElementById('refreshMobile').addEventListener('click', () => refreshStatus(true));
+  document.getElementById('enableAlerts').addEventListener('click', async event => {
+    if (!('Notification' in window)) return;
+    const permission = await Notification.requestPermission();
+    event.currentTarget.textContent = permission === 'granted' ? 'Alertas ativos' : 'Alertas bloqueados';
+  });
+  if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
+    document.getElementById('installCard').classList.add('installed');
+  }
+  refreshStatus(false);
+  setInterval(() => refreshStatus(false), 60000);
+})();
+</script>
+{% endblock %}

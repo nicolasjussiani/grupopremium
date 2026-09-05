@@ -207,6 +207,12 @@ class FullSiteRouteTests(TestCase):
             ('rejeitar_registro', (self.aprovacao.pk,), 405),
             ('detalhe_aprovacao', (self.aprovacao.pk,), 200),
             ('aprovacoes_count_api', (), 200),
+            ('painel_mobile', (), 200),
+            ('status_mobile', (), 200),
+            ('marcar_notificacoes_mobile', (), 405),
+            ('detalhe_aprovacao_mobile', (self.aprovacao.pk,), 200),
+            ('pwa_manifest', (), 200),
+            ('service_worker', (), 200),
             ('auditoria_sistema', (), 200),
             ('painel_sla', (), 200),
             ('lista_vagas', (), 200),
@@ -295,6 +301,7 @@ class FullSiteRouteTests(TestCase):
     def test_formularios_rejeitam_dados_incompletos_sem_erro_interno(self):
         post_routes = (
             ('marcar_lida', (self.notificacao.pk,)),
+            ('marcar_notificacoes_mobile', ()),
             ('aprovar_registro', (self.aprovacao.pk,)),
             ('rejeitar_registro', (self.aprovacao.pk,)),
             ('nova_vaga', ()),

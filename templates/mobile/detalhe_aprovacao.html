@@ -1,0 +1,39 @@
+{% extends 'mobile/base.html' %}
+{% block title %}Analisar processo — PremiumBR{% endblock %}
+{% block content %}
+  <a href="{% url 'painel_mobile' %}#aprovacoes" class="mobile-back">‹ Voltar às aprovações</a>
+  <section class="decision-detail">
+    <div class="detail-header">
+      <span class="module-pill {{ aprovacao.modulo }}">{{ aprovacao.get_modulo_display }}</span>
+      <span class="status-pill {{ aprovacao.status }}">{{ aprovacao.get_status_display }}</span>
+    </div>
+    <h1>{{ aprovacao.titulo }}</h1>
+    <div class="detail-grid">
+      <div><small>Solicitado por</small><strong>{% if aprovacao.solicitado_por %}{{ aprovacao.solicitado_por.get_full_name|default:aprovacao.solicitado_por.username }}{% else %}Sistema{% endif %}</strong></div>
+      <div><small>Data da solicitação</small><strong>{{ aprovacao.criado_em|date:'d/m/Y H:i' }}</strong></div>
+      <div><small>Nível</small><strong>{{ aprovacao.get_nivel_display }}</strong></div>
+      <div><small>Código</small><strong>#{{ aprovacao.pk|stringformat:'04d' }}</strong></div>
+    </div>
+    {% if aprovacao.descricao %}<div class="detail-description"><small>Detalhes do processo</small><p>{{ aprovacao.descricao }}</p></div>{% endif %}
+
+    {% if aprovacao.esta_pendente %}
+      <form method="post" action="{% url 'aprovar_registro' aprovacao.pk %}" class="mobile-decision-form approve-form">
+        {% csrf_token %}<input type="hidden" name="next" value="{% url 'painel_mobile' %}">
+        <label for="comentario">Comentário opcional</label>
+        <textarea id="comentario" name="comentario" rows="3" placeholder="Registre uma observação sobre a aprovação"></textarea>
+        <button type="submit">✓ Aprovar processo</button>
+      </form>
+      <details class="reject-panel">
+        <summary>Rejeitar este processo</summary>
+        <form method="post" action="{% url 'rejeitar_registro' aprovacao.pk %}" class="mobile-decision-form">
+          {% csrf_token %}<input type="hidden" name="next" value="{% url 'painel_mobile' %}">
+          <label for="motivo">Motivo da rejeição</label>
+          <textarea id="motivo" name="motivo_rejeicao" rows="3" required placeholder="Explique o que precisa ser corrigido"></textarea>
+          <button class="reject-button" type="submit">Confirmar rejeição</button>
+        </form>
+      </details>
+    {% else %}
+      <div class="decision-complete">Esta solicitação já foi {{ aprovacao.get_status_display|lower }}.</div>
+    {% endif %}
+  </section>
+{% endblock %}
