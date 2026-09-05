@@ -49,6 +49,10 @@ ou o bucket configurado nos arquivos `.env`.
   devem ser informados nessas variaveis.
 - A ausencia de `DATABASE_URL` em Vercel/serverless impede a inicializacao.
 - O armazenamento S3 e obrigatorio em Vercel/serverless.
+- Os arquivos dos formularios sao enviados pelo navegador diretamente ao
+  Supabase Storage por URL S3 temporaria. O PostgreSQL guarda somente a
+  referencia do objeto; isso evita o limite de 4,5 MB das Functions da Vercel.
+- O limite da aplicacao para upload direto e 50 MB por arquivo.
 - Na Vercel, cada salvamento aceita no maximo 4 MB somando os novos anexos;
   documentos adicionais devem ser enviados em etapas.
 - Migrações devem ser executadas pelo processo de deploy, nunca por uma rota HTTP.

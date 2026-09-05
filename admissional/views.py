@@ -10,6 +10,7 @@ from sesmet.models import IntegracaoSeguranca, RegistroEPI, OrdemServico
 from django.contrib.auth.models import User
 from core.access import access_required, user_has_access
 from core.validators import validate_document_upload
+from core.direct_uploads import assign_direct_upload, verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
@@ -67,6 +68,12 @@ def atualizar_documento(request, admissao_pk, doc_pk):
             return redirect('detalhe_admissao', pk=admissao_pk)
         
         arquivo_upload = request.FILES.get('arquivo')
+        direct_key = None
+        try:
+            direct_key = verify_direct_upload(request, 'arquivo')
+        except ValidationError as exc:
+            messages.error(request, exc.messages[0])
+            return render(request, 'admissional/atualizar_documento.html', {'doc': doc, 'admissao': admissao})
         if arquivo_upload:
             try:
                 validate_document_upload(arquivo_upload)
@@ -76,6 +83,16 @@ def atualizar_documento(request, admissao_pk, doc_pk):
             doc.arquivo_nuvem = arquivo_upload
             doc.arquivo_nome = arquivo_upload.name
             doc.arquivo_mimetype = arquivo_upload.content_type
+        elif direct_key:
+            doc.arquivo_nuvem.name = direct_key
+            doc.arquivo_nome = direct_key.rsplit('/', 1)[-1]
+            extension = direct_key.rsplit('.', 1)[-1].lower()
+            doc.arquivo_mimetype = {
+                'pdf': 'application/pdf',
+                'png': 'image/png',
+                'jpg': 'image/jpeg',
+                'jpeg': 'image/jpeg',
+            }.get(extension, 'application/octet-stream')
             
         doc.status = novo_status
         doc.observacao = obs
@@ -237,7 +254,14 @@ def novo_colaborador(request):
         form = ColaboradorForm(request.POST, request.FILES)
         if form.is_valid():
             try:
+                for field_name in form.fields:
+                    if field_name.startswith('anexo_'):
+                        assign_direct_upload(form.instance, request, field_name)
                 colaborador = form.save()
+            except ValidationError as exc:
+                transaction.set_rollback(True)
+                form.add_error(None, exc.messages[0])
+                return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Novo'})
             except OSError:
                 transaction.set_rollback(True)
                 form.add_error(None, 'Nao foi possivel armazenar os anexos. Tente novamente.')
@@ -257,7 +281,14 @@ def editar_colaborador(request, pk):
         form = ColaboradorForm(request.POST, request.FILES, instance=colaborador)
         if form.is_valid():
             try:
+                for field_name in form.fields:
+                    if field_name.startswith('anexo_'):
+                        assign_direct_upload(form.instance, request, field_name)
                 form.save()
+            except ValidationError as exc:
+                transaction.set_rollback(True)
+                form.add_error(None, exc.messages[0])
+                return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Editar'})
             except OSError:
                 transaction.set_rollback(True)
                 form.add_error(None, 'Nao foi possivel armazenar os anexos. Tente novamente.')

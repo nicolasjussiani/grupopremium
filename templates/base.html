@@ -257,45 +257,73 @@ if (themeToggleBtn) {
   themeToggleBtn.addEventListener('click', toggleTheme);
 }
 
-// Evita o erro 413 da Vercel antes de enviar formularios com anexos.
-const maxUploadRequestBytes = 4 * 1024 * 1024;
+const directUploadEndpoint = '{% url "presign_upload" %}';
+const directUploadMaxBytes = 50 * 1024 * 1024;
+// O arquivo vai do navegador ao Supabase. O formulario envia apenas um token.
+window.uploadFileDirectly = async function(input, form) {
+  form = form || input.form;
+  const file = input.files && input.files[0];
+  if (!file) throw new Error('Selecione um arquivo.');
+  if (file.size > directUploadMaxBytes) throw new Error('O arquivo deve ter no maximo 50 MB.');
+  if (input.dataset.directUploadToken) return input.dataset.directUploadToken;
+  const csrf = form.querySelector('[name="csrfmiddlewaretoken"]');
+  const extension = file.name.toLowerCase().split('.').pop();
+  const fallbackTypes = {pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg'};
+  const contentType = file.type || fallbackTypes[extension] || 'application/octet-stream';
+  const presignResponse = await fetch(directUploadEndpoint, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf ? csrf.value : ''},
+    body: JSON.stringify({field: input.name, filename: file.name, content_type: contentType, size: file.size}),
+  });
+  const presign = await presignResponse.json();
+  if (!presignResponse.ok) throw new Error(presign.error || 'Falha ao preparar o upload.');
+  const uploadResponse = await fetch(presign.upload_url, {
+    method: 'PUT', headers: {'Content-Type': contentType}, body: file,
+  });
+  if (!uploadResponse.ok) throw new Error('Falha ao enviar o arquivo ao Supabase.');
+  let hidden = form.querySelector(`input[name="direct_upload_${input.name}"]`);
+  if (!hidden) {
+    hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = `direct_upload_${input.name}`;
+    form.appendChild(hidden);
+  }
+  hidden.value = presign.token;
+  input.dataset.directUploadToken = presign.token;
+  input.disabled = true;
+  return presign.token;
+};
+
 document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(form => {
   const fileInputs = Array.from(form.querySelectorAll('input[type="file"]'));
-  if (!fileInputs.length) return;
-
-  let errorBox = form.querySelector('[data-upload-size-error]');
-  if (!errorBox) {
-    errorBox = document.createElement('div');
-    errorBox.className = 'alert alert-error';
-    errorBox.setAttribute('role', 'alert');
-    errorBox.setAttribute('data-upload-size-error', '');
-    errorBox.setAttribute('data-persistent-alert', '');
-    errorBox.hidden = true;
-    form.prepend(errorBox);
-  }
-
-  function validateUploadSize() {
-    const totalBytes = fileInputs.reduce((total, input) => {
-      return total + Array.from(input.files || []).reduce((sum, file) => sum + file.size, 0);
-    }, 0);
-
-    if (totalBytes > maxUploadRequestBytes) {
-      const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
-      errorBox.textContent = `Os arquivos selecionados somam ${totalMB} MB. O limite por salvamento é 4 MB. Selecione menos arquivos e salve em etapas.`;
+  fileInputs.forEach(input => input.addEventListener('change', () => {
+    const hidden = form.querySelector(`input[name="direct_upload_${input.name}"]`);
+    if (hidden) hidden.remove();
+    input.dataset.directUploadToken = '';
+    input.disabled = false;
+  }));
+  form.addEventListener('submit', async event => {
+    if (form.dataset.directUploadSubmitting === 'true') return;
+    const selected = fileInputs.filter(input => input.files && input.files.length);
+    if (!selected.length) return;
+    event.preventDefault();
+    const buttons = Array.from(form.querySelectorAll('[type="submit"]'));
+    buttons.forEach(button => button.disabled = true);
+    let errorBox = form.querySelector('[data-upload-size-error]');
+    try {
+      for (const input of selected) await window.uploadFileDirectly(input, form);
+      form.dataset.directUploadSubmitting = 'true';
+      form.submit();
+    } catch (error) {
+      if (!errorBox) {
+        errorBox = document.createElement('div');
+        errorBox.className = 'alert alert-error';
+        errorBox.setAttribute('data-upload-size-error', '');
+        form.prepend(errorBox);
+      }
+      errorBox.textContent = error.message || 'Nao foi possivel enviar o arquivo.';
       errorBox.hidden = false;
-      return false;
-    }
-
-    errorBox.hidden = true;
-    errorBox.textContent = '';
-    return true;
-  }
-
-  fileInputs.forEach(input => input.addEventListener('change', validateUploadSize));
-  form.addEventListener('submit', event => {
-    if (!validateUploadSize()) {
-      event.preventDefault();
-      errorBox.scrollIntoView({behavior: 'smooth', block: 'center'});
+      buttons.forEach(button => button.disabled = false);
     }
   });
 });

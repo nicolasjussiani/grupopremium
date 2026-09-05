@@ -2,6 +2,7 @@
 from django.urls import path
 from core import views
 from core import views_aprovacao
+from core import views_upload
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
@@ -9,6 +10,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('api/notificacoes/', views.notificacoes_json, name='notificacoes_json'),
     path('api/notificacoes/<int:pk>/lida/', views.marcar_notificacao_lida, name='marcar_lida'),
+    path('api/uploads/presign/', views_upload.presign_upload, name='presign_upload'),
 
     # ── Linha de Aprovação ──────────────────────────────────────────────────
     path('aprovacoes/', views_aprovacao.aprovacoes_pendentes, name='aprovacoes_pendentes'),

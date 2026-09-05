@@ -142,10 +142,10 @@ class TestNovoColaboradorHTTP(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.context.get('acao'), 'Novo')
 
-    def test_GET_informa_e_aplica_limite_de_upload(self):
+    def test_GET_informa_upload_direto(self):
         response = self.client.get(self.url)
-        self.assertContains(response, 'Limite por salvamento: 4 MB')
-        self.assertContains(response, 'maxUploadRequestBytes')
+        self.assertContains(response, 'diretamente ao Supabase Storage')
+        self.assertContains(response, 'directUploadEndpoint')
 
     # POST valido
 

@@ -216,6 +216,7 @@ class FullSiteRouteTests(TestCase):
             ('avancar_etapa', (self.candidato.pk,), 200),
             ('banco_talentos', (), 200),
             ('parse_curriculo', (), 400),
+            ('presign_upload', (), 405),
             ('baixar_curriculo_candidato', (self.candidato.pk,), 200),
             ('baixar_curriculo_talento', (self.talento.pk,), 200),
             ('lista_admissoes', (), 200),

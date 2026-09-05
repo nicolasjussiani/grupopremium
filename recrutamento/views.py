@@ -8,8 +8,10 @@ from admissional.models import Admissao, DocumentoAdmissional
 from core.models import Notificacao
 from django.contrib.auth.models import User
 from django.http import JsonResponse
+from django.core.files.storage import default_storage
 from core.access import access_required
 from core.validators import validate_document_upload
+from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.text import get_valid_filename
@@ -183,6 +185,11 @@ def adicionar_candidato(request, vaga_pk):
             etapa_atual='triagem',
         )
         arquivo_upload = request.FILES.get('curriculo_pdf')
+        try:
+            direct_key = verify_direct_upload(request, 'curriculo_pdf')
+        except ValidationError as exc:
+            messages.error(request, exc.messages[0])
+            return render(request, 'recrutamento/adicionar_candidato.html', {'vaga': vaga})
         if arquivo_upload:
             try:
                 validate_document_upload(arquivo_upload)
@@ -190,6 +197,8 @@ def adicionar_candidato(request, vaga_pk):
                 messages.error(request, exc.messages[0])
                 return render(request, 'recrutamento/adicionar_candidato.html', {'vaga': vaga})
             candidato.arquivo = arquivo_upload
+        elif direct_key:
+            candidato.arquivo.name = direct_key
 
         try:
             candidato.full_clean()
@@ -219,7 +228,7 @@ def adicionar_candidato(request, vaga_pk):
                 talento.ultima_vaga = vaga
                 talento.telefone = telefone
                 talento.cidade = cidade
-            if arquivo_upload:
+            if arquivo_upload or direct_key:
                 talento.arquivo = candidato.arquivo.name
             talento.save()
 
@@ -368,16 +377,21 @@ def parse_curriculo(request):
         return JsonResponse({
             'error': 'Leitura de PDF não disponível neste servidor. Configure localmente para usar esta funcionalidade.'
         }, status=400)
-    if request.method == 'POST' and request.FILES.get('curriculo'):
-        arquivo = request.FILES['curriculo']
+    if request.method == 'POST':
+        arquivo = request.FILES.get('curriculo')
         try:
-            validate_document_upload(arquivo)
+            if arquivo:
+                validate_document_upload(arquivo)
+                file_bytes = arquivo.read()
+            else:
+                key = verify_direct_upload(request, 'curriculo_pdf', required=True)
+                with default_storage.open(key, 'rb') as stored_file:
+                    file_bytes = stored_file.read()
         except ValidationError as exc:
             return JsonResponse({'error': exc.messages[0]}, status=400)
         texto = ""
         try:
             # Lê os bytes apenas uma vez
-            file_bytes = arquivo.read()
             doc = fitz.open(stream=file_bytes, filetype="pdf")
             for page in doc:
                 page_text = page.get_text()

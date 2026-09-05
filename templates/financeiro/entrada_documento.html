@@ -99,10 +99,11 @@
     btn.innerHTML = '🤖 IA lendo documento...';
     btn.disabled = true;
 
-    const formData = new FormData();
-    formData.append('arquivo', this.files[0]);
-
     try {
+      const token = await window.uploadFileDirectly(this, this.form);
+      const formData = new FormData();
+      formData.append('direct_upload_arquivo_pdf', token);
+      formData.append('direct_upload_content_type', this.files[0].type);
       const res = await fetch("{% url 'extrair_ocr_documento' %}", {
         method: 'POST',
         headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},

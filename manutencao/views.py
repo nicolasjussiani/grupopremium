@@ -5,6 +5,7 @@ from django.utils import timezone
 from .models import Ativo, RegistroManutencao
 from core.access import access_required
 from core.validators import validate_image_upload
+from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from decimal import Decimal, InvalidOperation
@@ -41,6 +42,11 @@ def novo_ativo(request):
             messages.error(request, 'Status do ativo invalido.')
             return render(request, 'manutencao/form_ativo.html')
         foto = request.FILES.get('foto')
+        try:
+            direct_key = verify_direct_upload(request, 'foto')
+        except ValidationError as exc:
+            messages.error(request, exc.messages[0])
+            return render(request, 'manutencao/form_ativo.html')
         if foto:
             try:
                 validate_image_upload(foto)
@@ -58,6 +64,8 @@ def novo_ativo(request):
             status=status,
             foto=foto,
         )
+        if direct_key:
+            ativo.foto.name = direct_key
         data_aquisicao = request.POST.get('data_aquisicao')
         if data_aquisicao:
             ativo.data_aquisicao = data_aquisicao
@@ -116,6 +124,14 @@ def editar_ativo(request, pk):
                 messages.error(request, exc.messages[0])
                 return render(request, 'manutencao/form_ativo.html', {'ativo': ativo})
             ativo.foto = request.FILES['foto']
+        else:
+            try:
+                direct_key = verify_direct_upload(request, 'foto')
+            except ValidationError as exc:
+                messages.error(request, exc.messages[0])
+                return render(request, 'manutencao/form_ativo.html', {'ativo': ativo})
+            if direct_key:
+                ativo.foto.name = direct_key
         
         data_aquisicao = request.POST.get('data_aquisicao')
         ativo.data_aquisicao = data_aquisicao or None
@@ -161,6 +177,11 @@ def nova_manutencao(request):
             return redirect('nova_manutencao')
         ativo = get_object_or_404(Ativo.objects.select_for_update(), pk=request.POST['ativo'], status='ativo')
         foto = request.FILES.get('foto_equipamento')
+        try:
+            direct_key = verify_direct_upload(request, 'foto_equipamento')
+        except ValidationError as exc:
+            messages.error(request, exc.messages[0])
+            return redirect('nova_manutencao')
         if foto:
             try:
                 validate_image_upload(foto)
@@ -183,6 +204,8 @@ def nova_manutencao(request):
             registrado_por=request.user,
             foto_equipamento=foto,
         )
+        if direct_key:
+            manut.foto_equipamento.name = direct_key
         try:
             manut.full_clean()
             manut.save()
@@ -248,6 +271,14 @@ def concluir_manutencao(request, pk):
                 messages.error(request, exc.messages[0])
                 return render(request, 'manutencao/form_concluir_manutencao.html', {'manutencao': manut})
             manut.foto_equipamento = request.FILES['foto_equipamento']
+        else:
+            try:
+                direct_key = verify_direct_upload(request, 'foto_equipamento')
+            except ValidationError as exc:
+                messages.error(request, exc.messages[0])
+                return render(request, 'manutencao/form_concluir_manutencao.html', {'manutencao': manut})
+            if direct_key:
+                manut.foto_equipamento.name = direct_key
             
         try:
             manut.full_clean()

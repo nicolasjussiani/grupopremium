@@ -10,8 +10,10 @@ import json
 from decimal import Decimal, InvalidOperation
 from .models import DocumentoFinanceiro, AuditoriaItem, LancamentoERP, OrcamentoCentroCusto, ItemDocumentoFinanceiro
 from django.http import HttpResponse
+from django.core.files.storage import default_storage
 from core.access import access_required
 from core.validators import validate_document_upload
+from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.utils.text import get_valid_filename
 
@@ -110,6 +112,13 @@ def entrada_documento(request):
         )
         
         arquivo_upload = request.FILES.get('arquivo_pdf')
+        try:
+            direct_key = verify_direct_upload(request, 'arquivo_pdf')
+        except ValidationError as exc:
+            messages.error(request, exc.messages[0])
+            return render(request, 'financeiro/entrada_documento.html', {
+                'tipos': DocumentoFinanceiro.TIPOS,
+            })
         if arquivo_upload:
             try:
                 validate_document_upload(arquivo_upload)
@@ -119,6 +128,8 @@ def entrada_documento(request):
                     'tipos': DocumentoFinanceiro.TIPOS,
                 })
             doc.arquivo = arquivo_upload
+        elif direct_key:
+            doc.arquivo.name = direct_key
         else:
             messages.error(request, 'Envie o documento em PDF ou imagem valida.')
             return render(request, 'financeiro/entrada_documento.html', {
@@ -186,11 +197,19 @@ from .services.ocr_service import extrair_dados_documento
     groups=('Financeiro_Operador', 'Financeiro_Auditor', 'Financeiro_Aprovador'),
 )
 def extrair_ocr_documento(request):
-    if request.method == 'POST' and request.FILES.get('arquivo'):
-        arquivo = request.FILES['arquivo']
+    if request.method == 'POST':
+        arquivo = request.FILES.get('arquivo')
         try:
-            validate_document_upload(arquivo)
-            dados = extrair_dados_documento(arquivo.read(), arquivo.content_type)
+            if arquivo:
+                validate_document_upload(arquivo)
+                file_bytes = arquivo.read()
+                content_type = arquivo.content_type
+            else:
+                key = verify_direct_upload(request, 'arquivo_pdf', required=True)
+                with default_storage.open(key, 'rb') as stored_file:
+                    file_bytes = stored_file.read()
+                content_type = request.POST.get('direct_upload_content_type', 'application/pdf')
+            dados = extrair_dados_documento(file_bytes, content_type)
             return JsonResponse({'sucesso': True, 'dados': dados})
         except ValidationError as exc:
             return JsonResponse({'sucesso': False, 'erro': exc.messages[0]}, status=400)
