@@ -1,5 +1,6 @@
 from datetime import date
 from io import StringIO
+from pathlib import Path
 
 from django.contrib.auth.models import Group, User
 from django.contrib.contenttypes.models import ContentType
@@ -7,6 +8,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase
+from django.conf import settings
 from django.urls import reverse
 
 from administrativo.models import DemandaAdministrativa
@@ -62,6 +64,11 @@ class SecurityHTTPTests(TestCase):
 
 
 class PageSmokeTests(TestCase):
+    def test_css_publicado_permanece_sincronizado_com_a_fonte(self):
+        source_css = Path(settings.BASE_DIR, 'static', 'css', 'main.css').read_bytes()
+        published_css = Path(settings.BASE_DIR, 'staticfiles', 'css', 'main.css').read_bytes()
+        self.assertEqual(published_css, source_css)
+
     def test_paginas_principais_renderizam(self):
         user = User.objects.create_superuser(
             username='admin-smoke', email='admin@example.com', password='senha-forte-123'
