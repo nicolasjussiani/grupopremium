@@ -196,7 +196,7 @@ def lista_colaboradores(request):
         'can_add_colaborador': user_has_access(
             request.user,
             permission='admissional.add_colaborador',
-            profiles=('rh',),
+            profiles=('rh', 'sesmet'),
         ),
         'can_edit_colaborador': user_has_access(
             request.user,
@@ -211,7 +211,7 @@ def lista_colaboradores(request):
     })
 
 @login_required
-@access_required(permission='admissional.add_colaborador', profiles=('rh',))
+@access_required(permission='admissional.add_colaborador', profiles=('rh', 'sesmet'))
 @transaction.atomic
 def novo_colaborador(request):
     if request.method == 'POST':

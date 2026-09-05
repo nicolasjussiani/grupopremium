@@ -64,7 +64,7 @@ class Command(BaseCommand):
 
         # ── SESMET ────────────────────────────────────────────────────────────
         'SESMET_Tecnico': {
-            'admissional.Colaborador':     ['change', 'view'],
+            'admissional.Colaborador':     ['add', 'change', 'view'],
             'sesmet.EquipamentoProtecao': ['add', 'change', 'view'],
             'sesmet.IntegracaoSeguranca': ['add', 'change', 'view'],
             'sesmet.OrdemServico':        ['add', 'change', 'view'],
@@ -72,7 +72,7 @@ class Command(BaseCommand):
             'core.AprovacaoRegistro':     ['add', 'view'],
         },
         'SESMET_Gestor': {
-            'admissional.Colaborador':     ['change', 'view'],
+            'admissional.Colaborador':     ['add', 'change', 'view'],
             'sesmet.EquipamentoProtecao': ['add', 'change', 'view', 'delete'],
             'sesmet.IntegracaoSeguranca': ['add', 'change', 'view', 'delete'],
             'sesmet.OrdemServico':        ['add', 'change', 'view', 'delete'],
