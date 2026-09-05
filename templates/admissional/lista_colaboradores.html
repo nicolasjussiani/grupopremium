@@ -6,11 +6,37 @@
 {% block content %}
 <div class="module-banner mod-banner-2" style="margin-bottom:20px;">
   <div class="mod-title">🏢 Colaboradores Ativos</div>
-  <div class="mod-desc">{{ total }} colaborador(es) ativo(s) no sistema</div>
+  <div class="mod-desc">{{ total_ativos }} colaborador(es) ativo(s) no sistema</div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+    <div style="flex:1;min-width:240px;">
+      <label for="busca-colaborador">Pesquisar colaborador</label>
+      <input
+        id="busca-colaborador"
+        class="form-control"
+        type="search"
+        name="q"
+        value="{{ query }}"
+        placeholder="Nome, código, CPF, cargo, setor, unidade ou contrato"
+        autocomplete="off"
+      >
+    </div>
+    <button type="submit" class="btn btn-mod1">🔎 Pesquisar</button>
+    {% if query %}
+      <a href="{% url 'lista_colaboradores' %}" class="btn">Limpar</a>
+    {% endif %}
+  </form>
+  {% if query %}
+    <div style="margin-top:10px;color:var(--text-muted);font-size:0.85rem;">
+      {{ total }} resultado(s) para “{{ query }}”
+    </div>
+  {% endif %}
 </div>
 
 {% if can_add_colaborador %}
-  <div style="margin-bottom: 20px;">
+  <div style="margin-bottom:20px;">
     <a href="{% url 'novo_colaborador' %}" class="btn btn-mod1">➕ Novo Colaborador</a>
   </div>
 {% endif %}
@@ -71,7 +97,12 @@
 <div class="card">
   <div class="empty-state">
     <div class="empty-icon">🏢</div>
-    <p>Nenhum colaborador ativo no momento.</p>
+    {% if query %}
+      <p>Nenhum colaborador encontrado para “{{ query }}”.</p>
+      <a href="{% url 'lista_colaboradores' %}" class="btn">Limpar pesquisa</a>
+    {% else %}
+      <p>Nenhum colaborador ativo no momento.</p>
+    {% endif %}
   </div>
 </div>
 {% endif %}

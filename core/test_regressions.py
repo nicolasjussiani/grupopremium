@@ -140,6 +140,27 @@ class ColaboradorAccessTests(TestCase):
         lista = self.client.get(reverse('lista_colaboradores'))
         self.assertNotContains(lista, editar_url)
 
+    def test_pesquisa_colaborador_por_nome_e_codigo(self):
+        outro = Colaborador.objects.create(
+            nome='Maria da Silva',
+            cpf='555.666.777-88',
+            email='maria@example.com',
+            cargo='Analista',
+            unidade='Filial',
+            data_admissao=date.today(),
+        )
+        self._login('sesmet')
+        lista_url = reverse('lista_colaboradores')
+
+        por_nome = self.client.get(lista_url, {'q': 'Colaborador SESMET'})
+        self.assertContains(por_nome, self.colaborador.nome)
+        self.assertNotContains(por_nome, outro.nome)
+        self.assertEqual(por_nome.context['total'], 1)
+
+        por_codigo = self.client.get(lista_url, {'q': f'{self.colaborador.pk:04d}'})
+        self.assertContains(por_codigo, self.colaborador.nome)
+        self.assertNotContains(por_codigo, outro.nome)
+
 
 class WorkflowIntegrityTests(TestCase):
     def _user(self, username, perfil, group=None):

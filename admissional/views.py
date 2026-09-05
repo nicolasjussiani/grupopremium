@@ -12,6 +12,7 @@ from core.access import access_required, user_has_access
 from core.validators import validate_document_upload
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils.text import get_valid_filename
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
@@ -190,9 +191,27 @@ def avancar_admissao(request, pk):
 @login_required
 def lista_colaboradores(request):
     colaboradores = Colaborador.objects.filter(status='ativo')
+    total_ativos = colaboradores.count()
+    query = request.GET.get('q', '').strip()[:100]
+    if query:
+        filtros = (
+            Q(nome__icontains=query)
+            | Q(cpf__icontains=query)
+            | Q(email__icontains=query)
+            | Q(cargo__icontains=query)
+            | Q(setor__icontains=query)
+            | Q(unidade__icontains=query)
+            | Q(contrato__icontains=query)
+        )
+        if query.isdigit():
+            filtros |= Q(pk=int(query))
+        colaboradores = colaboradores.filter(filtros)
+
     return render(request, 'admissional/lista_colaboradores.html', {
         'colaboradores': colaboradores,
         'total': colaboradores.count(),
+        'total_ativos': total_ativos,
+        'query': query,
         'can_add_colaborador': user_has_access(
             request.user,
             permission='admissional.add_colaborador',
