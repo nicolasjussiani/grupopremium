@@ -1,10 +1,10 @@
 import logging
 
 from django.contrib import messages
-from django.contrib.auth import get_user_model
-from django.db.models import Q
 from django.shortcuts import redirect
 from django.utils.deprecation import MiddlewareMixin
+
+from core.notifications import destinatarios_da_area
 
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,36 @@ class AuditLogMiddleware(MiddlewareMixin):
 
     ROTAS_IGNORADAS = ('/login', '/logout', '/api/', '/mobile/notificacoes/')
 
+    @staticmethod
+    def _conteudo_notificacao(request, nome_modulo, acao):
+        """Da contexto aos eventos principais sem copiar dados sensiveis."""
+        nome_usuario = request.user.get_full_name() or request.user.username
+        path = request.path_info.rstrip('/') + '/'
+
+        if path == '/recrutamento/nova/':
+            nome = request.POST.get('nome_vaga', '').strip()[:120]
+            mensagem = f'{nome_usuario} cadastrou uma nova vaga.'
+            if nome:
+                mensagem = f'{nome_usuario} cadastrou a vaga "{nome}".'
+            return 'Nova vaga cadastrada', mensagem
+
+        if path == '/admissional/colaboradores/novo/':
+            nome = request.POST.get('nome', '').strip()[:120]
+            mensagem = f'{nome_usuario} cadastrou um novo colaborador.'
+            if nome:
+                mensagem = f'{nome_usuario} cadastrou o colaborador {nome}.'
+            return 'Novo colaborador cadastrado', mensagem
+
+        return f'Alteração em {nome_modulo}', f'{nome_usuario}: {acao}.'
+
+    @staticmethod
+    def _url_notificacao(response, log):
+        """Prefere o destino do redirect; usa a auditoria como alternativa."""
+        destino = response.get('Location', '')
+        if destino.startswith('/') and not destino.startswith('//'):
+            return destino[:200]
+        return f'/auditoria-logs/?destaque={log.pk}'
+
     def process_response(self, request, response):
         if not (
             request.method == 'POST'
@@ -89,23 +119,20 @@ class AuditLogMiddleware(MiddlewareMixin):
                 ip_address=request.META.get('REMOTE_ADDR'),
                 detalhes=f"Campos enviados: {', '.join(campos)}"[:1000],
             )
-            User = get_user_model()
-            destinatarios = User.objects.filter(
-                Q(is_superuser=True) | Q(groups__name='Admin_Global'),
-                is_active=True,
-            ).exclude(pk=request.user.pk).distinct()
+            destinatarios = destinatarios_da_area(modulo, autor=request.user)
             modulos_validos = {value for value, _label in Notificacao.MODULOS}
             modulo_notificacao = modulo if modulo in modulos_validos else 'sistema'
             nome_modulo = dict(Notificacao.MODULOS)[modulo_notificacao]
-            nome_usuario = request.user.get_full_name() or request.user.username
+            titulo, mensagem = self._conteudo_notificacao(request, nome_modulo, acao)
+            url_acao = self._url_notificacao(response, log)
             Notificacao.objects.bulk_create([
                 Notificacao(
                     destinatario=destinatario,
                     tipo='aviso',
                     modulo=modulo_notificacao,
-                    titulo=f'Alteração em {nome_modulo}',
-                    mensagem=f'{nome_usuario}: {acao}.',
-                    url_acao=f'/auditoria-logs/?destaque={log.pk}',
+                    titulo=titulo,
+                    mensagem=mensagem,
+                    url_acao=url_acao,
                 )
                 for destinatario in destinatarios
             ])

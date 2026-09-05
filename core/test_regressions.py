@@ -218,10 +218,20 @@ class AuditNotificationTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.actor = User.objects.create_user('operador-auditoria')
-        self.ceo = User.objects.create_superuser('ceo-auditoria', 'ceo@example.com', 'senha')
+        # A conta oficial do CEO deve receber avisos mesmo sem depender de superuser.
+        self.ceo = User.objects.create_user('ceo_premium', 'ceo@example.com', 'senha')
         self.admin_group = Group.objects.create(name='Admin_Global')
         self.admin = User.objects.create_user('admin-grupo-auditoria')
         self.admin.groups.add(self.admin_group)
+        self.admissional_group = Group.objects.create(name='Admissional_RH')
+        self.recrutamento_group = Group.objects.create(name='Recrutamento_RH')
+        self.sesmet_group = Group.objects.create(name='SESMET_Gestor')
+        self.rh = User.objects.create_user('rh-area')
+        self.rh.groups.add(self.admissional_group)
+        self.recrutador = User.objects.create_user('recrutador-area')
+        self.recrutador.groups.add(self.recrutamento_group)
+        self.sesmet = User.objects.create_user('sesmet-area')
+        self.sesmet.groups.add(self.sesmet_group)
         self.inactive_admin = User.objects.create_superuser(
             'admin-inativo-auditoria', 'inativo@example.com', 'senha', is_active=False
         )
@@ -240,11 +250,52 @@ class AuditNotificationTests(TestCase):
         notificacoes = Notificacao.objects.order_by('destinatario__username')
         self.assertSetEqual(
             set(notificacoes.values_list('destinatario__username', flat=True)),
-            {'admin-grupo-auditoria', 'ceo-auditoria'},
+            {'admin-grupo-auditoria', 'ceo_premium', 'rh-area', 'sesmet-area'},
         )
         self.assertTrue(all(item.url_acao.endswith(f'destaque={log.pk}') for item in notificacoes))
         self.assertFalse(notificacoes.filter(destinatario=self.actor).exists())
         self.assertFalse(notificacoes.filter(destinatario=self.inactive_admin).exists())
+        self.assertFalse(notificacoes.filter(destinatario=self.recrutador).exists())
+
+    def test_nova_vaga_notifica_recrutamento_e_ceo_com_contexto(self):
+        request = self.factory.post(
+            '/recrutamento/nova/',
+            {'nome_vaga': 'Analista de Logistica'},
+        )
+        request.user = self.actor
+        response = HttpResponse(status=302, headers={'Location': '/recrutamento/81/'})
+
+        self.middleware.process_response(request, response)
+
+        notificacoes = Notificacao.objects.all()
+        self.assertSetEqual(
+            set(notificacoes.values_list('destinatario__username', flat=True)),
+            {'admin-grupo-auditoria', 'ceo_premium', 'recrutador-area'},
+        )
+        self.assertTrue(all(item.titulo == 'Nova vaga cadastrada' for item in notificacoes))
+        self.assertTrue(all('Analista de Logistica' in item.mensagem for item in notificacoes))
+        self.assertTrue(all(item.url_acao == '/recrutamento/81/' for item in notificacoes))
+
+    def test_novo_colaborador_nao_duplica_destinatario_em_varios_grupos(self):
+        self.rh.groups.add(self.sesmet_group)
+        request = self.factory.post(
+            '/admissional/colaboradores/novo/',
+            {'nome': 'Maria da Silva'},
+        )
+        request.user = self.actor
+
+        self.middleware.process_response(
+            request,
+            HttpResponse(
+                status=302,
+                headers={'Location': '/admissional/colaboradores/'},
+            ),
+        )
+
+        self.assertEqual(Notificacao.objects.filter(destinatario=self.rh).count(), 1)
+        notificacao = Notificacao.objects.get(destinatario=self.rh)
+        self.assertEqual(notificacao.titulo, 'Novo colaborador cadastrado')
+        self.assertIn('Maria da Silva', notificacao.mensagem)
 
     def test_post_de_api_nao_gera_alerta_de_alteracao(self):
         request = self.factory.post('/api/uploads/presign/', data='{}', content_type='application/json')
