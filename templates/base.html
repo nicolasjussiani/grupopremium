@@ -206,7 +206,7 @@
 <script>
 // Auto-dismiss alerts after 5s
 setTimeout(() => {
-  document.querySelectorAll('.alert').forEach(el => {
+  document.querySelectorAll('.alert:not([data-persistent-alert])').forEach(el => {
     el.style.transition = 'opacity 0.4s, transform 0.4s';
     el.style.opacity = '0';
     el.style.transform = 'translateX(20px)';
@@ -256,6 +256,49 @@ if (themeToggleBtn) {
   // Vincular evento
   themeToggleBtn.addEventListener('click', toggleTheme);
 }
+
+// Evita o erro 413 da Vercel antes de enviar formularios com anexos.
+const maxUploadRequestBytes = 4 * 1024 * 1024;
+document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(form => {
+  const fileInputs = Array.from(form.querySelectorAll('input[type="file"]'));
+  if (!fileInputs.length) return;
+
+  let errorBox = form.querySelector('[data-upload-size-error]');
+  if (!errorBox) {
+    errorBox = document.createElement('div');
+    errorBox.className = 'alert alert-error';
+    errorBox.setAttribute('role', 'alert');
+    errorBox.setAttribute('data-upload-size-error', '');
+    errorBox.setAttribute('data-persistent-alert', '');
+    errorBox.hidden = true;
+    form.prepend(errorBox);
+  }
+
+  function validateUploadSize() {
+    const totalBytes = fileInputs.reduce((total, input) => {
+      return total + Array.from(input.files || []).reduce((sum, file) => sum + file.size, 0);
+    }, 0);
+
+    if (totalBytes > maxUploadRequestBytes) {
+      const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
+      errorBox.textContent = `Os arquivos selecionados somam ${totalMB} MB. O limite por salvamento é 4 MB. Selecione menos arquivos e salve em etapas.`;
+      errorBox.hidden = false;
+      return false;
+    }
+
+    errorBox.hidden = true;
+    errorBox.textContent = '';
+    return true;
+  }
+
+  fileInputs.forEach(input => input.addEventListener('change', validateUploadSize));
+  form.addEventListener('submit', event => {
+    if (!validateUploadSize()) {
+      event.preventDefault();
+      errorBox.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+  });
+});
 </script>
 
 {% block extra_js %}{% endblock %}

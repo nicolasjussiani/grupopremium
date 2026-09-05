@@ -10,8 +10,9 @@
 </div>
 
 <div class="card" style="max-width: 800px; margin: 0 auto;">
-  <form method="post" enctype="multipart/form-data" class="flex flex-col gap-4">
+  <form id="colaborador-form" method="post" enctype="multipart/form-data" class="flex flex-col gap-4">
     {% csrf_token %}
+    <div class="alert alert-error" role="alert" data-upload-size-error data-persistent-alert hidden></div>
     {% if form.non_field_errors %}
       <div class="alert alert-error" role="alert">
         {{ form.non_field_errors.0 }}
@@ -37,6 +38,10 @@
       <button type="submit" class="btn btn-mod1">Salvar Colaborador</button>
       <a href="{% url 'lista_colaboradores' %}" class="btn btn-outline">Cancelar</a>
     </div>
+    <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">
+      Limite por salvamento: 4 MB somando os novos anexos. Para vários
+      documentos, salve em etapas e reabra o colaborador.
+    </p>
   </form>
 </div>
 {% endblock %}

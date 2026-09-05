@@ -49,6 +49,8 @@ ou o bucket configurado nos arquivos `.env`.
   devem ser informados nessas variaveis.
 - A ausencia de `DATABASE_URL` em Vercel/serverless impede a inicializacao.
 - O armazenamento S3 e obrigatorio em Vercel/serverless.
+- Na Vercel, cada salvamento aceita no maximo 4 MB somando os novos anexos;
+  documentos adicionais devem ser enviados em etapas.
 - Migrações devem ser executadas pelo processo de deploy, nunca por uma rota HTTP.
 - Aprovadores devem pertencer aos grupos criados por `criar_grupos`.
 - O grupo `Diretoria_Final` substitui verificacoes baseadas em nome de usuario.

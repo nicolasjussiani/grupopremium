@@ -12,7 +12,7 @@ from django.urls import reverse
 from administrativo.models import DemandaAdministrativa
 from admissional.models import Colaborador
 from core.models import AprovacaoRegistro, PerfilUsuario
-from core.validators import validate_document_upload
+from core.validators import MAX_REQUEST_UPLOAD_SIZE, validate_document_upload
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
 from manutencao.models import Ativo, RegistroManutencao
 from sesmet.models import EquipamentoProtecao, RegistroEPI
@@ -24,6 +24,15 @@ class UploadValidationTests(TestCase):
             'documento.pdf', b'\xff\xd8\xffconteudo-jpeg', content_type='application/pdf'
         )
         with self.assertRaises(ValidationError):
+            validate_document_upload(upload)
+
+    def test_rejeita_arquivo_maior_que_limite_da_vercel(self):
+        upload = SimpleUploadedFile(
+            'documento.pdf',
+            b'%PDF-' + b'x' * MAX_REQUEST_UPLOAD_SIZE,
+            content_type='application/pdf',
+        )
+        with self.assertRaisesMessage(ValidationError, '4 MB'):
             validate_document_upload(upload)
 
 

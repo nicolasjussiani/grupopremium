@@ -8,9 +8,11 @@ Execucao:
 
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse, resolve
 from admissional.models import Colaborador
 from admissional.forms import ColaboradorForm
+from core.validators import MAX_REQUEST_UPLOAD_SIZE
 import datetime
 
 
@@ -139,6 +141,11 @@ class TestNovoColaboradorHTTP(TestCase):
         """Contexto deve conter 'acao' = 'Novo'."""
         response = self.client.get(self.url)
         self.assertEqual(response.context.get('acao'), 'Novo')
+
+    def test_GET_informa_e_aplica_limite_de_upload(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Limite por salvamento: 4 MB')
+        self.assertContains(response, 'maxUploadRequestBytes')
 
     # POST valido
 
@@ -329,6 +336,22 @@ class TestColaboradorForm(TestCase):
         for name, field in form.fields.items():
             widget_class = field.widget.attrs.get('class', '')
             self.assertIn('form-control', widget_class)
+
+    def test_form_rejeita_soma_de_anexos_acima_de_4_mb(self):
+        tamanho = MAX_REQUEST_UPLOAD_SIZE // 2 + 1
+        files = {
+            'anexo_cpf': SimpleUploadedFile(
+                'cpf.pdf', b'%PDF-' + b'a' * tamanho, content_type='application/pdf'
+            ),
+            'anexo_rg': SimpleUploadedFile(
+                'rg.pdf', b'%PDF-' + b'b' * tamanho, content_type='application/pdf'
+            ),
+        }
+
+        form = ColaboradorForm(data=_colaborador_data(), files=files)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('4 MB', form.non_field_errors()[0])
 
 
 # ─── 6. Diagnostico especifico do erro 505 ───────────────────────────────────

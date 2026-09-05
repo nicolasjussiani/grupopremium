@@ -3,7 +3,10 @@ from pathlib import Path
 from django.core.exceptions import ValidationError
 
 
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+# A Vercel limita o corpo de cada requisicao de Function a 4,5 MB. Mantemos
+# margem para os campos e cabecalhos do multipart/form-data.
+MAX_UPLOAD_SIZE = 4 * 1024 * 1024
+MAX_REQUEST_UPLOAD_SIZE = 4 * 1024 * 1024
 
 
 def validate_document_upload(upload):
@@ -24,7 +27,7 @@ def validate_image_upload(upload):
 
 def _validate_upload(upload, *, extensions, mime_types):
     if upload.size > MAX_UPLOAD_SIZE:
-        raise ValidationError('O arquivo excede o limite de 10 MB.')
+        raise ValidationError('O arquivo excede o limite de 4 MB por envio.')
     extension = Path(upload.name).suffix.lower()
     if extension not in extensions:
         raise ValidationError('Extensao de arquivo nao permitida.')
