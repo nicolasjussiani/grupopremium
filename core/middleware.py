@@ -29,12 +29,23 @@ class AcessoModuloMiddleware(MiddlewareMixin):
         if not request.user.is_authenticated:
             return None
 
+        request.is_intermediario = request.user.groups.filter(
+            name='Intermediario_Gestor'
+        ).exists()
+
         path = request.path_info
-        if path == '/' or path.startswith(self.ROTAS_LIVRES):
+        if path.startswith(self.ROTAS_LIVRES):
             return None
 
         if request.user.is_superuser or request.user.groups.filter(name='Admin_Global').exists():
             return None
+
+        if (
+            request.is_intermediario
+            and path.startswith(('/recrutamento/', '/admissional/'))
+        ):
+            messages.error(request, 'Acesso negado: esta area nao pertence ao perfil intermediario.')
+            return redirect('dashboard')
 
         perfil_obj = getattr(request.user, 'perfil', None)
         perfil = getattr(perfil_obj, 'perfil', 'operacional')

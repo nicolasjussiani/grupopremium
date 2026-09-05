@@ -352,6 +352,7 @@ class MobilePwaTests(TestCase):
         response = self.client.get(reverse('painel_mobile'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'CENTRAL DA DIRETORIA')
+
         self.assertContains(response, reverse('pwa_manifest'))
 
     def test_intermediario_tem_acesso_mobile_sem_ser_admin_global(self):
@@ -366,6 +367,11 @@ class MobilePwaTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'CENTRAL DA DIRETORIA')
+        from core.views_aprovacao import _modulos_do_usuario
+        self.assertSetEqual(
+            set(_modulos_do_usuario(intermediario)),
+            {'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'},
+        )
 
     def test_manifesto_abre_o_pwa_no_painel_mobile(self):
         response = self.client.get(reverse('pwa_manifest'))
@@ -421,6 +427,38 @@ class MobilePwaTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['status'], 'ok')
         self.assertEqual(response.json()['titulo'], 'Notificação de teste')
+
+
+class IntermediarioAccessTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            'intermediario-restrito', password='senha-forte-123'
+        )
+        PerfilUsuario.objects.create(usuario=self.user, perfil='gestor')
+        self.user.groups.add(Group.objects.create(name='Intermediario_Gestor'))
+        self.client.force_login(self.user)
+
+    def test_menu_oculta_recrutamento_talentos_e_admissional(self):
+        response = self.client.get(reverse('dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Recrutamento e Seleção')
+        self.assertNotContains(response, 'Banco de Talentos')
+        self.assertNotContains(response, 'RH / Admissional')
+        self.assertNotContains(response, 'Colaboradores Ativos')
+        self.assertContains(response, 'SESMET / Segurança')
+        self.assertContains(response, 'Compras / Almoxarifado')
+
+    def test_urls_de_recrutamento_e_admissional_sao_bloqueadas(self):
+        for url_name in ('lista_vagas', 'banco_talentos', 'lista_admissoes', 'lista_colaboradores'):
+            with self.subTest(url_name=url_name):
+                response = self.client.get(reverse(url_name))
+                self.assertRedirects(response, reverse('dashboard'))
+
+    def test_areas_permitidas_continuam_acessiveis(self):
+        for url_name in ('dashboard_sesmet', 'painel_compras', 'painel_financeiro'):
+            with self.subTest(url_name=url_name):
+                self.assertEqual(self.client.get(reverse(url_name)).status_code, 200)
 
 
 class GroupCommandTests(TestCase):

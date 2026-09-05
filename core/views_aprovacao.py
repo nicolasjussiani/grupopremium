@@ -35,7 +35,7 @@ GRUPOS_APROVADORES = {
     'Financeiro_Aprovador':  ['financeiro'],
     'Diretoria_Final':       ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
     'Admin_Global':          ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
-    'Intermediario_Gestor':  ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
+    'Intermediario_Gestor':  ['administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
 }
 
 
