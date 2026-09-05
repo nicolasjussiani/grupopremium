@@ -243,6 +243,12 @@
     {% endfor %}
     {% endif %}
 
+    {% if request.GET.csrf == 'expired' %}
+    <div class="alert-login">
+      <span>Sua sessão de segurança foi atualizada. Use o Face ID novamente para entrar.</span>
+    </div>
+    {% endif %}
+
     <form class="login-form" method="post" id="loginForm">
       {% csrf_token %}
       <div class="form-group">
@@ -282,6 +288,30 @@
   // CSRF antigo. Ao voltar para esta tela, buscamos um token novo do servidor.
   window.addEventListener('pageshow', function (event) {
     if (event.persisted) window.location.reload();
+  });
+
+  const loginForm = document.getElementById('loginForm');
+  loginForm.addEventListener('submit', async function (event) {
+    if (loginForm.dataset.csrfReady === 'true') return;
+    event.preventDefault();
+    const submitButton = loginForm.querySelector('[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      const response = await fetch('{% url "csrf_token_json" %}', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+      });
+      if (!response.ok) throw new Error('Falha ao atualizar a sessão.');
+      const data = await response.json();
+      loginForm.querySelector('[name="csrfmiddlewaretoken"]').value = data.csrfToken;
+      loginForm.dataset.csrfReady = 'true';
+      loginForm.requestSubmit();
+    } catch (_error) {
+      window.location.reload();
+    } finally {
+      submitButton.disabled = false;
+    }
   });
 </script>
 

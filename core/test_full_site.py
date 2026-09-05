@@ -198,6 +198,7 @@ class FullSiteRouteTests(TestCase):
         expected_routes = (
             ('admin:index', (), 200),
             ('login', (), 302),
+            ('csrf_token_json', (), 200),
             ('logout', (), 405),
             ('dashboard', (), 200),
             ('notificacoes_json', (), 200),

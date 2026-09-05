@@ -324,7 +324,9 @@ if (notifButton && notifPopover) {
     }
   });
   loadNotifications();
-  setInterval(loadNotifications, 60000);
+  setInterval(() => {
+    if (document.visibilityState === 'visible') loadNotifications();
+  }, 120000);
 }
 
 // Auto-dismiss alerts after 5s
@@ -355,7 +357,9 @@ function atualizarBadgeAprovacoes() {
     .catch(() => {});
 }
 atualizarBadgeAprovacoes();
-setInterval(atualizarBadgeAprovacoes, 60000);
+setInterval(() => {
+  if (document.visibilityState === 'visible') atualizarBadgeAprovacoes();
+}, 120000);
 
 // Toggle Dark Theme (Versão Robusta)
 function toggleTheme() {

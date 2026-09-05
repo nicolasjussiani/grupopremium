@@ -122,7 +122,9 @@
     document.getElementById('installCard').classList.add('installed');
   }
   refreshStatus(false);
-  setInterval(() => refreshStatus(false), 60000);
+  setInterval(() => {
+    if (document.visibilityState === 'visible') refreshStatus(false);
+  }, 60000);
 })();
 </script>
 {% endblock %}

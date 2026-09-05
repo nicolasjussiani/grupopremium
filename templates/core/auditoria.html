@@ -163,6 +163,20 @@
     font-weight: 600;
   }
   .log-table tr.log-highlight td { background: rgba(197, 160, 89, 0.16); }
+  .audit-filters {
+    display: grid;
+    grid-template-columns: minmax(220px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr) auto;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .audit-filters .form-control { margin: 0; }
+  .audit-filter-actions { display: flex; gap: 8px; }
+  .audit-pagination { align-items: center; display: flex; justify-content: center; gap: 8px; margin-top: 18px; }
+  .audit-pagination span { color: var(--text-muted); font-size: .75rem; padding: 0 6px; }
 
   @media (max-width: 768px) {
     .auditoria-header { align-items: stretch; flex-direction: column; gap: 16px; margin-bottom: 18px; }
@@ -204,6 +218,9 @@
     .modal-overlay { padding: 14px; }
     .modal-content { width: 100%; max-height: 86vh; padding: 20px 16px; }
     .close-modal { width: 100%; min-height: 44px; }
+    .audit-filters { grid-template-columns: 1fr; padding: 12px; }
+    .audit-filter-actions .btn { flex: 1; }
+    .audit-pagination { flex-wrap: wrap; }
   }
 </style>
 {% endblock %}
@@ -217,11 +234,31 @@
     </div>
     <div class="auditoria-stats">
       <div class="stat-card">
-        <div class="value">{{ logs|length }}</div>
-        <div class="label">Ações Recentes</div>
+        <div class="value">{{ total_filtrados }}</div>
+        <div class="label">Resultado{% if total_filtrados != 1 %}s{% endif %}</div>
       </div>
+      {% if total_filtrados != total_logs %}<div class="stat-card"><div class="value">{{ total_logs }}</div><div class="label">Total de ações</div></div>{% endif %}
     </div>
   </div>
+
+  <form class="audit-filters" method="get" role="search">
+    <input class="form-control" type="search" name="q" value="{{ busca }}" placeholder="Buscar usuário, ação ou endereço..." aria-label="Buscar nos registros">
+    <select class="form-control" name="modulo" aria-label="Filtrar por módulo">
+      <option value="">Todos os módulos</option>
+      {% for modulo in modulos_disponiveis %}<option value="{{ modulo }}" {% if modulo == modulo_filtro %}selected{% endif %}>{{ modulo|capfirst }}</option>{% endfor %}
+    </select>
+    <select class="form-control" name="acao" aria-label="Filtrar por ação">
+      <option value="">Todas as ações</option>
+      <option value="criar" {% if acao_filtro == 'criar' %}selected{% endif %}>Criações</option>
+      <option value="editar" {% if acao_filtro == 'editar' %}selected{% endif %}>Edições</option>
+      <option value="aprovar" {% if acao_filtro == 'aprovar' %}selected{% endif %}>Aprovações</option>
+      <option value="rejeitar" {% if acao_filtro == 'rejeitar' %}selected{% endif %}>Rejeições</option>
+    </select>
+    <div class="audit-filter-actions">
+      <button class="btn btn-primary" type="submit">Filtrar</button>
+      {% if busca or modulo_filtro or acao_filtro %}<a class="btn btn-outline" href="{% url 'auditoria_sistema' %}">Limpar</a>{% endif %}
+    </div>
+  </form>
 
   <div class="log-table-wrapper">
     <table class="log-table">
@@ -303,6 +340,14 @@
       </tbody>
     </table>
   </div>
+
+  {% if logs.paginator.num_pages > 1 %}
+  <nav class="audit-pagination" aria-label="Paginação da auditoria">
+    {% if logs.has_previous %}<a class="btn btn-outline btn-sm" href="?{% if filtros_query %}{{ filtros_query }}&amp;{% endif %}page={{ logs.previous_page_number }}">Anterior</a>{% endif %}
+    <span>Página {{ logs.number }} de {{ logs.paginator.num_pages }}</span>
+    {% if logs.has_next %}<a class="btn btn-outline btn-sm" href="?{% if filtros_query %}{{ filtros_query }}&amp;{% endif %}page={{ logs.next_page_number }}">Próxima</a>{% endif %}
+  </nav>
+  {% endif %}
 </div>
 
 <script>

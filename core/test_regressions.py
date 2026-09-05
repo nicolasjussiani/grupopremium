@@ -82,6 +82,30 @@ class SecurityHTTPTests(TestCase):
         self.assertEqual(response.url, '/')
         self.assertIn('no-cache', login_page['Cache-Control'])
 
+    def test_token_csrf_pode_ser_renovado_antes_do_face_id(self):
+        client = Client(enforce_csrf_checks=True)
+        response = client.get(reverse('csrf_token_json'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['csrfToken'])
+        self.assertIn('csrftoken', response.cookies)
+
+    def test_login_com_token_expirado_recupera_em_vez_de_exibir_403(self):
+        client = Client(enforce_csrf_checks=True)
+        response = client.post(
+            reverse('login') + '?next=/mobile/',
+            {'username': 'usuario', 'password': 'senha-forte-123'},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('csrf=expired', response.url)
+        self.assertIn('next=%2Fmobile%2F', response.url)
+
+    def test_login_inclui_renovacao_csrf_antes_do_envio(self):
+        response = self.client.get(reverse('login'))
+        self.assertContains(response, reverse('csrf_token_json'))
+        self.assertContains(response, "loginForm.dataset.csrfReady")
+
     def test_perfil_sem_acesso_nao_abre_financeiro(self):
         self.user.perfil.perfil = 'operacional'
         self.user.perfil.save(update_fields=['perfil'])
@@ -157,6 +181,37 @@ class PageSmokeTests(TestCase):
         ).read_text(encoding='utf-8')
         self.assertIn('financial-audit-layout', financial_template)
         self.assertIn('@media (max-width: 560px)', financial_template)
+
+    def test_auditoria_pagina_e_filtra_sem_carregar_todo_historico(self):
+        user = User.objects.create_superuser(
+            username='admin-auditoria-filtros',
+            email='audit-filter@example.com',
+            password='senha-forte-123',
+        )
+        PerfilUsuario.objects.create(usuario=user, perfil='admin')
+        LogAtividade.objects.bulk_create([
+            LogAtividade(
+                usuario=user,
+                acao='Editou um registro existente' if index == 0 else 'Criou um novo registro',
+                modulo='financeiro' if index == 0 else 'admissional',
+                url=f'/registro/{index}/',
+            )
+            for index in range(35)
+        ])
+        self.client.force_login(user)
+
+        primeira_pagina = self.client.get(reverse('auditoria_sistema'))
+        segunda_pagina = self.client.get(reverse('auditoria_sistema'), {'page': 2})
+        filtrada = self.client.get(
+            reverse('auditoria_sistema'),
+            {'q': '/registro/0/', 'modulo': 'financeiro', 'acao': 'editar'},
+        )
+
+        self.assertEqual(len(primeira_pagina.context['logs']), 30)
+        self.assertEqual(len(segunda_pagina.context['logs']), 5)
+        self.assertEqual(primeira_pagina.context['total_logs'], 35)
+        self.assertEqual(filtrada.context['total_filtrados'], 1)
+        self.assertContains(primeira_pagina, 'class="audit-filters"')
 
 
 class AuditNotificationTests(TestCase):

@@ -242,6 +242,7 @@ CSRF_TRUSTED_ORIGINS = [
     ).split(',')
     if origin.strip()
 ]
+CSRF_FAILURE_VIEW = 'core.views.csrf_failure_view'
 for hostname in VERCEL_HOSTS:
     origin = f'https://{hostname}'
     if origin not in CSRF_TRUSTED_ORIGINS:

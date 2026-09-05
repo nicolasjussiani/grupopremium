@@ -1,16 +1,21 @@
 """ERP Grupo PremiumBR — Views do Core (Login, Dashboard, Notificações)"""
 import logging
+from urllib.parse import urlencode
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+from django.middleware.csrf import get_token
 from django.db.models import Count, Q
+from django.core.paginator import Paginator
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.urls import reverse
+from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.csrf import csrf_failure as default_csrf_failure
 
 from core.models import PerfilUsuario, Notificacao
 from recrutamento.models import Vaga, Candidato
@@ -33,6 +38,28 @@ def _next_url_segura(request, default='/'):
     ):
         return next_url
     return default
+
+
+def csrf_failure_view(request, reason=''):
+    """Recupera login expirado no Safari sem desativar a protecao CSRF."""
+    if request.path_info == '/login/':
+        params = {'csrf': 'expired'}
+        next_url = request.GET.get('next')
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            params['next'] = next_url
+        return redirect(f"{reverse('login')}?{urlencode(params)}")
+    return default_csrf_failure(request, reason=reason)
+
+
+@require_GET
+@never_cache
+def csrf_token_json(request):
+    """Entrega um token novo imediatamente antes do envio do login."""
+    return JsonResponse({'csrfToken': get_token(request)})
 
 
 @never_cache
@@ -198,21 +225,62 @@ def auditoria_sistema(request):
         messages.error(request, '⛔ Acesso restrito à Diretoria.')
         return redirect('dashboard')
 
+    busca = request.GET.get('q', '').strip()[:100]
+    modulo_filtro = request.GET.get('modulo', '').strip()[:100]
+    acao_filtro = request.GET.get('acao', '').strip()
+    filtros_acao = {
+        'criar': 'Criou',
+        'editar': 'Editou',
+        'aprovar': 'Aprovou',
+        'rejeitar': 'Rejeitou',
+    }
+
     try:
-        logs = list(LogAtividade.objects.all().select_related('usuario')[:500])
+        logs_query = LogAtividade.objects.select_related('usuario')
+        total_logs = logs_query.count()
+        if busca:
+            logs_query = logs_query.filter(
+                Q(usuario__username__icontains=busca)
+                | Q(usuario__first_name__icontains=busca)
+                | Q(usuario__last_name__icontains=busca)
+                | Q(acao__icontains=busca)
+                | Q(url__icontains=busca)
+            )
+        if modulo_filtro:
+            logs_query = logs_query.filter(modulo=modulo_filtro)
+        if acao_filtro in filtros_acao:
+            logs_query = logs_query.filter(acao__startswith=filtros_acao[acao_filtro])
+        filtros_ativos = bool(busca or modulo_filtro or acao_filtro in filtros_acao)
+        total_filtrados = logs_query.count() if filtros_ativos else total_logs
+        logs = Paginator(logs_query, 30).get_page(request.GET.get('page'))
+        modulos_disponiveis = list(
+            LogAtividade.objects.order_by('modulo')
+            .values_list('modulo', flat=True).distinct()
+        )
     except Exception:
         logger.exception('Falha ao carregar os registros de auditoria')
         messages.warning(request, 'Não foi possível carregar os registros de auditoria.')
-        logs = []
+        logs = Paginator([], 30).get_page(1)
+        total_logs = total_filtrados = 0
+        modulos_disponiveis = []
     
     try:
         destaque_id = int(request.GET.get('destaque', ''))
     except (TypeError, ValueError):
         destaque_id = None
 
+    query_params = request.GET.copy()
+    query_params.pop('page', None)
     return render(request, 'core/auditoria.html', {
         'logs': logs,
         'destaque_id': destaque_id,
+        'busca': busca,
+        'modulo_filtro': modulo_filtro,
+        'acao_filtro': acao_filtro,
+        'modulos_disponiveis': modulos_disponiveis,
+        'total_logs': total_logs,
+        'total_filtrados': total_filtrados,
+        'filtros_query': query_params.urlencode(),
     })
 
 
@@ -234,7 +302,9 @@ def painel_sla_processos(request):
     processos = []
 
     # 1. Aprovações Genéricas Pendentes
-    aprovacoes = AprovacaoRegistro.objects.filter(status='pendente')
+    aprovacoes = AprovacaoRegistro.objects.filter(status='pendente').only(
+        'titulo', 'modulo', 'criado_em'
+    )
     for ap in aprovacoes:
         delta = agora - ap.criado_em
         processos.append({
@@ -250,7 +320,12 @@ def painel_sla_processos(request):
         })
 
     # 2. Pedidos de Compra Pendentes
-    pedidos = PedidoCompra.objects.filter(status__in=['em_cotacao', 'aguardando_aprovacao'])
+    pedidos = PedidoCompra.objects.filter(
+        status__in=['em_cotacao', 'aguardando_aprovacao']
+    ).select_related('solicitacao__material', 'aprovado_por').only(
+        'status', 'fornecedor', 'criado_em', 'aprovado_por__first_name',
+        'aprovado_por__last_name', 'solicitacao__material__nome',
+    )
     for pc in pedidos:
         delta = agora - pc.criado_em
         resp = pc.aprovado_por.get_full_name() if pc.aprovado_por else 'Setor de Compras'
@@ -267,7 +342,9 @@ def painel_sla_processos(request):
         })
 
     # 3. Documentos Financeiros Pendentes
-    docs = DocumentoFinanceiro.objects.filter(status__in=['recebido', 'em_auditoria', 'aguardando_correcao'])
+    docs = DocumentoFinanceiro.objects.filter(
+        status__in=['recebido', 'em_auditoria', 'aguardando_correcao']
+    ).only('numero_documento', 'valor', 'status', 'criado_em')
     for doc in docs:
         delta = agora - doc.criado_em
         processos.append({
