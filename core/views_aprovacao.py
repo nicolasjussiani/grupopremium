@@ -35,6 +35,7 @@ GRUPOS_APROVADORES = {
     'Financeiro_Aprovador':  ['financeiro'],
     'Diretoria_Final':       ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
     'Admin_Global':          ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
+    'Intermediario_Gestor':  ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
 }
 
 
@@ -51,7 +52,7 @@ def _modulos_do_usuario(user):
 
 def _exigir_admin_mobile(user):
     if user.is_superuser or user.groups.filter(
-        name__in=('Admin_Global', 'Diretoria_Final')
+        name__in=('Admin_Global', 'Diretoria_Final', 'Intermediario_Gestor')
     ).exists():
         return
     raise PermissionDenied

@@ -125,6 +125,12 @@ class Command(BaseCommand):
             'core.LogAtividade':           ['view'],
         },
 
+        # Marcador do gestor intermediario. As permissoes operacionais sao
+        # compostas pelos grupos de cada area associados ao mesmo usuario.
+        'Intermediario_Gestor': {
+            'core.AprovacaoRegistro': ['change', 'view'],
+        },
+
         # ── ADMIN GLOBAL ──────────────────────────────────────────────────────
         'Admin_Global': {
             'recrutamento.Vaga':                    ['add', 'change', 'view', 'delete'],

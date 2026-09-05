@@ -354,6 +354,19 @@ class MobilePwaTests(TestCase):
         self.assertContains(response, 'CENTRAL DA DIRETORIA')
         self.assertContains(response, reverse('pwa_manifest'))
 
+    def test_intermediario_tem_acesso_mobile_sem_ser_admin_global(self):
+        intermediario = User.objects.create_user(
+            'intermediario-mobile', password='senha-forte-123'
+        )
+        PerfilUsuario.objects.create(usuario=intermediario, perfil='gestor')
+        intermediario.groups.add(Group.objects.create(name='Intermediario_Gestor'))
+        self.client.force_login(intermediario)
+
+        response = self.client.get(reverse('painel_mobile'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'CENTRAL DA DIRETORIA')
+
     def test_manifesto_abre_o_pwa_no_painel_mobile(self):
         response = self.client.get(reverse('pwa_manifest'))
         self.assertEqual(response.status_code, 200)
