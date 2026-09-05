@@ -127,7 +127,7 @@ def marcar_notificacoes_mobile(request):
 def criar_notificacao_teste_mobile(request):
     """Cria um aviso inofensivo para validar a central e o PWA."""
     _exigir_admin_mobile(request.user)
-    Notificacao.objects.create(
+    notificacao = Notificacao.objects.create(
         destinatario=request.user,
         tipo='info',
         modulo='sistema',
@@ -135,6 +135,13 @@ def criar_notificacao_teste_mobile(request):
         mensagem='O sistema de notificações do PremiumBR está funcionando corretamente.',
         url_acao=f"{reverse('painel_mobile')}#notificacoes",
     )
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'status': 'ok',
+            'titulo': notificacao.titulo,
+            'mensagem': notificacao.mensagem,
+            'url': notificacao.url_acao,
+        })
     messages.success(request, 'Notificação de teste criada com sucesso.')
     return redirect(f"{reverse('painel_mobile')}#notificacoes")
 

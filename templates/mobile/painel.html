@@ -53,7 +53,7 @@
     <div class="section-title">
       <div><span>ATUALIZAÇÕES</span><h2>Notificações</h2></div>
       <div class="notification-actions">
-        <form method="post" action="{% url 'criar_notificacao_teste_mobile' %}">{% csrf_token %}<button class="mark-read-button" type="submit">Enviar teste</button></form>
+        <form method="post" action="{% url 'criar_notificacao_teste_mobile' %}" id="testNotificationForm">{% csrf_token %}<button class="mark-read-button" type="submit">Enviar teste</button></form>
         {% if total_nao_lidas %}
           <form method="post" action="{% url 'marcar_notificacoes_mobile' %}">{% csrf_token %}<button class="mark-read-button" type="submit">Marcar lidas</button></form>
         {% endif %}
@@ -120,6 +120,41 @@
     if (!('Notification' in window)) return;
     const permission = await Notification.requestPermission();
     event.currentTarget.textContent = permission === 'granted' ? 'Alertas ativos' : 'Alertas bloqueados';
+  });
+  document.getElementById('testNotificationForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('button');
+    button.disabled = true;
+    button.textContent = 'Enviando...';
+    try {
+      let permission = 'denied';
+      if ('Notification' in window) {
+        permission = Notification.permission === 'default'
+          ? await Notification.requestPermission()
+          : Notification.permission;
+      }
+      const response = await fetch(form.action, {
+        method: 'POST',
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+        body: new FormData(form),
+      });
+      if (!response.ok) throw new Error('Falha ao criar teste');
+      const data = await response.json();
+      if (permission === 'granted' && 'serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.showNotification(data.titulo, {
+          body: data.mensagem,
+          icon: '/static/pwa-icon-192.png',
+          data: {url: data.url},
+        });
+      }
+      button.textContent = permission === 'granted' ? 'Alerta enviado!' : 'Teste criado!';
+      setTimeout(() => window.location.reload(), 900);
+    } catch (_error) {
+      button.disabled = false;
+      button.textContent = 'Tentar novamente';
+    }
   });
   if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
     document.getElementById('installCard').classList.add('installed');

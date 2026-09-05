@@ -312,6 +312,21 @@ class MobilePwaTests(TestCase):
         self.assertEqual(notificacao.titulo, 'Notificação de teste')
         self.assertFalse(notificacao.lida)
 
+    def test_notificacao_de_teste_ajax_retorna_dados_para_banner_do_iphone(self):
+        admin = User.objects.create_superuser(
+            'admin-banner-teste', 'banner@example.com', 'senha-forte-123'
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse('criar_notificacao_teste_mobile'),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'ok')
+        self.assertEqual(response.json()['titulo'], 'Notificação de teste')
+
 
 class GroupCommandTests(TestCase):
     def test_admin_global_recebe_permissoes_criticas(self):
