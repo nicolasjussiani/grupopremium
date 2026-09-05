@@ -3,13 +3,30 @@
 {% block nav_financeiro %}active{% endblock %}
 {% block topbar_title %}Auditoria Interna de Documento{% endblock %}
 
+{% block extra_css %}
+<style>
+  .financial-audit-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 20px; }
+  .audit-check-row { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+  .audit-check-heading { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 12px; }
+  .audit-check-heading select { max-width: 180px; }
+  @media (max-width: 900px) { .financial-audit-layout { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) {
+    .audit-check-row { padding: 13px; }
+    .audit-check-heading { align-items: stretch; flex-direction: column; }
+    .audit-check-heading select { max-width: none; }
+    .financial-audit-layout .gateway-actions { flex-direction: column; }
+    .financial-audit-layout .gateway-actions .btn { width: 100%; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
   <div class="mod-title">🔍 Auditoria Interna</div>
   <div class="mod-desc">{{ documento.get_tipo_display }}: {{ documento.numero_documento }} — R$ {{ documento.valor|floatformat:2 }}</div>
 </div>
 
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+<div class="financial-audit-layout">
   <!-- Checklist de Auditoria -->
   <div class="card">
     <div class="card-header">
@@ -36,8 +53,8 @@
       {% csrf_token %}
       <div style="display:grid;gap:14px;">
         {% for item in itens %}
-        <div style="padding:16px;border:1px solid var(--border);border-radius:var(--radius-md);">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="audit-check-row">
+          <div class="audit-check-heading">
             <div style="font-weight:600;font-size:0.9rem;">{{ item.get_item_display }}</div>
             <select name="item_{{ item.pk }}" class="form-control" style="max-width:180px;">
               {% for val, label in status_choices %}

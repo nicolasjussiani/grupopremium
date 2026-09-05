@@ -99,10 +99,19 @@ def status_mobile(request):
     pendentes = AprovacaoRegistro.objects.filter(
         status='pendente', modulo__in=_modulos_do_usuario(request.user)
     ).count()
-    nao_lidas = Notificacao.objects.filter(
+    notificacoes_nao_lidas = Notificacao.objects.filter(
         destinatario=request.user, lida=False
-    ).count()
-    return JsonResponse({'pendentes': pendentes, 'nao_lidas': nao_lidas})
+    ).order_by('-criado_em')
+    ultima = notificacoes_nao_lidas.first()
+    return JsonResponse({
+        'pendentes': pendentes,
+        'nao_lidas': notificacoes_nao_lidas.count(),
+        'ultima_notificacao': {
+            'titulo': ultima.titulo,
+            'mensagem': ultima.mensagem,
+            'url': ultima.url_acao,
+        } if ultima else None,
+    })
 
 
 @login_required
@@ -148,10 +157,11 @@ self.addEventListener('fetch', event => {
     event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
   }
 });
-self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  event.waitUntil(clients.openWindow('/mobile/'));
-});
+  self.addEventListener('notificationclick', event => {
+    event.notification.close();
+    const destination = event.notification.data && event.notification.data.url;
+    event.waitUntil(clients.openWindow(destination && destination.startsWith('/') ? destination : '/mobile/'));
+  });
 """.strip()
     response = HttpResponse(script, content_type='application/javascript')
     response['Service-Worker-Allowed'] = '/'

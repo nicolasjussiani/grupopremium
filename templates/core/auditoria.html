@@ -6,7 +6,7 @@
 {% block extra_css %}
 <style>
   .auditoria-container {
-    padding: 20px 40px;
+    width: 100%;
   }
   .auditoria-header {
     margin-bottom: 30px;
@@ -17,11 +17,11 @@
   .auditoria-title {
     font-size: 24px;
     font-weight: 700;
-    color: var(--text-color);
+    color: var(--text-primary);
   }
   .auditoria-subtitle {
     font-size: 14px;
-    color: var(--text-light);
+    color: var(--text-muted);
     margin-top: 5px;
   }
   .auditoria-stats {
@@ -29,42 +29,42 @@
     gap: 20px;
   }
   .stat-card {
-    background: white;
+    background: var(--bg-card);
     padding: 15px 25px;
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    border-left: 4px solid var(--primary-color);
+    border-left: 4px solid var(--brand);
   }
   .stat-card .value {
     font-size: 22px;
     font-weight: 700;
-    color: var(--primary-color);
+    color: var(--brand-dark);
   }
   .stat-card .label {
     font-size: 12px;
-    color: var(--text-light);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 1px;
     margin-top: 4px;
   }
 
   .log-table-wrapper {
-    background: white;
+    background: var(--bg-card);
     border-radius: 12px;
     box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-    overflow: hidden;
+    overflow-x: auto;
   }
   .log-table {
     width: 100%;
     border-collapse: collapse;
   }
   .log-table th {
-    background: #F8FAFC;
+    background: var(--bg-input);
     padding: 16px 20px;
     text-align: left;
     font-size: 12px;
     font-weight: 600;
-    color: var(--text-light);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 1px;
     border-bottom: 2px solid #E2E8F0;
@@ -73,11 +73,11 @@
     padding: 16px 20px;
     border-bottom: 1px solid #EDF2F7;
     font-size: 14px;
-    color: #4A5568;
+    color: var(--text-secondary);
     vertical-align: middle;
   }
   .log-table tr:hover td {
-    background: #F8FAFC;
+    background: var(--bg-card-hover);
   }
   .user-cell {
     display: flex;
@@ -98,7 +98,7 @@
   }
   .user-name {
     font-weight: 600;
-    color: var(--text-color);
+    color: var(--text-primary);
   }
   .tag {
     padding: 4px 10px;
@@ -114,7 +114,7 @@
   .details-btn {
     background: none;
     border: none;
-    color: var(--primary-color);
+    color: var(--brand-dark);
     font-weight: 600;
     cursor: pointer;
     font-size: 13px;
@@ -130,7 +130,7 @@
     z-index: 9999;
   }
   .modal-content {
-    background: white;
+    background: var(--bg-card);
     padding: 30px;
     border-radius: 12px;
     width: 90%;
@@ -140,7 +140,7 @@
   }
   .modal-content h3 {
     margin-bottom: 15px;
-    color: var(--text-color);
+    color: var(--text-primary);
   }
   .payload-box {
     background: #1E293B;
@@ -155,12 +155,55 @@
   .close-modal {
     margin-top: 20px;
     padding: 10px 20px;
-    background: var(--primary-color);
+    background: #0D2149;
     color: white;
     border: none;
     border-radius: 6px;
     cursor: pointer;
     font-weight: 600;
+  }
+  .log-table tr.log-highlight td { background: rgba(197, 160, 89, 0.16); }
+
+  @media (max-width: 768px) {
+    .auditoria-header { align-items: stretch; flex-direction: column; gap: 16px; margin-bottom: 18px; }
+    .auditoria-title { font-size: 20px; line-height: 1.25; }
+    .auditoria-stats { width: 100%; }
+    .stat-card { width: 100%; padding: 14px 18px; }
+    .log-table-wrapper { background: transparent; box-shadow: none; overflow: visible; }
+    .log-table, .log-table tbody, .log-table tr, .log-table td { display: block; width: 100%; }
+    .log-table { min-width: 0; }
+    .log-table thead { display: none; }
+    .log-table tr {
+      margin-bottom: 14px;
+      overflow: hidden;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-top: 4px solid var(--brand);
+      border-radius: 12px;
+      box-shadow: var(--shadow-card);
+    }
+    .log-table td {
+      display: grid;
+      grid-template-columns: 96px minmax(0, 1fr);
+      gap: 12px;
+      padding: 11px 13px;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+    .log-table td::before {
+      content: attr(data-label);
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .log-table td[colspan] { display: block; }
+    .log-table td[colspan]::before { display: none; }
+    .tag { display: inline-block; white-space: normal; }
+    .modal-overlay { padding: 14px; }
+    .modal-content { width: 100%; max-height: 86vh; padding: 20px 16px; }
+    .close-modal { width: 100%; min-height: 44px; }
   }
 </style>
 {% endblock %}
@@ -194,9 +237,9 @@
       </thead>
       <tbody>
         {% for log in logs %}
-        <tr>
-          <td>{{ log.criado_em|date:"d/m/Y H:i:s" }}</td>
-          <td>
+        <tr id="log-{{ log.id }}" class="{% if log.id == destaque_id %}log-highlight{% endif %}">
+          <td data-label="Data / Hora">{{ log.criado_em|date:"d/m/Y H:i:s" }}</td>
+          <td data-label="Usuario">
             <div class="user-cell">
               <div class="user-avatar">
                 {% if log.usuario %}
@@ -214,12 +257,12 @@
               </div>
             </div>
           </td>
-          <td>
+          <td data-label="Modulo">
             <span style="text-transform: capitalize; font-weight: 600; color: #718096;">
               {{ log.modulo }}
             </span>
           </td>
-          <td>
+          <td data-label="Acao">
             {% if 'Aprovou' in log.acao %}
               <span class="tag tag-aprovar">{{ log.acao }}</span>
             {% elif 'Rejeitou' in log.acao %}
@@ -232,8 +275,8 @@
             <br>
             <small style="color: #A0AEC0; margin-top: 4px; display: inline-block;">{{ log.url }}</small>
           </td>
-          <td>{{ log.ip_address|default:"N/A" }}</td>
-          <td>
+          <td data-label="IP Origem">{{ log.ip_address|default:"N/A" }}</td>
+          <td data-label="Detalhes">
             {% if log.detalhes %}
             <button class="details-btn" onclick="openModal('{{ log.id }}')">Ver Dados</button>
             

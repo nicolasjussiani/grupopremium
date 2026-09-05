@@ -169,8 +169,12 @@ def notificacoes_json(request):
     try:
         notifs = Notificacao.objects.filter(
             destinatario=request.user, lida=False
-        ).values('id', 'tipo', 'modulo', 'titulo', 'mensagem', 'url_acao', 'criado_em')
-        return JsonResponse({'notificacoes': list(notifs), 'total': notifs.count()})
+        )
+        total = notifs.count()
+        recentes = notifs.values(
+            'id', 'tipo', 'modulo', 'titulo', 'mensagem', 'url_acao', 'criado_em'
+        )[:20]
+        return JsonResponse({'notificacoes': list(recentes), 'total': total})
     except Exception:
         return JsonResponse({'notificacoes': [], 'total': 0})
 
@@ -201,8 +205,14 @@ def auditoria_sistema(request):
         messages.warning(request, 'Não foi possível carregar os registros de auditoria.')
         logs = []
     
+    try:
+        destaque_id = int(request.GET.get('destaque', ''))
+    except (TypeError, ValueError):
+        destaque_id = None
+
     return render(request, 'core/auditoria.html', {
-        'logs': logs
+        'logs': logs,
+        'destaque_id': destaque_id,
     })
 
 
@@ -276,5 +286,6 @@ def painel_sla_processos(request):
     processos = sorted(processos, key=lambda x: x['criado_em'])
 
     return render(request, 'core/painel_sla.html', {
-        'processos': processos
+        'processos': processos,
+        'total_alertas': sum(1 for processo in processos if processo['alerta']),
     })

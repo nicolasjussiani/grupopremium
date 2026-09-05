@@ -84,6 +84,7 @@
 (function () {
   const statusUrl = '{% url "status_mobile" %}';
   let previousPending = {{ total_pendentes }};
+  let previousNotifications = {{ total_nao_lidas }};
 
   async function refreshStatus(reloadPage) {
     const response = await fetch(statusUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
@@ -97,7 +98,17 @@
       const registration = await navigator.serviceWorker.ready;
       registration.showNotification('Nova aprovação pendente', {body: 'Abra o app para analisar o novo processo.', icon: '/static/logo.jpeg'});
     }
+    if (status.nao_lidas > previousNotifications && Notification.permission === 'granted') {
+      const registration = await navigator.serviceWorker.ready;
+      const latest = status.ultima_notificacao || {};
+      registration.showNotification(latest.titulo || 'Nova alteracao no ERP', {
+        body: latest.mensagem || 'Uma alteracao foi registrada no sistema.',
+        icon: '/static/logo.jpeg',
+        data: {url: latest.url || '/mobile/#notificacoes'},
+      });
+    }
     previousPending = status.pendentes;
+    previousNotifications = status.nao_lidas;
     if (reloadPage) window.location.reload();
   }
 

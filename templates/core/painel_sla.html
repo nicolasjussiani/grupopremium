@@ -2,76 +2,99 @@
 
 {% block title %}Painel de SLA - Grupo PremiumBR{% endblock %}
 
+{% block extra_css %}
+<style>
+  .sla-header { margin-bottom: 22px; }
+  .sla-header h1 { color: var(--text-primary); font-size: 1.55rem; line-height: 1.25; }
+  .sla-header p { color: var(--text-muted); font-size: .86rem; margin-top: 5px; }
+  .sla-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 240px)); gap: 14px; margin-bottom: 22px; }
+  .sla-stat {
+    background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--brand);
+    border-radius: 12px; box-shadow: var(--shadow-card); padding: 17px 20px;
+  }
+  .sla-stat.is-alert { border-left-color: var(--danger); }
+  .sla-stat span { color: var(--text-muted); display: block; font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+  .sla-stat strong { color: var(--text-primary); display: block; font-size: 1.8rem; line-height: 1.15; margin-top: 5px; }
+  .sla-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-card); overflow: hidden; }
+  .sla-panel-header { align-items: center; background: var(--bg-input); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; padding: 15px 20px; }
+  .sla-panel-header h2 { color: var(--text-primary); font-size: 1rem; }
+  .sla-alert-label { background: rgba(214, 158, 46, .15); border-radius: 99px; color: var(--warning); font-size: .68rem; font-weight: 700; padding: 5px 10px; }
+  .sla-table-wrap { overflow-x: auto; }
+  .sla-table td:last-child, .sla-table th:last-child { text-align: right; }
+  .sla-type { color: var(--text-primary); display: block; font-weight: 700; }
+  .sla-module { color: var(--text-muted); display: block; font-size: .72rem; }
+  .sla-row-alert td { background: rgba(229, 62, 62, .06); }
+  .sla-time { color: var(--text-primary); font-weight: 700; }
+  .sla-row-alert .sla-time { color: var(--danger); }
+
+  @media (max-width: 768px) {
+    .sla-header { margin-bottom: 16px; }
+    .sla-header h1 { font-size: 1.25rem; }
+    .sla-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .sla-stat { padding: 14px; }
+    .sla-stat strong { font-size: 1.55rem; }
+    .sla-panel { background: transparent; border: 0; box-shadow: none; overflow: visible; }
+    .sla-panel-header { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; padding: 13px; }
+    .sla-table-wrap { overflow: visible; }
+    .sla-table, .sla-table tbody, .sla-table tr, .sla-table td { display: block; width: 100%; }
+    .sla-table { min-width: 0; }
+    .sla-table thead { display: none; }
+    .sla-table tr {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: var(--shadow-card); margin-bottom: 12px; overflow: hidden; padding: 7px 0;
+    }
+    .sla-table tr.sla-row-alert { border-left: 4px solid var(--danger); }
+    .sla-table td, .sla-table td:last-child {
+      align-items: start; background: transparent; border: 0; display: grid;
+      grid-template-columns: 92px minmax(0, 1fr); gap: 10px; padding: 8px 13px; text-align: left;
+    }
+    .sla-table td::before { content: attr(data-label); color: var(--text-muted); font-size: .65rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .sla-table td[colspan] { display: block; text-align: center; }
+    .sla-table td[colspan]::before { display: none; }
+  }
+  @media (max-width: 390px) {
+    .sla-stats { grid-template-columns: 1fr; }
+    .sla-panel-header { align-items: flex-start; flex-direction: column; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="mb-6 flex justify-between items-end">
-    <div>
-        <h1 class="text-3xl font-bold text-gray-800">⏱️ Painel de Tempo de Processos (SLA)</h1>
-        <p class="text-gray-500 mt-1">Acompanhamento do tempo de execução dos processos pendentes. Exclusivo Diretoria.</p>
-    </div>
-</div>
+<header class="sla-header">
+  <h1>Painel de Tempo de Processos (SLA)</h1>
+  <p>Acompanhamento do tempo de execucao dos processos pendentes. Exclusivo da Diretoria.</p>
+</header>
 
-<!-- Dashboard Stats -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-    <div class="bg-white rounded-xl shadow p-6 border-l-4 border-yellow-500">
-        <h3 class="text-sm font-semibold text-gray-500 uppercase">Aprovações Gerais</h3>
-        <p class="text-3xl font-bold text-gray-800 mt-2">{{ processos|length }}</p>
-        <p class="text-sm text-gray-400 mt-1">Processos monitorados no total</p>
-    </div>
-</div>
+<section class="sla-stats" aria-label="Resumo dos processos">
+  <article class="sla-stat"><span>Processos monitorados</span><strong>{{ processos|length }}</strong></article>
+  <article class="sla-stat is-alert"><span>Acima de 2 dias</span><strong>{{ total_alertas }}</strong></article>
+</section>
 
-<div class="bg-white rounded-xl shadow overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-        <h2 class="text-lg font-bold text-gray-700">Processos Pendentes</h2>
-        <span class="text-xs font-semibold px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">Atenção aos alertas</span>
-    </div>
-    
-    <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-            <thead>
-                <tr class="bg-gray-50 text-gray-500 text-sm uppercase tracking-wider">
-                    <th class="py-3 px-6 font-semibold border-b">Tipo / Módulo</th>
-                    <th class="py-3 px-6 font-semibold border-b">Título</th>
-                    <th class="py-3 px-6 font-semibold border-b">Responsável</th>
-                    <th class="py-3 px-6 font-semibold border-b">Status</th>
-                    <th class="py-3 px-6 font-semibold border-b text-right">Tempo Decorrido</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 text-sm">
-                {% for p in processos %}
-                <tr class="hover:bg-gray-50 transition-colors {% if p.alerta %}bg-red-50{% endif %}">
-                    <td class="py-4 px-6">
-                        <span class="block font-semibold text-gray-800">{{ p.tipo }}</span>
-                        <span class="text-xs text-gray-500">{{ p.modulo }}</span>
-                    </td>
-                    <td class="py-4 px-6 text-gray-700 font-medium">
-                        {{ p.titulo|truncatechars:50 }}
-                    </td>
-                    <td class="py-4 px-6 text-gray-600">
-                        {{ p.responsavel }}
-                    </td>
-                    <td class="py-4 px-6">
-                        <span class="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-semibold">
-                            {{ p.status }}
-                        </span>
-                    </td>
-                    <td class="py-4 px-6 text-right font-bold {% if p.alerta %}text-red-600{% else %}text-gray-700{% endif %}">
-                        {% if p.dias > 0 %}
-                            {{ p.dias }} dia{{ p.dias|pluralize }} e {{ p.horas }}h
-                        {% else %}
-                            {{ p.horas }} horas
-                        {% endif %}
-                        {% if p.alerta %}
-                            <span class="ml-2" title="Tempo elevado! ⚠️">⚠️</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="5" class="py-8 text-center text-gray-500">Nenhum processo pendente no momento. Excelente! 🎉</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+<section class="sla-panel">
+  <header class="sla-panel-header">
+    <h2>Processos pendentes</h2>
+    <span class="sla-alert-label">Atencao aos alertas</span>
+  </header>
+  <div class="sla-table-wrap">
+    <table class="sla-table">
+      <thead><tr><th>Tipo / Modulo</th><th>Titulo</th><th>Responsavel</th><th>Status</th><th>Tempo decorrido</th></tr></thead>
+      <tbody>
+        {% for p in processos %}
+        <tr class="{% if p.alerta %}sla-row-alert{% endif %}">
+          <td data-label="Tipo / Modulo"><span class="sla-type">{{ p.tipo }}</span><span class="sla-module">{{ p.modulo }}</span></td>
+          <td data-label="Titulo">{{ p.titulo|truncatechars:60 }}</td>
+          <td data-label="Responsavel">{{ p.responsavel }}</td>
+          <td data-label="Status"><span class="badge {% if p.alerta %}badge-danger{% else %}badge-muted{% endif %}">{{ p.status }}</span></td>
+          <td data-label="Tempo" class="sla-time">
+            {% if p.dias > 0 %}{{ p.dias }} dia{{ p.dias|pluralize }} e {{ p.horas }}h{% else %}{{ p.horas }} horas{% endif %}
+            {% if p.alerta %}<span title="Tempo elevado">&#9888;</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="padding:32px;text-align:center;color:var(--text-muted);">Nenhum processo pendente no momento.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}

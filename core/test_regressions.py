@@ -7,14 +7,16 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase
+from django.http import HttpResponse
+from django.test import TestCase, RequestFactory
 from django.test import Client
 from django.conf import settings
 from django.urls import reverse
 
 from administrativo.models import DemandaAdministrativa
 from admissional.models import Colaborador
-from core.models import AprovacaoRegistro, PerfilUsuario
+from core.middleware import AuditLogMiddleware
+from core.models import AprovacaoRegistro, LogAtividade, Notificacao, PerfilUsuario
 from core.validators import MAX_REQUEST_UPLOAD_SIZE, validate_document_upload
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
 from manutencao.models import Ativo, RegistroManutencao
@@ -133,6 +135,70 @@ class PageSmokeTests(TestCase):
         self.assertContains(response, 'aria-controls="sidebar"')
         self.assertContains(response, 'id="sidebarBackdrop"')
         self.assertContains(response, 'function setMobileMenu(open)')
+
+    def test_secoes_de_auditoria_oferecem_layout_responsivo(self):
+        user = User.objects.create_superuser(
+            username='admin-auditoria-mobile',
+            email='audit-mobile@example.com',
+            password='senha-forte-123',
+        )
+        PerfilUsuario.objects.create(usuario=user, perfil='admin')
+        self.client.force_login(user)
+
+        global_response = self.client.get(reverse('auditoria_sistema'))
+        sla_response = self.client.get(reverse('painel_sla'))
+
+        self.assertContains(global_response, '@media (max-width: 768px)')
+        self.assertContains(global_response, 'content: attr(data-label)')
+        self.assertContains(sla_response, 'class="sla-stats"')
+        self.assertContains(sla_response, '.sla-table td::before')
+        financial_template = Path(
+            settings.BASE_DIR, 'templates', 'financeiro', 'auditoria.html'
+        ).read_text(encoding='utf-8')
+        self.assertIn('financial-audit-layout', financial_template)
+        self.assertIn('@media (max-width: 560px)', financial_template)
+
+
+class AuditNotificationTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.actor = User.objects.create_user('operador-auditoria')
+        self.ceo = User.objects.create_superuser('ceo-auditoria', 'ceo@example.com', 'senha')
+        self.admin_group = Group.objects.create(name='Admin_Global')
+        self.admin = User.objects.create_user('admin-grupo-auditoria')
+        self.admin.groups.add(self.admin_group)
+        self.inactive_admin = User.objects.create_superuser(
+            'admin-inativo-auditoria', 'inativo@example.com', 'senha', is_active=False
+        )
+        self.middleware = AuditLogMiddleware(lambda request: HttpResponse())
+
+    def test_alteracao_notifica_diretoria_sem_notificar_o_autor(self):
+        request = self.factory.post(
+            '/admissional/colaboradores/42/editar/',
+            {'nome': 'Colaborador Atualizado'},
+        )
+        request.user = self.actor
+
+        self.middleware.process_response(request, HttpResponse(status=302))
+
+        log = LogAtividade.objects.get()
+        notificacoes = Notificacao.objects.order_by('destinatario__username')
+        self.assertSetEqual(
+            set(notificacoes.values_list('destinatario__username', flat=True)),
+            {'admin-grupo-auditoria', 'ceo-auditoria'},
+        )
+        self.assertTrue(all(item.url_acao.endswith(f'destaque={log.pk}') for item in notificacoes))
+        self.assertFalse(notificacoes.filter(destinatario=self.actor).exists())
+        self.assertFalse(notificacoes.filter(destinatario=self.inactive_admin).exists())
+
+    def test_post_de_api_nao_gera_alerta_de_alteracao(self):
+        request = self.factory.post('/api/uploads/presign/', data='{}', content_type='application/json')
+        request.user = self.actor
+
+        self.middleware.process_response(request, HttpResponse(status=200))
+
+        self.assertFalse(LogAtividade.objects.exists())
+        self.assertFalse(Notificacao.objects.exists())
 
 
 class MobilePwaTests(TestCase):

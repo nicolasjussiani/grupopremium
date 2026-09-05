@@ -7,7 +7,7 @@
   <meta name="description" content="ERP Grupo PremiumBR — Sistema integrado de gestão para Trip Premium e Log Premium">
   <title>{% block title %}ERP Grupo PremiumBR{% endblock %}</title>
   <link rel="icon" href="{% static 'favicon.jpeg' %}" type="image/jpeg">
-  <link rel="stylesheet" href="{% static 'css/main.css' %}?v=4">
+  <link rel="stylesheet" href="{% static 'css/main.css' %}?v=5">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -196,12 +196,19 @@
         <button id="themeToggleBtn" class="notif-btn" title="Alternar Tema Escuro" style="margin-right: 5px;" onclick="toggleTheme()">
           🌙
         </button>
-        <a href="#" class="notif-btn" id="notifBtn" title="Notificações">
+        <button type="button" class="notif-btn" id="notifBtn" title="Notificações"
+                aria-label="Abrir notificações" aria-expanded="false">
           🔔
-          {% if notificacoes_nao_lidas and notificacoes_nao_lidas > 0 %}
-          <span class="notif-dot"></span>
-          {% endif %}
-        </a>
+          <span class="notif-dot" id="notifDot" hidden></span>
+          <span class="notif-count" id="notifCount" hidden></span>
+        </button>
+        <aside class="notification-popover" id="notificationPopover" hidden aria-label="Notificações recentes">
+          <header><strong>Notificações</strong><small>Alterações recentes do ERP</small></header>
+          <div class="notification-popover-list" id="notificationPopoverList">
+            <p class="notification-popover-empty">Carregando...</p>
+          </div>
+          <a class="notification-popover-footer" href="{% url 'painel_mobile' %}#notificacoes">Ver central de notificações</a>
+        </aside>
       </div>
     </div>
 
@@ -242,6 +249,78 @@ document.addEventListener('keydown', event => {
 window.addEventListener('resize', () => {
   if (window.innerWidth > 1024) setMobileMenu(false);
 });
+
+const notifButton = document.getElementById('notifBtn');
+const notifPopover = document.getElementById('notificationPopover');
+const notifList = document.getElementById('notificationPopoverList');
+const notifDot = document.getElementById('notifDot');
+const notifCount = document.getElementById('notifCount');
+
+function updateNotificationBadge(total) {
+  const visible = total > 0;
+  notifDot.hidden = !visible;
+  notifCount.hidden = !visible;
+  notifCount.textContent = total > 99 ? '99+' : total;
+}
+
+function notificationElement(item) {
+  const link = document.createElement('a');
+  link.className = 'notification-popover-item';
+  link.href = item.url_acao && item.url_acao.startsWith('/') ? item.url_acao : '{% url "painel_mobile" %}#notificacoes';
+  const content = document.createElement('span');
+  const title = document.createElement('strong');
+  const message = document.createElement('small');
+  const date = document.createElement('time');
+  title.textContent = item.titulo;
+  message.textContent = item.mensagem;
+  date.textContent = new Date(item.criado_em).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'});
+  content.append(title, message, date);
+  link.append(content);
+  link.addEventListener('click', event => {
+    event.preventDefault();
+    const csrf = document.querySelector('[name="csrfmiddlewaretoken"]');
+    fetch(`/api/notificacoes/${item.id}/lida/`, {
+      method: 'POST', headers: {'X-CSRFToken': csrf ? csrf.value : ''},
+    }).finally(() => { window.location.href = link.href; });
+  });
+  return link;
+}
+
+async function loadNotifications() {
+  try {
+    const response = await fetch('{% url "notificacoes_json" %}', {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+    if (!response.ok) return;
+    const data = await response.json();
+    updateNotificationBadge(data.total || 0);
+    notifList.replaceChildren();
+    if (!data.notificacoes.length) {
+      const empty = document.createElement('p');
+      empty.className = 'notification-popover-empty';
+      empty.textContent = 'Nenhuma notificação nova.';
+      notifList.append(empty);
+      return;
+    }
+    data.notificacoes.slice(0, 8).forEach(item => notifList.append(notificationElement(item)));
+  } catch (_error) {}
+}
+
+if (notifButton && notifPopover) {
+  notifButton.addEventListener('click', event => {
+    event.stopPropagation();
+    const willOpen = notifPopover.hidden;
+    notifPopover.hidden = !willOpen;
+    notifButton.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    if (willOpen) loadNotifications();
+  });
+  document.addEventListener('click', event => {
+    if (!notifPopover.hidden && !notifPopover.contains(event.target)) {
+      notifPopover.hidden = true;
+      notifButton.setAttribute('aria-expanded', 'false');
+    }
+  });
+  loadNotifications();
+  setInterval(loadNotifications, 60000);
+}
 
 // Auto-dismiss alerts after 5s
 setTimeout(() => {

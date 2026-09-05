@@ -1,6 +1,8 @@
 import logging
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.shortcuts import redirect
 from django.utils.deprecation import MiddlewareMixin
 
@@ -47,7 +49,7 @@ class AcessoModuloMiddleware(MiddlewareMixin):
 class AuditLogMiddleware(MiddlewareMixin):
     """Registra POSTs concluidos sem copiar dados pessoais ou credenciais."""
 
-    ROTAS_IGNORADAS = ('/login', '/logout', '/api/notificacoes')
+    ROTAS_IGNORADAS = ('/login', '/logout', '/api/', '/mobile/notificacoes/lidas/')
 
     def process_response(self, request, response):
         if not (
@@ -76,10 +78,10 @@ class AuditLogMiddleware(MiddlewareMixin):
         elif 'editar' in path or 'atualizar' in path:
             acao = 'Editou um registro existente'
 
-        from core.models import LogAtividade
+        from core.models import LogAtividade, Notificacao
 
         try:
-            LogAtividade.objects.create(
+            log = LogAtividade.objects.create(
                 usuario=request.user,
                 acao=acao,
                 modulo=modulo,
@@ -87,6 +89,26 @@ class AuditLogMiddleware(MiddlewareMixin):
                 ip_address=request.META.get('REMOTE_ADDR'),
                 detalhes=f"Campos enviados: {', '.join(campos)}"[:1000],
             )
+            User = get_user_model()
+            destinatarios = User.objects.filter(
+                Q(is_superuser=True) | Q(groups__name='Admin_Global'),
+                is_active=True,
+            ).exclude(pk=request.user.pk).distinct()
+            modulos_validos = {value for value, _label in Notificacao.MODULOS}
+            modulo_notificacao = modulo if modulo in modulos_validos else 'sistema'
+            nome_modulo = dict(Notificacao.MODULOS)[modulo_notificacao]
+            nome_usuario = request.user.get_full_name() or request.user.username
+            Notificacao.objects.bulk_create([
+                Notificacao(
+                    destinatario=destinatario,
+                    tipo='aviso',
+                    modulo=modulo_notificacao,
+                    titulo=f'Alteração em {nome_modulo}',
+                    mensagem=f'{nome_usuario}: {acao}.',
+                    url_acao=f'/auditoria-logs/?destaque={log.pk}',
+                )
+                for destinatario in destinatarios
+            ])
         except Exception:
             logger.exception('Falha ao registrar auditoria para %s', path)
 
