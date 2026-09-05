@@ -272,5 +272,13 @@
   </div>
 </div>
 
+<script>
+  // O Safari pode restaurar o formulario pelo cache de navegacao com um token
+  // CSRF antigo. Ao voltar para esta tela, buscamos um token novo do servidor.
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted) window.location.reload();
+  });
+</script>
+
 </body>
 </html>

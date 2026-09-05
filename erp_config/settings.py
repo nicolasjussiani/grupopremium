@@ -48,9 +48,18 @@ for variable_name in (
     'VERCEL_URL',
     'VERCEL_BRANCH_URL',
     'VERCEL_PROJECT_PRODUCTION_URL',
+    'APP_URL',
+    'PUBLIC_URL',
 ):
     hostname = _hostname_from_value(os.environ.get(variable_name))
     if hostname and hostname not in VERCEL_HOSTS:
+        VERCEL_HOSTS.append(hostname)
+
+# Dominio canonico atual. Mantemos a origem explicita porque as variaveis
+# automaticas da Vercel podem nao ser expostas ao runtime em alguns projetos.
+CANONICAL_HOSTS = ('teste-eight-tau-53.vercel.app',)
+for hostname in CANONICAL_HOSTS:
+    if hostname not in VERCEL_HOSTS:
         VERCEL_HOSTS.append(hostname)
 
 ALLOWED_HOSTS = [

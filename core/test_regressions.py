@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase
+from django.test import Client
 from django.conf import settings
 from django.urls import reverse
 
@@ -54,6 +55,30 @@ class SecurityHTTPTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, '/')
+
+    def test_login_csrf_funciona_no_dominio_publico_atras_da_vercel(self):
+        client = Client(enforce_csrf_checks=True)
+        request_options = {
+            'HTTP_HOST': 'teste-eight-tau-53.vercel.app',
+            'HTTP_X_FORWARDED_PROTO': 'https',
+        }
+        login_page = client.get(reverse('login'), **request_options)
+        token = login_page.cookies['csrftoken'].value
+
+        response = client.post(
+            reverse('login'),
+            {
+                'username': 'usuario',
+                'password': 'senha-forte-123',
+                'csrfmiddlewaretoken': token,
+            },
+            HTTP_ORIGIN='https://teste-eight-tau-53.vercel.app',
+            **request_options,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, '/')
+        self.assertIn('no-cache', login_page['Cache-Control'])
 
     def test_perfil_sem_acesso_nao_abre_financeiro(self):
         self.user.perfil.perfil = 'operacional'
