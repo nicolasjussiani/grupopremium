@@ -86,7 +86,9 @@ class AuditLogMiddleware(MiddlewareMixin):
             request.method == 'POST'
             and getattr(request, 'user', None)
             and request.user.is_authenticated
-            and response.status_code < 400
+            # Os formularios do ERP redirecionam somente depois de uma gravacao
+            # valida. Respostas 200 normalmente sao o formulario com erros.
+            and 300 <= response.status_code < 400
         ):
             return response
 

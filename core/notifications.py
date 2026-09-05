@@ -30,6 +30,12 @@ def destinatarios_da_area(modulo, *, autor=None):
         criterio |= Q(groups__name__in=grupos_area)
 
     destinatarios = User.objects.filter(criterio, is_active=True)
-    if autor and getattr(autor, 'pk', None):
+    # O CEO recebe inclusive os eventos feitos pela propria conta. Isso garante
+    # a trilha completa quando ele cadastra algo no desktop e acompanha no PWA.
+    autor_e_ceo = (
+        autor
+        and getattr(autor, 'username', '').casefold() == 'ceo_premium'
+    )
+    if autor and getattr(autor, 'pk', None) and not autor_e_ceo:
         destinatarios = destinatarios.exclude(pk=autor.pk)
     return destinatarios.distinct()

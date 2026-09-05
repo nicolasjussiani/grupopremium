@@ -297,6 +297,37 @@ class AuditNotificationTests(TestCase):
         self.assertEqual(notificacao.titulo, 'Novo colaborador cadastrado')
         self.assertIn('Maria da Silva', notificacao.mensagem)
 
+    def test_ceo_recebe_notificacao_da_propria_acao(self):
+        request = self.factory.post(
+            '/admissional/colaboradores/novo/',
+            {'nome': 'Colaborador cadastrado pelo CEO'},
+        )
+        request.user = self.ceo
+
+        self.middleware.process_response(
+            request,
+            HttpResponse(
+                status=302,
+                headers={'Location': '/admissional/colaboradores/'},
+            ),
+        )
+
+        notificacao = Notificacao.objects.get(destinatario=self.ceo)
+        self.assertEqual(notificacao.titulo, 'Novo colaborador cadastrado')
+        self.assertIn('Colaborador cadastrado pelo CEO', notificacao.mensagem)
+
+    def test_formulario_invalido_nao_gera_log_nem_notificacao(self):
+        request = self.factory.post(
+            '/admissional/colaboradores/novo/',
+            {'nome': ''},
+        )
+        request.user = self.actor
+
+        self.middleware.process_response(request, HttpResponse(status=200))
+
+        self.assertFalse(LogAtividade.objects.exists())
+        self.assertFalse(Notificacao.objects.exists())
+
     def test_post_de_api_nao_gera_alerta_de_alteracao(self):
         request = self.factory.post('/api/uploads/presign/', data='{}', content_type='application/json')
         request.user = self.actor
