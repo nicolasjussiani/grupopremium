@@ -192,7 +192,7 @@ class TestNovoColaboradorHTTP(TestCase):
         }, salt=TOKEN_SALT, compress=True)
 
     def test_POST_com_upload_direto_vincula_arquivo_ao_colaborador(self):
-        key = 'colaboradores/docs/teste-direto.pdf'
+        key = '_temporarios/admissional/colaboradores/teste-direto.pdf'
         data = _colaborador_data(cpf='555.666.777-99')
         data['direct_upload_anexo_cpf'] = self._direct_upload_token(key)
 
@@ -200,10 +200,14 @@ class TestNovoColaboradorHTTP(TestCase):
 
         self.assertEqual(response.status_code, 302)
         colaborador = Colaborador.objects.get(cpf='555.666.777-99')
-        self.assertEqual(colaborador.anexo_cpf.name, key)
+        self.assertTrue(
+            colaborador.anexo_cpf.name.startswith(
+                f'admissional/colaboradores/{colaborador.pk}/documentos/anexo_cpf/'
+            )
+        )
 
     def test_POST_invalido_preserva_token_do_upload_direto(self):
-        key = 'colaboradores/docs/teste-preservado.pdf'
+        key = '_temporarios/admissional/colaboradores/teste-preservado.pdf'
         token = self._direct_upload_token(key)
         data = _colaborador_data(email='')
         data['direct_upload_anexo_cpf'] = token
@@ -223,7 +227,7 @@ class TestNovoColaboradorHTTP(TestCase):
                 cpf='555.666.777-55',
             ).items() if value != ''
         })
-        key = 'colaboradores/docs/teste-edicao.pdf'
+        key = '_temporarios/admissional/colaboradores/teste-edicao.pdf'
         data = _colaborador_data(cpf=colaborador.cpf)
         data['direct_upload_anexo_cpf'] = self._direct_upload_token(key)
 
@@ -234,7 +238,11 @@ class TestNovoColaboradorHTTP(TestCase):
 
         self.assertEqual(response.status_code, 302)
         colaborador.refresh_from_db()
-        self.assertEqual(colaborador.anexo_cpf.name, key)
+        self.assertTrue(
+            colaborador.anexo_cpf.name.startswith(
+                f'admissional/colaboradores/{colaborador.pk}/documentos/anexo_cpf/'
+            )
+        )
 
     # POST invalido
 

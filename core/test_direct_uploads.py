@@ -37,7 +37,7 @@ class DirectUploadEndpointTests(TestCase):
 class DirectUploadTokenTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('uploader', password='senha')
-        self.key = 'curriculos/teste.pdf'
+        self.key = '_temporarios/recrutamento/curriculos/teste.pdf'
         default_storage.save(self.key, ContentFile(b'%PDF-conteudo'))
 
     def tearDown(self):

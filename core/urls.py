@@ -6,6 +6,7 @@ from core import views_upload
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
+    path('ajuda/', views.ajuda, name='ajuda'),
     path('login/', views.login_view, name='login'),
     path('api/csrf/', views.csrf_token_json, name='csrf_token_json'),
     path('logout/', views.logout_view, name='logout'),

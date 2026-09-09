@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Central de Ajuda — ERP Grupo PremiumBR{% endblock %}
+{% block nav_ajuda %}active{% endblock %}
+{% block topbar_title %}Central de Ajuda{% endblock %}
+
+{% block content %}
+<div class="module-banner">
+  <div class="mod-title">Central de Ajuda</div>
+  <div class="mod-desc">Orientações rápidas das funções disponíveis para o seu usuário.</div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <h2 style="font-size:1.1rem;margin-bottom:8px;">Como usar o ERP</h2>
+  <p style="color:var(--text-muted);margin-bottom:14px;">No celular, toque no botão de três linhas no alto da tela para abrir o menu. Você verá somente as áreas autorizadas para sua função.</p>
+  <div class="form-grid">
+    <div><strong>1. Escolha a área</strong><p style="color:var(--text-muted);margin-top:4px;">Use o menu lateral para entrar no módulo necessário.</p></div>
+    <div><strong>2. Confira os dados</strong><p style="color:var(--text-muted);margin-top:4px;">Revise campos obrigatórios, quantidades, datas e anexos.</p></div>
+    <div><strong>3. Salve uma vez</strong><p style="color:var(--text-muted);margin-top:4px;">Aguarde a confirmação verde antes de sair da página.</p></div>
+    <div><strong>4. Veja os avisos</strong><p style="color:var(--text-muted);margin-top:4px;">O sino mostra alterações e atividades relacionadas à sua área.</p></div>
+  </div>
+</div>
+
+{% if request.user.is_superuser or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' or is_estoque_compras %}
+<details id="estoque" class="card" style="margin-bottom:14px;" open>
+  <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;">Estoque e Compras</summary>
+  <ol style="margin:14px 0 0 20px;line-height:1.8;color:var(--text-muted);">
+    <li>Em Compras, abra <strong>Materiais</strong> e selecione <strong>Novo material</strong>.</li>
+    <li>Adicione uma foto frontal e nítida para facilitar a conferência física.</li>
+    <li>Preencha nome, categoria, estoque, unidade e localização. Não digite código: ele é automático.</li>
+    <li>Use <strong>Nova solicitação</strong> quando uma área precisar retirar ou comprar um item.</li>
+    <li>Atualize o pedido conforme cotação, aprovação, recebimento e entrada no estoque.</li>
+  </ol>
+</details>
+{% endif %}
+
+{% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or is_estoque_compras %}
+<details id="epis" class="card" style="margin-bottom:14px;">
+  <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;">EPIs e Segurança</summary>
+  <ol style="margin:14px 0 0 20px;line-height:1.8;color:var(--text-muted);">
+    <li>No Catálogo de EPIs, escolha <strong>Novo EPI</strong>.</li>
+    <li>Fotografe o equipamento e confira fabricante e número do CA na embalagem.</li>
+    <li>Informe durabilidade e estoque real. O código EPI é gerado automaticamente.</li>
+    {% if not is_estoque_compras %}<li>Na entrega, selecione colaborador, equipamento e quantidade; confira a validade calculada.</li>{% endif %}
+  </ol>
+</details>
+{% endif %}
+
+{% if request.user.is_superuser or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' %}
+<details class="card" style="margin-bottom:14px;">
+  <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;">RH, recrutamento e colaboradores</summary>
+  <ol style="margin:14px 0 0 20px;line-height:1.8;color:var(--text-muted);">
+    <li>Cadastre a vaga e acompanhe candidatos pela etapa atual.</li>
+    <li>Ao admitir, confira CPF, cargo, unidade, contato e data antes de salvar.</li>
+    <li>Nos documentos do colaborador, envie PDF, PNG ou JPG diretamente ao Storage.</li>
+    <li>Use a pesquisa da lista de colaboradores para localizar nome ou código.</li>
+  </ol>
+</details>
+{% endif %}
+
+{% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' %}
+<details class="card" style="margin-bottom:14px;">
+  <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;">Financeiro</summary>
+  <p style="margin-top:14px;color:var(--text-muted);line-height:1.7;">Cadastre o documento, anexe o comprovante, confira valor, emitente, centro de custo e competência. Depois acompanhe auditoria, correção, aprovação e lançamento sem pular etapas.</p>
+</details>
+{% endif %}
+
+<details class="card" style="margin-bottom:14px;">
+  <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;">Notificações e aprovações</summary>
+  <p style="margin-top:14px;color:var(--text-muted);line-height:1.7;">Toque no sino para ver novidades da sua área. Abra a notificação para acessar o registro. Usuários autorizados podem aprovar ou rejeitar pela Central Mobile; sempre leia os detalhes antes de decidir.</p>
+</details>
+
+<details class="card" style="margin-bottom:14px;">
+  <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;">Instalar no celular</summary>
+  <div style="margin-top:14px;color:var(--text-muted);line-height:1.7;">
+    <p><strong>Android:</strong> abra o ERP no Chrome, faça login, toque em ⋮ e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.</p>
+    <p><strong>iPhone:</strong> abra no Safari, faça login, toque em Compartilhar e depois “Adicionar à Tela de Início”.</p>
+    <p>Se a opção não aparecer, recarregue a página e confirme que está usando o navegador principal, não o navegador interno de outro aplicativo.</p>
+  </div>
+</details>
+
+<div class="alert alert-info">Por segurança, nunca compartilhe senha. Se uma função não aparecer, seu perfil provavelmente não possui acesso; solicite a revisão ao administrador.</div>
+{% endblock %}

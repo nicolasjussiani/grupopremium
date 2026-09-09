@@ -9,7 +9,6 @@ from django.conf import settings
 from django.core import signing
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
-from django.utils.text import get_valid_filename
 
 
 DIRECT_UPLOAD_MAX_SIZE = 50 * 1024 * 1024
@@ -17,11 +16,11 @@ DIRECT_UPLOAD_TOKEN_MAX_AGE = 30 * 60
 TOKEN_SALT = 'core.direct-upload.v1'
 
 UPLOAD_RULES = {
-    'arquivo': ('documentos_admissional', 'document'),
-    'arquivo_pdf': ('notas_fiscais', 'document'),
-    'curriculo_pdf': ('curriculos', 'document'),
-    'foto': ('equipamentos', 'image'),
-    'foto_equipamento': ('manutencao', 'image'),
+    'arquivo': ('_temporarios/admissional/documentos', 'document'),
+    'arquivo_pdf': ('_temporarios/financeiro/documentos', 'document'),
+    'curriculo_pdf': ('_temporarios/recrutamento/curriculos', 'document'),
+    'foto': ('_temporarios/imagens/foto', 'image'),
+    'foto_equipamento': ('_temporarios/manutencao/registros', 'image'),
 }
 
 DOCUMENT_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
@@ -32,7 +31,7 @@ IMAGE_MIME_TYPES = {'image/png', 'image/jpeg'}
 
 def upload_rule(field_name):
     if field_name.startswith('anexo_'):
-        return 'colaboradores/docs', 'document'
+        return '_temporarios/admissional/colaboradores', 'document'
     return UPLOAD_RULES.get(field_name)
 
 
@@ -60,8 +59,9 @@ def create_direct_upload(user, field_name, filename, content_type, size):
     folder, extension, size = validate_upload_metadata(
         field_name, filename, content_type, size
     )
-    safe_stem = get_valid_filename(Path(filename).stem)[:80] or 'arquivo'
-    key = f'{folder}/{uuid4().hex}-{safe_stem}{extension}'
+    # O nome original pode conter nome, CPF ou outros dados pessoais. Ele nao
+    # faz parte da chave; o ID do usuario apenas organiza a area temporaria.
+    key = f'{folder}/usuarios/{user.pk}/{uuid4().hex}{extension}'
     client = boto3.client(
         's3',
         endpoint_url=settings.SUPABASE_S3_ENDPOINT_URL,

@@ -5,46 +5,60 @@
 
 {% block content %}
 <div class="module-banner mod-banner-4" style="margin-bottom:20px;">
-  <div class="mod-title">{% if equip %}✏️ Editar{% else %}➕ Cadastrar{% endif %} Equipamento</div>
-  <div class="mod-desc">Informações do EPI no Catálogo</div>
+  <div class="mod-title">{% if equip %}Editar{% else %}Cadastrar{% endif %} equipamento</div>
+  <div class="mod-desc">Informações e identificação visual do EPI no catálogo</div>
 </div>
 
-<div class="card" style="max-width: 600px;">
+<div class="card" style="max-width:760px;margin-bottom:18px;">
+  <div style="display:flex;justify-content:space-between;gap:16px;align-items:start;flex-wrap:wrap;">
+    <div>
+      <strong>Passo a passo do cadastro</strong>
+      <ol style="margin:10px 0 0 20px;color:var(--text-muted);line-height:1.7;">
+        <li>Adicione uma foto nítida do EPI.</li>
+        <li>Confira no produto o nome, fabricante e número do CA.</li>
+        <li>Informe durabilidade e quantidade física disponível.</li>
+        <li>Salve. O código EPI será criado automaticamente.</li>
+      </ol>
+    </div>
+    <a href="{% url 'ajuda' %}#epis" class="btn btn-outline btn-sm">Abrir guia completa</a>
+  </div>
+</div>
+
+<div class="card" style="max-width:760px;">
   {% if equip %}<div class="alert alert-info">Código interno: <strong>{{ equip.codigo }}</strong></div>{% endif %}
-  <form method="post">
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
+    <input type="hidden" name="direct_upload_foto" value="{{ request.POST.direct_upload_foto|default:'' }}">
     <div class="form-group">
-      <label class="form-label">Nome do EPI (Ex: Luva de Raspa) <span class="required">*</span></label>
-      <input type="text" name="nome" class="form-control" required value="{{ equip.nome }}">
+      <label class="form-label" for="foto">Foto do EPI</label>
+      {% if equip.foto %}
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+        <img src="{{ equip.foto.url }}" alt="Foto atual de {{ equip.nome }}" loading="lazy" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--border);">
+        <label style="font-size:.82rem;"><input type="checkbox" name="foto-clear"> Remover foto atual</label>
+      </div>
+      {% endif %}
+      <input id="foto" type="file" name="foto" class="form-control" accept=".png,.jpg,.jpeg" aria-describedby="foto-ajuda">
+      <small id="foto-ajuda" style="color:var(--text-muted);">PNG ou JPG. Upload direto e seguro para o Storage.</small>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nome do EPI <span class="required">*</span></label>
+      <input type="text" name="nome" class="form-control" required value="{% if request.POST.nome %}{{ request.POST.nome }}{% elif equip %}{{ equip.nome }}{% endif %}" placeholder="Ex.: Luva de raspa">
     </div>
     <div class="form-grid">
-      <div class="form-group">
-        <label class="form-label">Número do CA</label>
-        <input type="text" name="numero_ca" class="form-control" value="{{ equip.numero_ca }}">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Validade do CA</label>
-        <input type="date" name="validade_ca" class="form-control" value="{{ equip.validade_ca|date:'Y-m-d' }}">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Fabricante</label>
-        <input type="text" name="fabricante" class="form-control" value="{{ equip.fabricante }}">
-      </div>
+      <div class="form-group"><label class="form-label">Número do CA</label><input type="text" name="numero_ca" class="form-control" value="{% if request.POST.numero_ca %}{{ request.POST.numero_ca }}{% elif equip %}{{ equip.numero_ca }}{% endif %}"></div>
+      <div class="form-group"><label class="form-label">Validade do CA</label><input type="date" name="validade_ca" class="form-control" value="{% if request.POST.validade_ca %}{{ request.POST.validade_ca }}{% else %}{{ equip.validade_ca|date:'Y-m-d' }}{% endif %}"></div>
+      <div class="form-group"><label class="form-label">Fabricante</label><input type="text" name="fabricante" class="form-control" value="{% if request.POST.fabricante %}{{ request.POST.fabricante }}{% elif equip %}{{ equip.fabricante }}{% endif %}"></div>
     </div>
     <div class="form-grid">
       <div class="form-group">
         <label class="form-label">Durabilidade (dias) <span class="required">*</span></label>
-        <input type="number" name="dias_durabilidade" class="form-control" required min="1" value="{{ equip.dias_durabilidade|default:30 }}">
-        <small style="color:var(--text-muted); font-size:0.75rem;">Usado para calcular quando o EPI vence no colaborador</small>
+        <input type="number" name="dias_durabilidade" class="form-control" required min="1" value="{% if request.POST.dias_durabilidade %}{{ request.POST.dias_durabilidade }}{% elif equip %}{{ equip.dias_durabilidade }}{% else %}30{% endif %}">
+        <small style="color:var(--text-muted);">Usado para calcular quando o EPI vence.</small>
       </div>
-      <div class="form-group">
-        <label class="form-label">Quantidade em Estoque</label>
-        <input type="number" name="estoque_atual" class="form-control" value="{{ equip.estoque_atual|default:0 }}">
-      </div>
+      <div class="form-group"><label class="form-label">Quantidade em estoque</label><input type="number" name="estoque_atual" class="form-control" min="0" value="{% if request.POST.estoque_atual %}{{ request.POST.estoque_atual }}{% elif equip %}{{ equip.estoque_atual }}{% else %}0{% endif %}"></div>
     </div>
-    
-    <div class="gateway-actions" style="margin-top: 20px;">
-      <button type="submit" class="btn btn-mod4">💾 Salvar Equipamento</button>
+    <div class="gateway-actions" style="margin-top:20px;">
+      <button type="submit" class="btn btn-mod4">Salvar equipamento</button>
       <a href="{% url 'catalogo_equipamentos' %}" class="btn btn-outline">Cancelar</a>
     </div>
   </form>

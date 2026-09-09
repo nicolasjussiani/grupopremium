@@ -202,6 +202,12 @@ def dashboard(request):
     return render(request, 'dashboard.html', context)
 
 
+@login_required
+def ajuda(request):
+    """Guia leve e contextual, disponível a todos os perfis do ERP."""
+    return render(request, 'core/ajuda.html')
+
+
 
 
 @login_required

@@ -7,18 +7,47 @@
   <div class="mod-title">{{ acao }} material do estoque</div>
   <div class="mod-desc">O código interno será criado automaticamente ao salvar.</div>
 </div>
-<div class="card" style="max-width:850px;">
+
+<div class="card" style="max-width:900px;margin-bottom:18px;">
+  <div style="display:flex;justify-content:space-between;gap:16px;align-items:start;flex-wrap:wrap;">
+    <div>
+      <strong>Passo a passo do cadastro</strong>
+      <ol style="margin:10px 0 0 20px;color:var(--text-muted);line-height:1.7;">
+        <li>Fotografe o item com boa iluminação e fundo limpo.</li>
+        <li>Informe nome, categoria e uma descrição que diferencie o objeto.</li>
+        <li>Preencha quantidade, unidade, estoque mínimo e localização.</li>
+        <li>Revise e salve. O código MAT será gerado pelo sistema.</li>
+      </ol>
+    </div>
+    <a href="{% url 'ajuda' %}#estoque" class="btn btn-outline btn-sm">Abrir guia completa</a>
+  </div>
+</div>
+
+<div class="card" style="max-width:900px;">
   {% if material %}<div class="alert alert-info">Código: <strong>{{ material.codigo }}</strong></div>{% endif %}
-  <form method="post">
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
+    {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
     {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
     <div class="form-grid">
-      {% for field in form %}
-      <div class="form-group {% if field.name == 'descricao' %}field-span-2{% endif %}">
+      {% for field in form.visible_fields %}
+      {% if field.name != 'remover_foto' %}
+      <div class="form-group {% if field.name == 'descricao' or field.name == 'foto' %}field-span-2{% endif %}">
         <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="required">*</span>{% endif %}</label>
+        {% if field.name == 'foto' and material.foto %}
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+          <img src="{{ material.foto.url }}" alt="Foto atual de {{ material.nome }}" loading="lazy" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--border);">
+          <span style="font-size:.82rem;color:var(--text-muted);">Foto atual. Selecione outra para substituir.</span>
+        </div>
+        {% endif %}
         {{ field }}
+        {% if field.name == 'foto' %}
+        <small id="foto-ajuda" style="color:var(--text-muted);">PNG ou JPG. O arquivo é enviado diretamente ao Storage para não sobrecarregar a Vercel.</small>
+        {% if material.foto %}<label style="display:block;margin-top:8px;font-size:.82rem;">{{ form.remover_foto }} Remover foto atual</label>{% endif %}
+        {% endif %}
         {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
       </div>
+      {% endif %}
       {% endfor %}
     </div>
     <div class="gateway-actions">

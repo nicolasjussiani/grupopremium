@@ -28,6 +28,10 @@ class Material(models.Model):
 
     codigo = models.CharField(max_length=20, unique=True, blank=True, verbose_name='Código')
     nome = models.CharField(max_length=200, verbose_name='Nome do Material')
+    foto = models.ImageField(
+        upload_to='materiais/fotos/', null=True, blank=True,
+        verbose_name='Foto do material',
+    )
     descricao = models.TextField(blank=True, verbose_name='Descrição')
     categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='consumo')
     unidade_medida = models.CharField(max_length=5, choices=UNIDADES, default='un')

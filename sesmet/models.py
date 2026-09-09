@@ -33,6 +33,10 @@ class IntegracaoSeguranca(models.Model):
 class EquipamentoProtecao(models.Model):
     codigo = models.CharField(max_length=20, unique=True, blank=True, verbose_name='Código interno')
     nome = models.CharField(max_length=150, verbose_name='Nome do EPI (ex: Luva de Raspa)')
+    foto = models.ImageField(
+        upload_to='epis/fotos/', null=True, blank=True,
+        verbose_name='Foto do EPI',
+    )
     numero_ca = models.CharField(max_length=20, blank=True, verbose_name='Número do CA')
     fabricante = models.CharField(max_length=150, blank=True)
     validade_ca = models.DateField(null=True, blank=True, verbose_name='Validade do CA')

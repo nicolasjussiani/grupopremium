@@ -19,7 +19,7 @@ def _can_upload(user, field_name):
             'groups': ('Financeiro_Operador', 'Financeiro_Auditor', 'Financeiro_Aprovador')
         },
         'curriculo_pdf': {'profiles': ('rh', 'gestor')},
-        'foto': {'profiles': ('sesmet', 'compras', 'gestor')},
+        'foto': {'profiles': ('sesmet', 'compras', 'gestor', 'estoque_compras')},
         'foto_equipamento': {'profiles': ('sesmet', 'compras', 'gestor')},
     }
     access = rules.get(field_name)

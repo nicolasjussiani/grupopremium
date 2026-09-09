@@ -201,6 +201,7 @@ class FullSiteRouteTests(TestCase):
             ('csrf_token_json', (), 200),
             ('logout', (), 405),
             ('dashboard', (), 200),
+            ('ajuda', (), 200),
             ('notificacoes_json', (), 200),
             ('marcar_lida', (self.notificacao.pk,), 405),
             ('aprovacoes_pendentes', (), 200),

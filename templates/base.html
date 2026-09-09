@@ -55,6 +55,10 @@
         <span class="nav-icon">🏠</span>
         Dashboard
       </a>
+      <a href="{% url 'ajuda' %}" class="nav-item {% block nav_ajuda %}{% endblock %}">
+        <span class="nav-icon">❓</span>
+        Central de Ajuda
+      </a>
 
       <!-- Visível apenas para administradores e diretoria autorizada -->
       {% if request.user.is_superuser or perms.core.view_logatividade %}

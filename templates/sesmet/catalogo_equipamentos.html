@@ -23,6 +23,7 @@
   <table class="table" style="width: 100%; border-collapse: collapse;">
     <thead>
       <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+        <th style="padding: 12px;">Foto</th>
         <th style="padding: 12px;">Código</th>
         <th style="padding: 12px;">Nome do EPI</th>
         <th style="padding: 12px;">Fabricante</th>
@@ -35,6 +36,10 @@
     <tbody>
       {% for eq in equipamentos %}
       <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);">
+        <td style="padding:12px;">
+          {% if eq.foto %}<img src="{{ eq.foto.url }}" alt="{{ eq.nome }}" loading="lazy" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+          {% else %}<span style="color:var(--text-muted);font-size:.76rem;">Sem foto</span>{% endif %}
+        </td>
         <td style="padding: 12px; font-family:monospace;">{{ eq.codigo }}</td>
         <td style="padding: 12px; font-weight: 500;">{{ eq.nome }}</td>
         <td style="padding: 12px;">{{ eq.fabricante|default:"-" }}</td>
@@ -51,7 +56,7 @@
       </tr>
       {% empty %}
       <tr>
-        <td colspan="7" style="padding: 20px; text-align: center; color: var(--text-muted);">
+        <td colspan="8" style="padding: 20px; text-align: center; color: var(--text-muted);">
           Nenhum equipamento cadastrado no catálogo ainda.
         </td>
       </tr>
