@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from django.core.files.storage import default_storage
 
 from core.storage_organization import (
+    audit_storage_references,
     iter_file_models,
     organize_instance_files,
     quarantine_orphaned_files,
@@ -54,6 +55,15 @@ class Command(BaseCommand):
                 f'{action}.'
             )
         )
+
+        audit = audit_storage_references()
+        self.stdout.write(
+            f"Auditoria: {audit['total']} referencia(s), "
+            f"{len(audit['missing'])} ausente(s), "
+            f"{len(audit['noncanonical'])} fora do padrao."
+        )
+        for reference in audit['missing']:
+            self.stdout.write(self.style.ERROR(f'Ausente: {reference}'))
 
         if options['quarentenar_orfaos']:
             orphaned = quarantine_orphaned_files(

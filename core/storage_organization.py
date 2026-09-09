@@ -25,8 +25,6 @@ FILE_FIELDS = {
     'sesmet.EquipamentoProtecao': ('foto',),
     'manutencao.Ativo': ('foto',),
     'manutencao.RegistroManutencao': ('foto_equipamento',),
-    'compras.Material': ('foto',),
-    'sesmet.EquipamentoProtecao': ('foto',),
 }
 
 ALLOWED_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
@@ -78,11 +76,33 @@ def canonical_prefix(instance, field_name):
             f'manutencao/ativos/{instance.ativo_id}/registros/'
             f'{instance.pk}/foto/'
         )
-    if label == 'compras.Material':
-        return f'compras/materiais/{instance.pk}/foto/'
-    if label == 'sesmet.EquipamentoProtecao':
-        return f'sesmet/epis/{instance.pk}/foto/'
     raise ValueError(f'Modelo sem regra de storage: {label}')
+
+
+def audit_storage_references():
+    """Confere se toda referencia do banco existe e usa o prefixo esperado."""
+    total = 0
+    missing = []
+    noncanonical = []
+    for model_label, field_names in FILE_FIELDS.items():
+        model = apps.get_model(model_label)
+        for instance in model.objects.iterator():
+            for field_name in field_names:
+                field_file = getattr(instance, field_name)
+                name = field_file.name if field_file else ''
+                if not name:
+                    continue
+                total += 1
+                reference = f'{model_label}#{instance.pk}.{field_name}'
+                if not field_file.storage.exists(name):
+                    missing.append(reference)
+                elif not name.startswith(canonical_prefix(instance, field_name)):
+                    noncanonical.append(reference)
+    return {
+        'total': total,
+        'missing': missing,
+        'noncanonical': noncanonical,
+    }
 
 
 def canonical_key(instance, field_name, source_name):
