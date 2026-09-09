@@ -23,6 +23,7 @@
   <table class="table" style="width: 100%; border-collapse: collapse;">
     <thead>
       <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+        <th style="padding: 12px;">Código</th>
         <th style="padding: 12px;">Nome do EPI</th>
         <th style="padding: 12px;">Fabricante</th>
         <th style="padding: 12px;">Número CA</th>
@@ -34,6 +35,7 @@
     <tbody>
       {% for eq in equipamentos %}
       <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);">
+        <td style="padding: 12px; font-family:monospace;">{{ eq.codigo }}</td>
         <td style="padding: 12px; font-weight: 500;">{{ eq.nome }}</td>
         <td style="padding: 12px;">{{ eq.fabricante|default:"-" }}</td>
         <td style="padding: 12px;">{{ eq.numero_ca|default:"-" }}</td>
@@ -49,7 +51,7 @@
       </tr>
       {% empty %}
       <tr>
-        <td colspan="6" style="padding: 20px; text-align: center; color: var(--text-muted);">
+        <td colspan="7" style="padding: 20px; text-align: center; color: var(--text-muted);">
           Nenhum equipamento cadastrado no catálogo ainda.
         </td>
       </tr>

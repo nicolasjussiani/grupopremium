@@ -8,11 +8,15 @@ Execucao:
 
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
+from django.core import signing
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse, resolve
 from admissional.models import Colaborador
 from admissional.forms import ColaboradorForm
 from core.validators import MAX_REQUEST_UPLOAD_SIZE
+from core.direct_uploads import TOKEN_SALT
 import datetime
 
 
@@ -174,6 +178,63 @@ class TestNovoColaboradorHTTP(TestCase):
             response.status_code, [200, 302],
             'ERRO %d: Upload causou erro. Codigo 505 indica problema com HTTP version.' % response.status_code
         )
+
+    def _direct_upload_token(self, key):
+        content = b'%PDF-conteudo do documento'
+        default_storage.save(key, ContentFile(content))
+        self.addCleanup(default_storage.delete, key)
+        return signing.dumps({
+            'uid': self.user.pk,
+            'field': 'anexo_cpf',
+            'key': key,
+            'size': len(content),
+            'content_type': 'application/pdf',
+        }, salt=TOKEN_SALT, compress=True)
+
+    def test_POST_com_upload_direto_vincula_arquivo_ao_colaborador(self):
+        key = 'colaboradores/docs/teste-direto.pdf'
+        data = _colaborador_data(cpf='555.666.777-99')
+        data['direct_upload_anexo_cpf'] = self._direct_upload_token(key)
+
+        response = self.client.post(self.url, data=data)
+
+        self.assertEqual(response.status_code, 302)
+        colaborador = Colaborador.objects.get(cpf='555.666.777-99')
+        self.assertEqual(colaborador.anexo_cpf.name, key)
+
+    def test_POST_invalido_preserva_token_do_upload_direto(self):
+        key = 'colaboradores/docs/teste-preservado.pdf'
+        token = self._direct_upload_token(key)
+        data = _colaborador_data(email='')
+        data['direct_upload_anexo_cpf'] = token
+
+        response = self.client.post(self.url, data=data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context['form']['direct_upload_anexo_cpf'].value(),
+            token,
+        )
+        self.assertContains(response, 'name="direct_upload_anexo_cpf"')
+
+    def test_edicao_com_upload_direto_substitui_documento(self):
+        colaborador = Colaborador.objects.create(**{
+            key: value for key, value in _colaborador_data(
+                cpf='555.666.777-55',
+            ).items() if value != ''
+        })
+        key = 'colaboradores/docs/teste-edicao.pdf'
+        data = _colaborador_data(cpf=colaborador.cpf)
+        data['direct_upload_anexo_cpf'] = self._direct_upload_token(key)
+
+        response = self.client.post(
+            reverse('editar_colaborador', args=[colaborador.pk]),
+            data=data,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        colaborador.refresh_from_db()
+        self.assertEqual(colaborador.anexo_cpf.name, key)
 
     # POST invalido
 

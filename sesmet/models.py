@@ -6,6 +6,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from uuid import uuid4
 
 
 class IntegracaoSeguranca(models.Model):
@@ -30,6 +31,7 @@ class IntegracaoSeguranca(models.Model):
 
 
 class EquipamentoProtecao(models.Model):
+    codigo = models.CharField(max_length=20, unique=True, blank=True, verbose_name='Código interno')
     nome = models.CharField(max_length=150, verbose_name='Nome do EPI (ex: Luva de Raspa)')
     numero_ca = models.CharField(max_length=20, blank=True, verbose_name='Número do CA')
     fabricante = models.CharField(max_length=150, blank=True)
@@ -48,7 +50,16 @@ class EquipamentoProtecao(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.nome} (CA: {self.numero_ca})"
+        return f"[{self.codigo}] {self.nome} (CA: {self.numero_ca})"
+
+    def save(self, *args, **kwargs):
+        gerar_codigo = self.pk is None and not self.codigo
+        if gerar_codigo:
+            self.codigo = f'TMP-{uuid4().hex[:16]}'
+        super().save(*args, **kwargs)
+        if gerar_codigo:
+            self.codigo = f'EPI-{self.pk:06d}'
+            type(self).objects.filter(pk=self.pk).update(codigo=self.codigo)
 
 class RegistroEPI(models.Model):
     TIPO_MOVIMENTACAO = [

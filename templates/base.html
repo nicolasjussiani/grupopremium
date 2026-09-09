@@ -71,10 +71,12 @@
         <span class="nav-icon">📱</span>
         Aprovações no Celular
       </a>
-      <a href="/admin/core/perfilusuario/" class="nav-item" style="color: #FCD34D;">
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'admin' or perms.core.add_perfilusuario %}
+      <a href="{% url 'lista_usuarios' %}" class="nav-item" style="color: #FCD34D;">
         <span class="nav-icon">🔐</span>
-        Gerenciar Acessos (RH/Outros)
+        Usuários e Acessos
       </a>
+      {% endif %}
       {% endif %}
 
       <div class="nav-section-label">Módulos</div>
@@ -108,15 +110,15 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
-      <a href="{% url 'dashboard_sesmet' %}" class="nav-item mod4 {% block nav_sesmet %}{% endblock %}">
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
+      <a href="{% if is_estoque_compras %}{% url 'catalogo_equipamentos' %}{% else %}{% url 'dashboard_sesmet' %}{% endif %}" class="nav-item mod4 {% block nav_sesmet %}{% endblock %}">
         <span class="nav-icon">🦺</span>
-        SESMET / Segurança
+        {% if is_estoque_compras %}Estoque de EPIs{% else %}SESMET / Segurança{% endif %}
         {% if nav_epis_vencidos %}<span class="nav-badge">{{ nav_epis_vencidos }}</span>{% endif %}
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
       <a href="{% url 'painel_compras' %}" class="nav-item mod5 {% block nav_compras %}{% endblock %}">
         <span class="nav-icon">🛒</span>
         Compras / Almoxarifado
@@ -132,7 +134,7 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'compras' %}
+      {% if not is_estoque_compras and request.user.is_superuser or not is_estoque_compras and request.user.perfil.perfil == 'sesmet' or not is_estoque_compras and request.user.perfil.perfil == 'rh' or not is_estoque_compras and request.user.perfil.perfil == 'gestor' or not is_estoque_compras and request.user.perfil.perfil == 'compras' %}
       <a href="{% url 'painel_manutencao' %}" class="nav-item mod3 {% block nav_manutencao %}{% endblock %}">
         <span class="nav-icon">🔧</span>
         Manutenção / Patrimônio
@@ -141,11 +143,13 @@
 
 
       <div class="nav-section-label">Processos</div>
+      {% if not is_estoque_compras %}
       <a href="{% url 'aprovacoes_pendentes' %}" class="nav-item {% block nav_aprovacoes %}{% endblock %}" id="navAprovacoes">
         <span class="nav-icon">✅</span>
         Aprovações
         <span class="nav-badge" id="badgeAprovacoes" style="display:none;"></span>
       </a>
+      {% endif %}
 
       {% if not is_intermediario and request.user.is_superuser or not is_intermediario and request.user.perfil.perfil == 'rh' or not is_intermediario and request.user.perfil.perfil == 'gestor' or not is_intermediario and request.user.perfil.perfil == 'sesmet' %}
       <div class="nav-section-label">Colaboradores</div>
@@ -396,12 +400,22 @@ window.uploadFileDirectly = async function(input, form) {
   const csrf = form.querySelector('[name="csrfmiddlewaretoken"]');
   const extension = file.name.toLowerCase().split('.').pop();
   const fallbackTypes = {pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg'};
-  const contentType = file.type || fallbackTypes[extension] || 'application/octet-stream';
+  const reportedType = (file.type || '').toLowerCase();
+  const contentType = (!reportedType || reportedType === 'application/octet-stream' || reportedType === 'image/jpg')
+    ? (fallbackTypes[extension] || reportedType || 'application/octet-stream')
+    : reportedType;
   const presignResponse = await fetch(directUploadEndpoint, {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf ? csrf.value : ''},
     body: JSON.stringify({field: input.name, filename: file.name, content_type: contentType, size: file.size}),
   });
+  const responseType = presignResponse.headers.get('content-type') || '';
+  if (presignResponse.redirected || !responseType.includes('application/json')) {
+    if (presignResponse.status === 403) {
+      throw new Error('Sua sessao expirou ou a verificacao de seguranca falhou. Recarregue a pagina e tente novamente.');
+    }
+    throw new Error('Nao foi possivel iniciar o envio. Recarregue a pagina e entre novamente, se necessario.');
+  }
   const presign = await presignResponse.json();
   if (!presignResponse.ok) throw new Error(presign.error || 'Falha ao preparar o upload.');
   const uploadResponse = await fetch(presign.upload_url, {
@@ -416,6 +430,7 @@ window.uploadFileDirectly = async function(input, form) {
     form.appendChild(hidden);
   }
   hidden.value = presign.token;
+  hidden.setAttribute('value', presign.token);
   input.dataset.directUploadToken = presign.token;
   input.disabled = true;
   return presign.token;

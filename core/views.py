@@ -1,14 +1,16 @@
 """ERP Grupo PremiumBR — Views do Core (Login, Dashboard, Notificações)"""
 import logging
 from urllib.parse import urlencode
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.db.models import Count, Q
 from django.core.paginator import Paginator
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.urls import reverse
@@ -18,6 +20,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.csrf import csrf_failure as default_csrf_failure
 
 from core.models import PerfilUsuario, Notificacao
+from core.forms import UsuarioERPForm
 from recrutamento.models import Vaga, Candidato
 from admissional.models import Admissao, Colaborador
 from administrativo.models import DemandaAdministrativa
@@ -27,6 +30,17 @@ from financeiro.models import DocumentoFinanceiro, LancamentoERP
 
 
 logger = logging.getLogger(__name__)
+
+
+def _usuario_admin(user):
+    return (
+        user.is_authenticated
+        and (
+            user.is_superuser
+            or user.groups.filter(name='Admin_Global').exists()
+            or getattr(getattr(user, 'perfil', None), 'perfil', None) == 'admin'
+        )
+    )
 
 
 def _next_url_segura(request, default='/'):
@@ -211,6 +225,44 @@ def notificacoes_json(request):
 def marcar_notificacao_lida(request, pk):
     Notificacao.objects.filter(pk=pk, destinatario=request.user).update(lida=True)
     return JsonResponse({'status': 'ok'})
+
+
+@login_required
+def lista_usuarios(request):
+    if not _usuario_admin(request.user):
+        raise PermissionDenied
+    usuarios = User.objects.select_related('perfil').prefetch_related('groups').order_by(
+        '-is_active', 'first_name', 'username'
+    )
+    return render(request, 'core/lista_usuarios.html', {'usuarios': usuarios})
+
+
+@login_required
+def novo_usuario(request):
+    if not _usuario_admin(request.user):
+        raise PermissionDenied
+    form = UsuarioERPForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        user = form.save()
+        messages.success(request, f'Usuario {user.get_full_name() or user.username} criado com sucesso.')
+        return redirect('lista_usuarios')
+    return render(request, 'core/form_usuario.html', {'form': form, 'acao': 'Novo'})
+
+
+@login_required
+def editar_usuario(request, pk):
+    if not _usuario_admin(request.user):
+        raise PermissionDenied
+    user = get_object_or_404(User, pk=pk)
+    form = UsuarioERPForm(request.POST or None, instance=user)
+    if request.method == 'POST' and form.is_valid():
+        if user.pk == request.user.pk and not form.cleaned_data['is_active']:
+            form.add_error('is_active', 'Voce nao pode desativar a propria conta.')
+        else:
+            user = form.save()
+            messages.success(request, f'Usuario {user.get_full_name() or user.username} atualizado.')
+            return redirect('lista_usuarios')
+    return render(request, 'core/form_usuario.html', {'form': form, 'acao': 'Editar', 'usuario_editado': user})
 
 
 

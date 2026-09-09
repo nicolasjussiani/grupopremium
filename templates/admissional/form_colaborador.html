@@ -12,6 +12,7 @@
 <div class="card collaborator-form-card">
   <form id="colaborador-form" method="post" enctype="multipart/form-data" class="collaborator-form">
     {% csrf_token %}
+    {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
     <div class="alert alert-error" role="alert" data-upload-size-error data-persistent-alert hidden></div>
     {% if form.non_field_errors %}
       <div class="alert alert-error" role="alert">
@@ -28,7 +29,7 @@
       </div>
       <div class="collaborator-fields-grid">
         {% for field in form %}
-          {% if field.name|slice:":6" != "anexo_" %}
+          {% if not field.is_hidden and field.name|slice:":6" != "anexo_" %}
             <div class="form-group {% if field.name == 'endereco' %}field-span-2{% endif %}">
               <label class="form-label" for="{{ field.id_for_label }}">
                 {{ field.label }} {% if field.field.required %}<span class="required">*</span>{% endif %}
@@ -109,9 +110,14 @@
 {% block extra_js %}
 <script>
 document.querySelectorAll('.document-file-input').forEach(input => {
+  const card = input.closest('.document-card');
+  const name = card.querySelector('[data-file-name]');
+  const preservedToken = input.form.querySelector(`input[name="direct_upload_${input.name}"]`);
+  if (preservedToken && preservedToken.value) {
+    name.textContent = 'Arquivo enviado e pronto para salvar';
+    card.classList.add('has-new-file');
+  }
   input.addEventListener('change', () => {
-    const card = input.closest('.document-card');
-    const name = card.querySelector('[data-file-name]');
     const file = input.files && input.files[0];
     name.textContent = file ? file.name : 'Nenhum arquivo novo';
     card.classList.toggle('has-new-file', Boolean(file));

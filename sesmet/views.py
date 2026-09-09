@@ -185,7 +185,7 @@ def catalogo_equipamentos(request):
     return render(request, 'sesmet/catalogo_equipamentos.html', {'equipamentos': equipamentos})
 
 @login_required
-@access_required(permission='sesmet.add_equipamentoprotecao', profiles=('sesmet', 'gestor'))
+@access_required(permission='sesmet.add_equipamentoprotecao', profiles=('sesmet', 'gestor', 'estoque_compras'))
 def novo_equipamento(request):
     if request.method == 'POST':
         try:
@@ -217,7 +217,7 @@ def novo_equipamento(request):
     return render(request, 'sesmet/form_equipamento.html')
 
 @login_required
-@access_required(permission='sesmet.change_equipamentoprotecao', profiles=('sesmet', 'gestor'))
+@access_required(permission='sesmet.change_equipamentoprotecao', profiles=('sesmet', 'gestor', 'estoque_compras'))
 def editar_equipamento(request, pk):
     equip = get_object_or_404(EquipamentoProtecao, pk=pk)
     if request.method == 'POST':

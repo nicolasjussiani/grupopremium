@@ -7,7 +7,8 @@ from django.db.models import F
 from django.db import transaction
 from decimal import Decimal, InvalidOperation
 from .models import Material, SolicitacaoMaterial, PedidoCompra
-from core.access import access_required
+from .forms import MaterialForm
+from core.access import access_required, user_has_access
 from django.core.exceptions import ValidationError
 
 
@@ -37,11 +38,43 @@ def lista_materiais(request):
     return render(request, 'compras/lista_materiais.html', {
         'materiais': materiais,
         'busca': busca,
+        'can_manage_materials': user_has_access(
+            request.user,
+            permission='compras.add_material',
+            profiles=('compras', 'gestor', 'estoque_compras'),
+        ),
     })
 
 
 @login_required
-@access_required(permission='compras.add_solicitacaomaterial', profiles=('compras', 'gestor'))
+@access_required(permission='compras.add_material', profiles=('compras', 'gestor', 'estoque_compras'))
+def novo_material(request):
+    form = MaterialForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        material = form.save()
+        messages.success(request, f'Material {material.codigo} cadastrado automaticamente.')
+        return redirect('lista_materiais')
+    return render(request, 'compras/form_material.html', {'form': form, 'acao': 'Novo'})
+
+
+@login_required
+@access_required(permission='compras.change_material', profiles=('compras', 'gestor', 'estoque_compras'))
+def editar_material(request, pk):
+    material = get_object_or_404(Material, pk=pk)
+    form = MaterialForm(request.POST or None, instance=material)
+    if request.method == 'POST' and form.is_valid():
+        material = form.save()
+        messages.success(request, f'Material {material.codigo} atualizado.')
+        return redirect('lista_materiais')
+    return render(request, 'compras/form_material.html', {
+        'form': form,
+        'acao': 'Editar',
+        'material': material,
+    })
+
+
+@login_required
+@access_required(permission='compras.add_solicitacaomaterial', profiles=('compras', 'gestor', 'estoque_compras'))
 @transaction.atomic
 def nova_solicitacao(request):
     if request.method == 'POST':
@@ -122,7 +155,7 @@ def detalhe_solicitacao(request, pk):
 
 
 @login_required
-@access_required(permission='compras.add_pedidocompra', profiles=('compras', 'gestor'))
+@access_required(permission='compras.add_pedidocompra', profiles=('compras', 'gestor', 'estoque_compras'))
 @transaction.atomic
 def criar_pedido_compra(request, solicitacao_pk):
     sol = get_object_or_404(SolicitacaoMaterial.objects.select_for_update(), pk=solicitacao_pk)

@@ -2,6 +2,7 @@ import logging
 
 from django.contrib import messages
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 
 from core.notifications import destinatarios_da_area
@@ -17,8 +18,8 @@ class AcessoModuloMiddleware(MiddlewareMixin):
         '/recrutamento/': {'rh', 'gestor', 'sesmet'},
         '/admissional/': {'rh', 'gestor', 'sesmet'},
         '/administrativo/': {'gestor'},
-        '/sesmet/': {'sesmet', 'gestor', 'rh'},
-        '/compras/': {'compras', 'gestor'},
+        '/sesmet/': {'sesmet', 'gestor', 'rh', 'estoque_compras'},
+        '/compras/': {'compras', 'gestor', 'estoque_compras'},
         '/financeiro/': {'financeiro', 'gestor'},
         '/manutencao/': {'sesmet', 'gestor', 'compras', 'rh'},
     }
@@ -32,6 +33,18 @@ class AcessoModuloMiddleware(MiddlewareMixin):
         request.is_intermediario = request.user.groups.filter(
             name='Intermediario_Gestor'
         ).exists()
+        perfil_obj = getattr(request.user, 'perfil', None)
+        perfil = getattr(perfil_obj, 'perfil', 'operacional')
+        request.is_estoque_compras = (
+            perfil == 'estoque_compras'
+            or request.user.groups.filter(name='Estoque_EPI_Compras').exists()
+        )
+        if perfil_obj:
+            agora = timezone.now()
+            ultima = perfil_obj.ultimo_acesso
+            if not ultima or agora - ultima >= timezone.timedelta(minutes=5):
+                type(perfil_obj).objects.filter(pk=perfil_obj.pk).update(ultimo_acesso=agora)
+                perfil_obj.ultimo_acesso = agora
 
         path = request.path_info
         if path.startswith(self.ROTAS_LIVRES):
@@ -47,8 +60,13 @@ class AcessoModuloMiddleware(MiddlewareMixin):
             messages.error(request, 'Acesso negado: esta area nao pertence ao perfil intermediario.')
             return redirect('dashboard')
 
-        perfil_obj = getattr(request.user, 'perfil', None)
-        perfil = getattr(perfil_obj, 'perfil', 'operacional')
+        if (
+            (request.is_estoque_compras or perfil == 'estoque_compras')
+            and path.startswith('/sesmet/')
+            and not path.startswith('/sesmet/catalogo/')
+        ):
+            messages.error(request, 'Acesso restrito ao catalogo e estoque de EPIs.')
+            return redirect('catalogo_equipamentos')
 
         for prefix, perfis_permitidos in self.REGRAS.items():
             if path.startswith(prefix) and perfil not in perfis_permitidos:

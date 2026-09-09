@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Usuários — ERP Grupo PremiumBR{% endblock %}
+{% block topbar_title %}Usuários e acessos{% endblock %}
+{% block content %}
+<div class="module-banner mod-banner-3">
+  <div class="mod-title">Usuários do ERP</div>
+  <div class="mod-desc">Cadastre acessos e acompanhe a última atividade de cada pessoa.</div>
+</div>
+<div class="page-header">
+  <div></div>
+  <a href="{% url 'novo_usuario' %}" class="btn btn-mod3">+ Novo usuário</a>
+</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Status</th><th>Último login</th><th>Última atividade</th><th></th></tr></thead>
+    <tbody>
+      {% for item in usuarios %}
+      <tr>
+        <td><strong>{{ item.get_full_name|default:item.username }}</strong><br><small>{{ item.email|default:'Sem e-mail' }}</small></td>
+        <td>{{ item.username }}</td>
+        <td>{{ item.perfil.get_perfil_display|default:'Sem perfil' }}</td>
+        <td>{% if item.is_active %}<span class="badge badge-success">Ativo</span>{% else %}<span class="badge badge-danger">Inativo</span>{% endif %}</td>
+        <td>{{ item.last_login|date:'d/m/Y H:i'|default:'Nunca entrou' }}</td>
+        <td>{{ item.perfil.ultimo_acesso|date:'d/m/Y H:i'|default:'Sem atividade' }}</td>
+        <td><a href="{% url 'editar_usuario' item.pk %}" class="btn btn-sm btn-outline">Editar</a></td>
+      </tr>
+      {% empty %}<tr><td colspan="7">Nenhum usuário cadastrado.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

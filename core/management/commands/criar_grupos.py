@@ -131,6 +131,23 @@ class Command(BaseCommand):
             'core.AprovacaoRegistro': ['change', 'view'],
         },
 
+        # Operacao combinada sem acesso a RH, Financeiro ou Diretoria.
+        'Estoque_EPI_Compras': {
+            'sesmet.EquipamentoProtecao':   ['add', 'change', 'view'],
+            'compras.Material':             ['add', 'change', 'view'],
+            'compras.SolicitacaoMaterial':  ['add', 'change', 'view'],
+            'compras.PedidoCompra':         ['add', 'view'],
+            'core.AprovacaoRegistro':       ['add', 'view'],
+        },
+
+        'Estoque_EPI_Compras': {
+            'sesmet.EquipamentoProtecao': ['add', 'change', 'view'],
+            'compras.Material':            ['add', 'change', 'view'],
+            'compras.SolicitacaoMaterial': ['add', 'change', 'view'],
+            'compras.PedidoCompra':        ['add', 'view'],
+            'core.AprovacaoRegistro':      ['add', 'view'],
+        },
+
         # ── ADMIN GLOBAL ──────────────────────────────────────────────────────
         'Admin_Global': {
             'recrutamento.Vaga':                    ['add', 'change', 'view', 'delete'],

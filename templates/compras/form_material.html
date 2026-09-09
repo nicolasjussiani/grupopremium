@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}{{ acao }} material — ERP Grupo PremiumBR{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}{{ acao }} material{% endblock %}
+{% block content %}
+<div class="module-banner mod-banner-5">
+  <div class="mod-title">{{ acao }} material do estoque</div>
+  <div class="mod-desc">O código interno será criado automaticamente ao salvar.</div>
+</div>
+<div class="card" style="max-width:850px;">
+  {% if material %}<div class="alert alert-info">Código: <strong>{{ material.codigo }}</strong></div>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+    <div class="form-grid">
+      {% for field in form %}
+      <div class="form-group {% if field.name == 'descricao' %}field-span-2{% endif %}">
+        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="required">*</span>{% endif %}</label>
+        {{ field }}
+        {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="gateway-actions">
+      <button type="submit" class="btn btn-mod5">Salvar material</button>
+      <a href="{% url 'lista_materiais' %}" class="btn btn-outline">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

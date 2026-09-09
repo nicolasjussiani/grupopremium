@@ -3,6 +3,16 @@ from .models import Colaborador
 from core.validators import MAX_REQUEST_UPLOAD_SIZE, validate_document_upload
 
 class ColaboradorForm(forms.ModelForm):
+    DIRECT_UPLOAD_FIELDS = (
+        'anexo_cpf', 'anexo_cpf_verso',
+        'anexo_rg', 'anexo_rg_verso',
+        'anexo_pis', 'anexo_pis_verso',
+        'anexo_ctps', 'anexo_ctps_verso',
+        'anexo_titulo', 'anexo_titulo_verso',
+        'anexo_reservista', 'anexo_reservista_verso',
+        'anexo_aso',
+    )
+
     class Meta:
         model = Colaborador
         fields = '__all__'
@@ -13,6 +23,14 @@ class ColaboradorForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Mantem a referencia do arquivo que ja chegou ao Supabase quando
+        # outro campo do formulario precisa ser corrigido.
+        for name in self.DIRECT_UPLOAD_FIELDS:
+            self.fields[f'direct_upload_{name}'] = forms.CharField(
+                required=False,
+                max_length=2048,
+                widget=forms.HiddenInput(),
+            )
         self.fields['email'].required = True
         for name, field in self.fields.items():
             field.widget.attrs['class'] = 'form-control'

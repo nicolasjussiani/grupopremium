@@ -13,6 +13,7 @@ class PerfilUsuario(models.Model):
         ('financeiro', 'Financeiro / Fiscal'),
         ('sesmet', 'SESMET / Segurança do Trabalho'),
         ('compras', 'Compras / Almoxarifado'),
+        ('estoque_compras', 'Estoque, EPI e Compras'),
         ('operacional', 'Operacional'),
     ]
     MARCAS = [
@@ -29,6 +30,7 @@ class PerfilUsuario(models.Model):
     telefone = models.CharField(max_length=20, blank=True)
     avatar_iniciais = models.CharField(max_length=3, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
+    ultimo_acesso = models.DateTimeField(null=True, blank=True, verbose_name='Ultima atividade')
 
     class Meta:
         verbose_name = 'Perfil de Usuário'

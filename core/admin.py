@@ -3,7 +3,7 @@ from .models import PerfilUsuario, Notificacao, AprovacaoRegistro
 
 @admin.register(PerfilUsuario)
 class PerfilUsuarioAdmin(admin.ModelAdmin):
-    list_display = ['usuario', 'perfil', 'marca', 'unidade']
+    list_display = ['usuario', 'perfil', 'marca', 'unidade', 'ultimo_acesso']
     list_filter = ['perfil', 'marca']
 
 @admin.register(Notificacao)
@@ -19,4 +19,3 @@ class AprovacaoRegistroAdmin(admin.ModelAdmin):
     readonly_fields = ['criado_em', 'decidido_em', 'content_type', 'object_id']
     date_hierarchy = 'criado_em'
     ordering = ['-criado_em']
-

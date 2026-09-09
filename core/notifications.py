@@ -10,8 +10,8 @@ GRUPOS_POR_MODULO = {
     'recrutamento': ('Recrutamento_Gestor', 'Recrutamento_RH'),
     'admissional': ('Admissional_RH', 'SESMET_Tecnico', 'SESMET_Gestor'),
     'administrativo': ('Administrativo_Gestor', 'Administrativo_Operador'),
-    'sesmet': ('SESMET_Tecnico', 'SESMET_Gestor'),
-    'compras': ('Compras_Solicitante', 'Compras_Almoxarife', 'Compras_Aprovador'),
+    'sesmet': ('SESMET_Tecnico', 'SESMET_Gestor', 'Estoque_EPI_Compras'),
+    'compras': ('Compras_Solicitante', 'Compras_Almoxarife', 'Compras_Aprovador', 'Estoque_EPI_Compras'),
     'financeiro': ('Financeiro_Operador', 'Financeiro_Auditor', 'Financeiro_Aprovador'),
     'manutencao': ('SESMET_Tecnico', 'SESMET_Gestor', 'Compras_Aprovador'),
 }

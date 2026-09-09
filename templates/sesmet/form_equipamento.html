@@ -10,6 +10,7 @@
 </div>
 
 <div class="card" style="max-width: 600px;">
+  {% if equip %}<div class="alert alert-info">Código interno: <strong>{{ equip.codigo }}</strong></div>{% endif %}
   <form method="post">
     {% csrf_token %}
     <div class="form-group">

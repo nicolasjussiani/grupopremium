@@ -35,6 +35,7 @@
   </div>
 
   <div class="flex gap-3">
+    {% if perms.compras.add_material %}<a href="{% url 'novo_material' %}" class="btn btn-mod5">+ Novo Material</a>{% endif %}
     <a href="{% url 'nova_solicitacao' %}" class="btn btn-mod5">+ Nova Solicitação</a>
     <a href="{% url 'lista_materiais' %}" class="btn btn-outline">📦 Materiais</a>
   </div>
@@ -106,7 +107,7 @@
           {% for s in solicitacoes_pendentes %}
           <tr>
             <td style="font-family:monospace;font-size:0.78rem;">
-              <a href="{% url 'detalhe_solicitacao' s.pk %}" style="color:var(--mod5-purple);">#{{ s.pk }}</a>
+              <a href="{% url 'detalhe_solicitacao' s.pk %}" style="color:var(--mod5-purple);">{{ s.numero }}</a>
             </td>
             <td style="font-weight:600;font-size:0.84rem;">{{ s.material.nome }}</td>
             <td>{{ s.quantidade_solicitada }}</td>
@@ -153,7 +154,7 @@
       <tbody>
         {% for pedido in pedidos_abertos %}
         <tr>
-          <td style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">PC-{{ pedido.pk|stringformat:"04d" }}</td>
+          <td style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">{{ pedido.numero_pedido }}</td>
           <td style="font-weight:600;font-size:0.84rem;">{{ pedido.solicitacao.material.nome }}</td>
           <td>{{ pedido.fornecedor }}</td>
           <td style="font-weight:700;">R$ {{ pedido.valor_total|floatformat:2 }}</td>

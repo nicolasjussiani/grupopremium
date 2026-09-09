@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
-{% block title %}Solicitação #{{ solicitacao.pk }} — Compras ERP{% endblock %}
+{% block title %}Solicitação {{ solicitacao.numero }} — Compras ERP{% endblock %}
 {% block nav_compras %}active{% endblock %}
 {% block topbar_title %}Detalhe da Solicitação{% endblock %}
 
 {% block content %}
 <div class="module-banner mod-banner-5" style="margin-bottom:20px;">
-  <div class="mod-title">📋 Solicitação #{{ solicitacao.pk }}</div>
+  <div class="mod-title">📋 Solicitação {{ solicitacao.numero }}</div>
   <div class="mod-desc">{{ solicitacao.material.nome }} — Solicitado por: {{ solicitacao.solicitante }}</div>
 </div>
 
@@ -108,7 +108,7 @@
       <tbody>
         {% for p in pedidos %}
         <tr>
-          <td style="font-family:monospace;font-size:0.78rem;">PC-{{ p.pk|stringformat:"04d" }}</td>
+          <td style="font-family:monospace;font-size:0.78rem;">{{ p.numero_pedido }}</td>
           <td style="font-weight:600;">{{ p.fornecedor }}</td>
           <td style="font-size:0.78rem;color:var(--text-muted);">{{ p.cnpj_fornecedor|default:"—" }}</td>
           <td>R$ {{ p.valor_unitario|floatformat:2 }}</td>

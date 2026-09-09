@@ -16,6 +16,7 @@
     {% if busca %}<a href="{% url 'lista_materiais' %}" class="btn btn-outline btn-sm">Limpar</a>{% endif %}
   </form>
   <div class="flex gap-2">
+    {% if can_manage_materials %}<a href="{% url 'novo_material' %}" class="btn btn-mod5">+ Novo Material</a>{% endif %}
     <a href="{% url 'nova_solicitacao' %}" class="btn btn-mod5">+ Nova Solicitação</a>
     <a href="{% url 'painel_compras' %}" class="btn btn-outline">← Painel</a>
   </div>
@@ -62,6 +63,7 @@
           {% endif %}
         </td>
         <td>
+          {% if can_manage_materials %}<a href="{% url 'editar_material' m.pk %}" class="btn btn-sm btn-outline">Editar</a>{% endif %}
           <a href="{% url 'nova_solicitacao' %}?material={{ m.pk }}" class="btn btn-sm btn-mod5">📋 Solicitar</a>
         </td>
       </tr>

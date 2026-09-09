@@ -6,7 +6,7 @@
 {% block content %}
 <div class="module-banner mod-banner-5" style="margin-bottom:20px;">
   <div class="mod-title">🛒 Aprovação de Pedido de Compra</div>
-  <div class="mod-desc">PC-{{ pedido.pk|stringformat:"04d" }} — {{ pedido.solicitacao.material.nome }}</div>
+  <div class="mod-desc">{{ pedido.numero_pedido }} — {{ pedido.solicitacao.material.nome }}</div>
 </div>
 
 <div style="max-width:700px;">

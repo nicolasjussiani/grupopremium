@@ -12,6 +12,9 @@ urlpatterns = [
     path('api/notificacoes/', views.notificacoes_json, name='notificacoes_json'),
     path('api/notificacoes/<int:pk>/lida/', views.marcar_notificacao_lida, name='marcar_lida'),
     path('api/uploads/presign/', views_upload.presign_upload, name='presign_upload'),
+    path('usuarios/', views.lista_usuarios, name='lista_usuarios'),
+    path('usuarios/novo/', views.novo_usuario, name='novo_usuario'),
+    path('usuarios/<int:pk>/editar/', views.editar_usuario, name='editar_usuario'),
 
     # ── Linha de Aprovação ──────────────────────────────────────────────────
     path('aprovacoes/', views_aprovacao.aprovacoes_pendentes, name='aprovacoes_pendentes'),

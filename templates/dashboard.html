@@ -87,8 +87,8 @@
   </a>
   {% endif %}
 
-  {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' %}
-  <a href="{% url 'dashboard_sesmet' %}" class="kpi-card kpi-mod4 kpi-card-custom" style="text-decoration:none;">
+  {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
+  <a href="{% if is_estoque_compras %}{% url 'catalogo_equipamentos' %}{% else %}{% url 'dashboard_sesmet' %}{% endif %}" class="kpi-card kpi-mod4 kpi-card-custom" style="text-decoration:none;">
     <div class="kpi-icon" style="opacity: 0.8;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
     </div>
@@ -100,7 +100,7 @@
   </a>
   {% endif %}
 
-  {% if request.user.is_superuser or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' %}
+  {% if request.user.is_superuser or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
   <a href="{% url 'painel_compras' %}" class="kpi-card kpi-mod5 kpi-card-custom" style="text-decoration:none;">
     <div class="kpi-icon" style="opacity: 0.8;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
@@ -126,6 +126,7 @@
 
 <div class="grid-2">
 
+  {% if not is_estoque_compras %}
   <div class="card" style="border-radius: var(--radius-md); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);">
     <div class="card-header" style="border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 12px;">
       <div class="card-title" style="font-weight: 600; font-size: 1rem;">Atividade Recente</div>
@@ -180,6 +181,7 @@
       {% endif %}
     </div>
   </div>
+  {% endif %}
 
   <div class="card" style="border-radius: var(--radius-md); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);">
     <div class="card-header" style="border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
@@ -219,8 +221,9 @@
       {% if request.user.is_superuser or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'nova_vaga' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Nova Vaga</a>
       {% endif %}
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
       <a href="{% url 'nova_solicitacao' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Solicitar Material</a>
+      <a href="{% url 'novo_material' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Novo Material</a>
       {% endif %}
       {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'entrada_documento' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Entrada Fiscal</a>
@@ -229,11 +232,12 @@
       <a href="{% url 'nova_demanda' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Nova Demanda</a>
       {% endif %}
       
-      <a href="{% url 'lista_colaboradores' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Colaboradores</a>
+      {% if not is_estoque_compras %}<a href="{% url 'lista_colaboradores' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Colaboradores</a>{% endif %}
       
       {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'matriz_epis' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Matriz EPI</a>
       {% endif %}
+      {% if is_estoque_compras %}<a href="{% url 'catalogo_equipamentos' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Estoque de EPIs</a>{% endif %}
     </div>
   </div>
 

@@ -1,6 +1,7 @@
 """ERP Grupo PremiumBR — Models do Módulo 5: Compras"""
 from django.db import models
 from django.contrib.auth.models import User
+from uuid import uuid4
 
 
 class Material(models.Model):
@@ -25,7 +26,7 @@ class Material(models.Model):
         ('rl', 'Rolo'),
     ]
 
-    codigo = models.CharField(max_length=20, unique=True, verbose_name='Código')
+    codigo = models.CharField(max_length=20, unique=True, blank=True, verbose_name='Código')
     nome = models.CharField(max_length=200, verbose_name='Nome do Material')
     descricao = models.TextField(blank=True, verbose_name='Descrição')
     categoria = models.CharField(max_length=20, choices=CATEGORIAS, default='consumo')
@@ -52,6 +53,15 @@ class Material(models.Model):
 
     def __str__(self):
         return f"[{self.codigo}] {self.nome} — Estoque: {self.quantidade_estoque} {self.get_unidade_medida_display()}"
+
+    def save(self, *args, **kwargs):
+        gerar_codigo = self.pk is None and not self.codigo
+        if gerar_codigo:
+            self.codigo = f'TMP-{uuid4().hex[:16]}'
+        super().save(*args, **kwargs)
+        if gerar_codigo:
+            self.codigo = f'MAT-{self.pk:06d}'
+            type(self).objects.filter(pk=self.pk).update(codigo=self.codigo)
 
     def estoque_critico(self):
         return self.quantidade_estoque <= self.estoque_minimo
@@ -94,6 +104,10 @@ class SolicitacaoMaterial(models.Model):
     def __str__(self):
         return f"Solicitação: {self.material.nome} x{self.quantidade_solicitada} — {self.get_status_display()}"
 
+    @property
+    def numero(self):
+        return f'SOL-{self.pk:06d}' if self.pk else 'SOL-NOVO'
+
 
 class PedidoCompra(models.Model):
     STATUS = [
@@ -134,4 +148,11 @@ class PedidoCompra(models.Model):
         ]
 
     def __str__(self):
-        return f"PC-{self.id:04d} | {self.solicitacao.material.nome} — {self.fornecedor}"
+        return f"{self.numero_pedido or 'PC-NOVO'} | {self.solicitacao.material.nome} — {self.fornecedor}"
+
+    def save(self, *args, **kwargs):
+        gerar_numero = self.pk is None and not self.numero_pedido
+        super().save(*args, **kwargs)
+        if gerar_numero:
+            self.numero_pedido = f'PC-{self.pk:06d}'
+            type(self).objects.filter(pk=self.pk).update(numero_pedido=self.numero_pedido)
