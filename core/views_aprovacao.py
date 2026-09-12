@@ -3,7 +3,6 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
-from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from django.db.models import Q
 from django.db import transaction
@@ -50,18 +49,9 @@ def _modulos_do_usuario(user):
     return list(modulos)
 
 
-def _exigir_admin_mobile(user):
-    if user.is_superuser or user.groups.filter(
-        name__in=('Admin_Global', 'Diretoria_Final', 'Intermediario_Gestor')
-    ).exists():
-        return
-    raise PermissionDenied
-
-
 @login_required
 def painel_mobile(request):
-    """PWA enxuta da diretoria para notificacoes e decisoes."""
-    _exigir_admin_mobile(request.user)
+    """PWA para todos; decisoes aparecem apenas a quem pode aprovar."""
     modulos = _modulos_do_usuario(request.user)
     aprovacoes = AprovacaoRegistro.objects.filter(
         status='pendente', modulo__in=modulos
@@ -80,12 +70,12 @@ def painel_mobile(request):
         'total_nao_lidas': Notificacao.objects.filter(
             destinatario=request.user, lida=False
         ).count(),
+        'pode_aprovar': bool(modulos),
     })
 
 
 @login_required
 def detalhe_aprovacao_mobile(request, pk):
-    _exigir_admin_mobile(request.user)
     aprovacao = get_object_or_404(
         AprovacaoRegistro,
         pk=pk,
@@ -96,7 +86,6 @@ def detalhe_aprovacao_mobile(request, pk):
 
 @login_required
 def status_mobile(request):
-    _exigir_admin_mobile(request.user)
     pendentes = AprovacaoRegistro.objects.filter(
         status='pendente', modulo__in=_modulos_do_usuario(request.user)
     ).count()
@@ -118,7 +107,6 @@ def status_mobile(request):
 @login_required
 @require_POST
 def marcar_notificacoes_mobile(request):
-    _exigir_admin_mobile(request.user)
     Notificacao.objects.filter(destinatario=request.user, lida=False).update(lida=True)
     return redirect(f"{reverse('painel_mobile')}#notificacoes")
 
@@ -127,7 +115,6 @@ def marcar_notificacoes_mobile(request):
 @require_POST
 def criar_notificacao_teste_mobile(request):
     """Cria um aviso inofensivo para validar a central e o PWA."""
-    _exigir_admin_mobile(request.user)
     notificacao = Notificacao.objects.create(
         destinatario=request.user,
         tipo='info',
@@ -150,9 +137,9 @@ def criar_notificacao_teste_mobile(request):
 def pwa_manifest(request):
     return JsonResponse({
         'id': '/mobile/',
-        'name': 'PremiumBR Aprovações',
-        'short_name': 'Aprovações',
-        'description': 'Notificações e aprovações da diretoria do Grupo PremiumBR.',
+        'name': 'PremiumBR ERP',
+        'short_name': 'PremiumBR',
+        'description': 'Notificações, processos e aprovações do Grupo PremiumBR.',
         'start_url': '/mobile/',
         'scope': '/',
         'display': 'standalone',
@@ -179,8 +166,8 @@ def pwa_manifest(request):
 
 def service_worker(request):
     script = """
-const CACHE = 'premiumbr-mobile-v3';
-const ASSETS = ['/static/css/mobile.css?v=2', '/static/pwa-icon-192.png', '/static/pwa-icon-512.png', '/static/favicon.jpeg'];
+const CACHE = 'premiumbr-mobile-v4';
+const ASSETS = ['/static/css/mobile.css?v=3', '/static/pwa-icon-192.png', '/static/pwa-icon-512.png', '/static/favicon.jpeg'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))));
 self.addEventListener('fetch', event => {

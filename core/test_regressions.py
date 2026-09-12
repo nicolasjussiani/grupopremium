@@ -339,11 +339,15 @@ class AuditNotificationTests(TestCase):
 
 
 class MobilePwaTests(TestCase):
-    def test_painel_mobile_restrito_a_diretoria(self):
+    def test_painel_mobile_disponivel_para_todos_sem_liberar_aprovacoes(self):
         regular = User.objects.create_user('regular-mobile', password='senha-forte-123')
         PerfilUsuario.objects.create(usuario=regular, perfil='rh')
         self.client.force_login(regular)
-        self.assertEqual(self.client.get(reverse('painel_mobile')).status_code, 403)
+        response = self.client.get(reverse('painel_mobile'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'CENTRAL MOBILE')
+        self.assertNotContains(response, 'id="aprovacoes"')
+        self.assertContains(response, 'Abrir ERP')
 
         admin = User.objects.create_superuser(
             'admin-mobile', 'admin-mobile@example.com', 'senha-forte-123'
@@ -351,7 +355,7 @@ class MobilePwaTests(TestCase):
         self.client.force_login(admin)
         response = self.client.get(reverse('painel_mobile'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'CENTRAL DA DIRETORIA')
+        self.assertContains(response, 'CENTRAL MOBILE')
 
         self.assertContains(response, reverse('pwa_manifest'))
 
@@ -366,7 +370,7 @@ class MobilePwaTests(TestCase):
         response = self.client.get(reverse('painel_mobile'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'CENTRAL DA DIRETORIA')
+        self.assertContains(response, 'CENTRAL MOBILE')
         from core.views_aprovacao import _modulos_do_usuario
         self.assertSetEqual(
             set(_modulos_do_usuario(intermediario)),

@@ -2,18 +2,20 @@
 {% block content %}
   <section class="mobile-welcome">
     <div>
-      <span class="eyebrow">CENTRAL DA DIRETORIA</span>
+      <span class="eyebrow">CENTRAL MOBILE</span>
       <h1>Olá, {{ request.user.first_name|default:request.user.username }}</h1>
-      <p>Acompanhe processos e tome decisões pelo celular.</p>
+      <p>{% if pode_aprovar %}Acompanhe processos e tome decisões pelo celular.{% else %}Acompanhe as atualizações da sua área pelo celular.{% endif %}</p>
     </div>
     <button id="refreshMobile" class="refresh-button" type="button" aria-label="Atualizar">↻</button>
   </section>
 
-  <section class="mobile-summary" aria-label="Resumo">
+  <section class="mobile-summary {% if not pode_aprovar %}single{% endif %}" aria-label="Resumo">
+    {% if pode_aprovar %}
     <a href="#aprovacoes" class="summary-card pending">
       <span class="summary-value" data-pending-count>{{ total_pendentes }}</span>
       <span>Aguardando decisão</span>
     </a>
+    {% endif %}
     <a href="#notificacoes" class="summary-card unread">
       <span class="summary-value" data-notification-count>{{ total_nao_lidas }}</span>
       <span>Não lidas</span>
@@ -29,7 +31,7 @@
     </div>
   </section>
 
-  <section class="mobile-section" id="aprovacoes">
+  {% if pode_aprovar %}<section class="mobile-section" id="aprovacoes">
     <div class="section-title"><div><span>DECISÕES</span><h2>Aprovações pendentes</h2></div><b>{{ total_pendentes }}</b></div>
     <div class="approval-list">
       {% for aprovacao in aprovacoes %}
@@ -50,7 +52,7 @@
         <div class="mobile-empty"><span>✓</span><h3>Tudo aprovado</h3><p>Nenhum processo aguardando sua decisão.</p></div>
       {% endfor %}
     </div>
-  </section>
+  </section>{% endif %}
 
   <section class="mobile-section" id="notificacoes">
     <div class="section-title">
@@ -75,14 +77,14 @@
     </div>
   </section>
 
-  <section class="mobile-section" id="historico">
+  {% if pode_aprovar %}<section class="mobile-section" id="historico">
     <div class="section-title"><div><span>PROCESSOS</span><h2>Decisões recentes</h2></div></div>
     <div class="history-list">
       {% for item in historico %}
         <div class="history-item"><span class="history-icon {{ item.status }}">{% if item.status == 'aprovado' %}✓{% else %}×{% endif %}</span><div><strong>{{ item.titulo }}</strong><small>{{ item.get_status_display }} · {{ item.decidido_em|date:'d/m H:i' }}</small></div></div>
       {% empty %}<div class="mobile-empty compact"><p>Nenhuma decisão recente.</p></div>{% endfor %}
     </div>
-  </section>
+  </section>{% endif %}
 {% endblock %}
 
 {% block extra_js %}

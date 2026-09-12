@@ -54,6 +54,7 @@ a { color: inherit; }
 .refresh-button { flex: 0 0 auto; width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: var(--navy); font-size: 1.2rem; box-shadow: 0 5px 16px rgba(13,33,73,.06); }
 
 .mobile-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.mobile-summary.single { grid-template-columns: 1fr; }
 .summary-card { display: flex; flex-direction: column; min-height: 105px; padding: 17px; border-radius: 17px; color: white; text-decoration: none; box-shadow: 0 9px 24px rgba(13,33,73,.14); }
 .summary-card.pending { background: linear-gradient(145deg, var(--navy-soft), var(--navy)); }
 .summary-card.unread { background: linear-gradient(145deg, #d19945, #a77e35); }
