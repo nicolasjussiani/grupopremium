@@ -50,7 +50,7 @@
         <th>Nome</th>
         <th>Cargo</th>
         <th>Unidade</th>
-        <th>Marca</th>
+        <th>Contrato</th>
         <th>Admissão</th>
         <th>Status</th>
         <th>EPIs</th>
@@ -68,7 +68,7 @@
         <td>{{ c.cargo }}</td>
         <td>{{ c.unidade }}</td>
         <td>
-          <span class="badge badge-info">{{ c.get_marca_display }}</span>
+          <span class="badge badge-info">{{ c.contrato|default:"Não informado" }}</span>
         </td>
         <td style="font-size:0.82rem;">{{ c.data_admissao|date:"d/m/Y" }}</td>
         <td>
