@@ -13,7 +13,7 @@
     </div>
   </div>
   <div class="flex gap-2">
-    <span class="badge badge-{% if vaga.status == 'em_selecao' %}info{% elif vaga.status == 'preenchida' %}success{% elif vaga.status == 'informacoes_incompletas' %}danger{% else %}warning{% endif %}" style="font-size:0.85rem;padding:6px 14px;">
+    <span class="badge badge-{% if vaga.status == 'em_selecao' %}info{% elif vaga.status == 'preenchida' %}success{% elif vaga.status == 'informacoes_incompletas' %}danger{% elif vaga.status == 'cancelada' %}secondary{% elif vaga.status == 'aguardando_entrevista' %}primary{% else %}warning{% endif %}" style="font-size:0.85rem;padding:6px 14px;">
       {{ vaga.get_status_display }}
     </span>
     {% if pode_gerenciar_vagas %}

@@ -358,10 +358,14 @@ def avancar_etapa(request, candidato_pk):
         obs = request.POST.get('obs', '')
         etapas = ['triagem', 'avaliacao_dp', 'entrevista_final', 'aprovado']
 
+        vaga = candidato.vaga
+        status_anterior = vaga.status
+
         if acao == 'reprovar':
             candidato.etapa_atual = 'reprovado'
             candidato.aprovado = False
             candidato.save()
+            _atualizar_status_vaga(vaga)
             messages.warning(request,
                 f'❌ GATEWAY: Candidato {candidato.nome} reprovado. Processo retorna para nova seleção.')
 
@@ -379,6 +383,7 @@ def avancar_etapa(request, candidato_pk):
                 candidato.save()
                 if candidato.etapa_atual == 'aprovado':
                     _disparar_admissao(candidato, request.user)
+                _atualizar_status_vaga(vaga)
                 messages.success(request, f'✅ Candidato {candidato.nome} avançou para: {candidato.get_etapa_atual_display()}')
             else:
                 messages.info(request, 'Candidato já está na etapa final.')
@@ -386,9 +391,48 @@ def avancar_etapa(request, candidato_pk):
         else:
             messages.error(request, 'Acao de etapa invalida.')
 
+        # Notifica mudança de status da vaga
+        vaga.refresh_from_db(fields=['status'])
+        if vaga.status != status_anterior:
+            messages.info(
+                request,
+                f'🔄 Status da vaga "{vaga.nome_vaga}" atualizado: '
+                f'{dict(Vaga.STATUS_CHOICES).get(status_anterior, status_anterior)} → '
+                f'{vaga.get_status_display()}'
+            )
+
         return redirect('detalhe_vaga', pk=candidato.vaga.pk)
 
     return render(request, 'recrutamento/gateway_candidato.html', {'candidato': candidato})
+
+
+def _atualizar_status_vaga(vaga):
+    """Atualiza o status da vaga automaticamente com base no pipeline de candidatos."""
+    # Não alterar vagas já canceladas ou preenchidas manualmente
+    if vaga.status in ('cancelada', 'preenchida'):
+        return
+
+    candidatos = vaga.candidatos.all()
+
+    # Regra 1: Se há algum candidato aprovado → Vaga Preenchida
+    if candidatos.filter(etapa_atual='aprovado').exists():
+        novo_status = 'preenchida'
+    # Regra 2: Se há candidato na entrevista final → Aguardando Entrevista Final
+    elif candidatos.filter(etapa_atual='entrevista_final').exists():
+        novo_status = 'aguardando_entrevista'
+    # Regra 3: Se há candidato em avaliação DP → Em Seleção
+    elif candidatos.filter(etapa_atual='avaliacao_dp').exists():
+        novo_status = 'em_selecao'
+    # Regra 4: Se há algum candidato em triagem → Em Seleção
+    elif candidatos.filter(etapa_atual='triagem').exists():
+        novo_status = 'em_selecao'
+    else:
+        # Sem candidatos ativos — mantém o status atual
+        return
+
+    if vaga.status != novo_status:
+        vaga.status = novo_status
+        vaga.save(update_fields=['status'])
 
 
 def _disparar_admissao(candidato, usuario):
