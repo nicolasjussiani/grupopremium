@@ -29,6 +29,12 @@ class UsuarioERPForm(forms.Form):
     email = forms.EmailField(label='E-mail', required=False)
     telefone = forms.CharField(max_length=20, required=False)
     perfil = forms.ChoiceField(label='Perfil de acesso', choices=PerfilUsuario.PERFIS)
+    acesso_epi = forms.BooleanField(
+        label='Acesso adicional a EPI / SESMET', required=False
+    )
+    acesso_financeiro = forms.BooleanField(
+        label='Acesso adicional ao Financeiro', required=False
+    )
     marca = forms.ChoiceField(choices=PerfilUsuario.MARCAS)
     unidade = forms.CharField(max_length=100, initial='Matriz')
     is_active = forms.BooleanField(label='Usuario ativo', required=False, initial=True)
@@ -52,6 +58,12 @@ class UsuarioERPForm(forms.Form):
                 'perfil': getattr(perfil, 'perfil', 'operacional'),
                 'marca': getattr(perfil, 'marca', 'eco_premium'),
                 'unidade': getattr(perfil, 'unidade', 'Matriz'),
+                'acesso_epi': instance.groups.filter(
+                    name='SESMET_Tecnico'
+                ).exists(),
+                'acesso_financeiro': instance.groups.filter(
+                    name='Financeiro_Operador'
+                ).exists(),
             })
 
     def clean_username(self):
@@ -102,4 +114,8 @@ class UsuarioERPForm(forms.Form):
 
         user.groups.remove(*Group.objects.filter(name__in=MANAGED_GROUPS))
         user.groups.add(*Group.objects.filter(name__in=PROFILE_GROUPS.get(data['perfil'], ())))
+        if data.get('acesso_epi'):
+            user.groups.add(*Group.objects.filter(name='SESMET_Tecnico'))
+        if data.get('acesso_financeiro'):
+            user.groups.add(*Group.objects.filter(name='Financeiro_Operador'))
         return user

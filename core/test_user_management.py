@@ -38,6 +38,61 @@ class UserManagementTests(TestCase):
         self.assertEqual(user.perfil.perfil, 'estoque_compras')
         self.assertTrue(user.groups.filter(name='Estoque_EPI_Compras').exists())
 
+    def test_admin_cria_usuario_rh_com_permissoes_de_epi(self):
+        call_command('criar_grupos', stdout=StringIO())
+        response = self.client.post(reverse('novo_usuario'), {
+            'username': 'yasmin.rh',
+            'first_name': 'Yasmin',
+            'last_name': 'RH',
+            'email': '',
+            'telefone': '',
+            'perfil': 'rh',
+            'acesso_epi': 'on',
+            'marca': 'eco_premium',
+            'unidade': 'Matriz',
+            'is_active': 'on',
+            'password1': 'Senha-temporaria-123',
+            'password2': 'Senha-temporaria-123',
+        })
+
+        self.assertRedirects(response, reverse('lista_usuarios'))
+        user = User.objects.get(username='yasmin.rh')
+        self.assertTrue(user.groups.filter(name='SESMET_Tecnico').exists())
+
+        self.client.force_login(user)
+        self.assertEqual(self.client.get(reverse('registrar_epi')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('novo_equipamento')).status_code, 200)
+
+    def test_admin_combina_acesso_rh_e_financeiro(self):
+        call_command('criar_grupos', stdout=StringIO())
+        response = self.client.post(reverse('novo_usuario'), {
+            'username': 'ursula.rh-financeiro',
+            'first_name': 'Ursula',
+            'last_name': 'RH Financeiro',
+            'email': '',
+            'telefone': '',
+            'perfil': 'rh',
+            'acesso_financeiro': 'on',
+            'marca': 'eco_premium',
+            'unidade': 'Matriz',
+            'is_active': 'on',
+            'password1': 'Senha-temporaria-123',
+            'password2': 'Senha-temporaria-123',
+        })
+
+        self.assertRedirects(response, reverse('lista_usuarios'))
+        user = User.objects.get(username='ursula.rh-financeiro')
+        self.assertEqual(user.perfil.perfil, 'rh')
+        self.assertTrue(user.groups.filter(name='Financeiro_Operador').exists())
+        self.assertFalse(user.groups.filter(name='SESMET_Tecnico').exists())
+
+        self.client.force_login(user)
+        self.assertEqual(self.client.get(reverse('lista_admissoes')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('painel_financeiro')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('entrada_documento')).status_code, 200)
+        self.assertRedirects(self.client.get(reverse('dashboard_sesmet')), reverse('dashboard'))
+        self.assertRedirects(self.client.get(reverse('painel_compras')), reverse('dashboard'))
+
     def test_usuario_comum_nao_gerencia_contas(self):
         comum = User.objects.create_user('comum', password='senha-forte-123')
         PerfilUsuario.objects.create(usuario=comum, perfil='operacional')

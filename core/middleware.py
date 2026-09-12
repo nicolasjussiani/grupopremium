@@ -18,10 +18,14 @@ class AcessoModuloMiddleware(MiddlewareMixin):
         '/recrutamento/': {'rh', 'gestor', 'sesmet'},
         '/admissional/': {'rh', 'gestor', 'sesmet'},
         '/administrativo/': {'gestor'},
-        '/sesmet/': {'sesmet', 'gestor', 'rh', 'estoque_compras'},
+        '/sesmet/': {'sesmet', 'gestor', 'estoque_compras'},
         '/compras/': {'compras', 'gestor', 'estoque_compras'},
         '/financeiro/': {'financeiro', 'gestor'},
         '/manutencao/': {'sesmet', 'gestor', 'compras', 'rh'},
+    }
+    PERMISSOES_MODULO = {
+        '/sesmet/': 'sesmet.view_equipamentoprotecao',
+        '/financeiro/': 'financeiro.view_documentofinanceiro',
     }
 
     ROTAS_LIVRES = ('/admin/', '/static/', '/media/', '/login', '/logout')
@@ -69,7 +73,15 @@ class AcessoModuloMiddleware(MiddlewareMixin):
             return redirect('catalogo_equipamentos')
 
         for prefix, perfis_permitidos in self.REGRAS.items():
-            if path.startswith(prefix) and perfil not in perfis_permitidos:
+            permissao_modulo = self.PERMISSOES_MODULO.get(prefix)
+            possui_permissao = bool(
+                permissao_modulo and request.user.has_perm(permissao_modulo)
+            )
+            if (
+                path.startswith(prefix)
+                and perfil not in perfis_permitidos
+                and not possui_permissao
+            ):
                 messages.error(request, 'Acesso negado: seu perfil nao permite acessar este modulo.')
                 return redirect('dashboard')
         return None

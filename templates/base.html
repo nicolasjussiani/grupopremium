@@ -114,7 +114,7 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' or perms.sesmet.view_equipamentoprotecao %}
       <a href="{% if is_estoque_compras %}{% url 'catalogo_equipamentos' %}{% else %}{% url 'dashboard_sesmet' %}{% endif %}" class="nav-item mod4 {% block nav_sesmet %}{% endblock %}">
         <span class="nav-icon">🦺</span>
         {% if is_estoque_compras %}Estoque de EPIs{% else %}SESMET / Segurança{% endif %}
@@ -130,7 +130,7 @@
       </a>
       {% endif %}
 
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
       <a href="{% url 'painel_financeiro' %}" class="nav-item mod6 {% block nav_financeiro %}{% endblock %}">
         <span class="nav-icon">💰</span>
         Financeiro / Fiscal

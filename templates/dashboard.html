@@ -46,7 +46,7 @@
     {% if request.user.is_superuser or request.user.perfil.perfil == 'gestor' %}
     <a href="{% url 'nova_demanda' %}" class="btn btn-mod3 btn-sm" style="font-weight: 500; border-radius: var(--radius-sm);">+ Nova Demanda</a>
     {% endif %}
-    {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' %}
+    {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
     <a href="{% url 'entrada_documento' %}" class="btn btn-mod6 btn-sm" style="font-weight: 500; border-radius: var(--radius-sm);">+ Documento Fin.</a>
     {% endif %}
   </div>
@@ -87,7 +87,7 @@
   </a>
   {% endif %}
 
-  {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
+  {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' or perms.sesmet.view_equipamentoprotecao %}
   <a href="{% if is_estoque_compras %}{% url 'catalogo_equipamentos' %}{% else %}{% url 'dashboard_sesmet' %}{% endif %}" class="kpi-card kpi-mod4 kpi-card-custom" style="text-decoration:none;">
     <div class="kpi-icon" style="opacity: 0.8;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -111,7 +111,7 @@
   </a>
   {% endif %}
 
-  {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' %}
+  {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
   <a href="{% url 'painel_financeiro' %}" class="kpi-card kpi-mod6 kpi-card-custom" style="text-decoration:none;">
     <div class="kpi-icon" style="opacity: 0.8;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -225,7 +225,7 @@
       <a href="{% url 'nova_solicitacao' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Solicitar Material</a>
       <a href="{% url 'novo_material' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Novo Material</a>
       {% endif %}
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' %}
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
       <a href="{% url 'entrada_documento' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Entrada Fiscal</a>
       {% endif %}
       {% if request.user.is_superuser or request.user.perfil.perfil == 'gestor' %}
@@ -234,7 +234,7 @@
       
       {% if not is_estoque_compras %}<a href="{% url 'lista_colaboradores' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Colaboradores</a>{% endif %}
       
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' %}
+      {% if not is_estoque_compras and request.user.is_superuser or not is_estoque_compras and request.user.perfil.perfil == 'sesmet' or not is_estoque_compras and request.user.perfil.perfil == 'gestor' or not is_estoque_compras and perms.sesmet.view_equipamentoprotecao %}
       <a href="{% url 'matriz_epis' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Matriz EPI</a>
       {% endif %}
       {% if is_estoque_compras %}<a href="{% url 'catalogo_equipamentos' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Estoque de EPIs</a>{% endif %}
