@@ -1,4 +1,4 @@
-"""ERP Grupo PremiumBR — Views do Módulo 1: Recrutamento e Seleção"""
+"""ERP Grupo PremiumBR ÔÇö Views do M├│dulo 1: Recrutamento e Sele├º├úo"""
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -54,7 +54,7 @@ def _snapshot_vaga(vaga):
         dados[campo] = valor
     return dados
 
-# OCR imports — opcionais (não disponíveis na Vercel)
+# OCR imports ÔÇö opcionais (n├úo dispon├¡veis na Vercel)
 try:
     import pymupdf as fitz
     HAS_FITZ = True
@@ -100,7 +100,7 @@ def lista_vagas(request):
 @access_required(permission='recrutamento.add_vaga', profiles=('rh', 'gestor'))
 def nova_vaga(request):
     if request.method == 'POST':
-        # Gateway 1: Validar campos obrigatórios
+        # Gateway 1: Validar campos obrigat├│rios
         campos_obrigatorios = [
             'nome_vaga', 'quantidade_colaboradores', 'cidade', 'unidade',
             'perfil_desejado', 'atividades', 'horario_trabalho', 'tipo_contratacao',
@@ -113,7 +113,7 @@ def nova_vaga(request):
 
         if erros:
             messages.error(request,
-                f'⚠️ GATEWAY: Informações incompletas! {len(erros)} campo(s) obrigatório(s) não preenchido(s).')
+                f'ÔÜá´©Å GATEWAY: Informa├º├Áes incompletas! {len(erros)} campo(s) obrigat├│rio(s) n├úo preenchido(s).')
             return render(request, 'recrutamento/nova_vaga.html', {
                 'post_data': request.POST,
                 'erros': erros,
@@ -165,7 +165,7 @@ def nova_vaga(request):
                 'post_data': request.POST,
                 'tipo_choices': Vaga.TIPO_CONTRATACAO,
             })
-        messages.success(request, f'✅ Vaga "{vaga.nome_vaga}" criada com sucesso! Aguardando candidatos.')
+        messages.success(request, f'Ô£à Vaga "{vaga.nome_vaga}" criada com sucesso! Aguardando candidatos.')
         return redirect('detalhe_vaga', pk=vaga.pk)
 
     return render(request, 'recrutamento/nova_vaga.html', {
@@ -201,7 +201,7 @@ def editar_vaga(request, pk):
                 candidatos_afetados=vaga.candidatos.count(),
                 realizado_por=request.user,
             )
-            messages.success(request, f'Vaga "{vaga.nome_vaga}" atualizada e registrada no histórico.')
+            messages.success(request, f'Vaga "{vaga.nome_vaga}" atualizada e registrada no hist├│rico.')
             return redirect('detalhe_vaga', pk=vaga.pk)
 
     return render(request, 'recrutamento/editar_vaga.html', {
@@ -221,9 +221,9 @@ def excluir_vaga(request, pk):
         motivos_validos = {valor for valor, _ in HistoricoVaga.MOTIVOS}
         erros = []
         if motivo not in motivos_validos:
-            erros.append('Selecione um motivo válido.')
+            erros.append('Selecione um motivo v├ílido.')
         if len(justificativa) < 5:
-            erros.append('Descreva o motivo da exclusão com pelo menos 5 caracteres.')
+            erros.append('Descreva o motivo da exclus├úo com pelo menos 5 caracteres.')
         if not erros:
             vaga_id = vaga.pk
             nome_vaga = vaga.nome_vaga
@@ -240,7 +240,7 @@ def excluir_vaga(request, pk):
                 realizado_por=request.user,
             )
             vaga.delete()
-            messages.success(request, f'Vaga "{nome_vaga}" excluída e registrada no histórico.')
+            messages.success(request, f'Vaga "{nome_vaga}" exclu├¡da e registrada no hist├│rico.')
             return redirect('lista_vagas')
         for erro in erros:
             messages.error(request, erro)
@@ -322,7 +322,7 @@ def adicionar_candidato(request, vaga_pk):
             messages.error(request, mensagem)
             return render(request, 'recrutamento/adicionar_candidato.html', {'vaga': vaga})
 
-        # Salva no Banco de Talentos ou atualiza a última vaga aplicada
+        # Salva no Banco de Talentos ou atualiza a ├║ltima vaga aplicada
         if email:
             talento, created = Talento.objects.get_or_create(
                 email=email,
@@ -342,7 +342,7 @@ def adicionar_candidato(request, vaga_pk):
                 talento.arquivo = candidato.arquivo.name
             talento.save()
 
-        messages.success(request, f'✅ Candidato {candidato.nome} adicionado à vaga {vaga.nome_vaga}.')
+        messages.success(request, f'Ô£à Candidato {candidato.nome} adicionado ├á vaga {vaga.nome_vaga}.')
         return redirect('detalhe_vaga', pk=vaga_pk)
     return render(request, 'recrutamento/adicionar_candidato.html', {'vaga': vaga})
 
@@ -351,7 +351,7 @@ def adicionar_candidato(request, vaga_pk):
 @access_required(permission='recrutamento.change_candidato', profiles=('rh', 'gestor'))
 @transaction.atomic
 def avancar_etapa(request, candidato_pk):
-    """Gateway: avança candidato para próxima etapa ou reprova"""
+    """Gateway: avan├ºa candidato para pr├│xima etapa ou reprova"""
     candidato = get_object_or_404(Candidato.objects.select_for_update(), pk=candidato_pk)
     if request.method == 'POST':
         acao = request.POST.get('acao')
@@ -367,7 +367,7 @@ def avancar_etapa(request, candidato_pk):
             candidato.save()
             _atualizar_status_vaga(vaga)
             messages.warning(request,
-                f'❌ GATEWAY: Candidato {candidato.nome} reprovado. Processo retorna para nova seleção.')
+                f'ÔØî GATEWAY: Candidato {candidato.nome} reprovado. Processo retorna para nova sele├º├úo.')
 
         elif acao == 'avancar':
             idx = etapas.index(candidato.etapa_atual) if candidato.etapa_atual in etapas else 0
@@ -384,20 +384,20 @@ def avancar_etapa(request, candidato_pk):
                 if candidato.etapa_atual == 'aprovado':
                     _disparar_admissao(candidato, request.user)
                 _atualizar_status_vaga(vaga)
-                messages.success(request, f'✅ Candidato {candidato.nome} avançou para: {candidato.get_etapa_atual_display()}')
+                messages.success(request, f'Ô£à Candidato {candidato.nome} avan├ºou para: {candidato.get_etapa_atual_display()}')
             else:
-                messages.info(request, 'Candidato já está na etapa final.')
+                messages.info(request, 'Candidato j├í est├í na etapa final.')
 
         else:
             messages.error(request, 'Acao de etapa invalida.')
 
-        # Notifica mudança de status da vaga
+        # Notifica mudan├ºa de status da vaga
         vaga.refresh_from_db(fields=['status'])
         if vaga.status != status_anterior:
             messages.info(
                 request,
-                f'🔄 Status da vaga "{vaga.nome_vaga}" atualizado: '
-                f'{dict(Vaga.STATUS_CHOICES).get(status_anterior, status_anterior)} → '
+                f'­ƒöä Status da vaga "{vaga.nome_vaga}" atualizado: '
+                f'{dict(Vaga.STATUS_CHOICES).get(status_anterior, status_anterior)} ÔåÆ '
                 f'{vaga.get_status_display()}'
             )
 
@@ -408,26 +408,26 @@ def avancar_etapa(request, candidato_pk):
 
 def _atualizar_status_vaga(vaga):
     """Atualiza o status da vaga automaticamente com base no pipeline de candidatos."""
-    # Não alterar vagas já canceladas ou preenchidas manualmente
+    # N├úo alterar vagas j├í canceladas ou preenchidas manualmente
     if vaga.status in ('cancelada', 'preenchida'):
         return
 
     candidatos = vaga.candidatos.all()
 
-    # Regra 1: Se há algum candidato aprovado → Vaga Preenchida
+    # Regra 1: Se h├í algum candidato aprovado ÔåÆ Vaga Preenchida
     if candidatos.filter(etapa_atual='aprovado').exists():
         novo_status = 'preenchida'
-    # Regra 2: Se há candidato na entrevista final → Aguardando Entrevista Final
+    # Regra 2: Se h├í candidato na entrevista final ÔåÆ Aguardando Entrevista Final
     elif candidatos.filter(etapa_atual='entrevista_final').exists():
         novo_status = 'aguardando_entrevista'
-    # Regra 3: Se há candidato em avaliação DP → Em Seleção
+    # Regra 3: Se h├í candidato em avalia├º├úo DP ÔåÆ Em Sele├º├úo
     elif candidatos.filter(etapa_atual='avaliacao_dp').exists():
         novo_status = 'em_selecao'
-    # Regra 4: Se há algum candidato em triagem → Em Seleção
+    # Regra 4: Se h├í algum candidato em triagem ÔåÆ Em Sele├º├úo
     elif candidatos.filter(etapa_atual='triagem').exists():
         novo_status = 'em_selecao'
     else:
-        # Sem candidatos ativos — mantém o status atual
+        # Sem candidatos ativos ÔÇö mant├®m o status atual
         return
 
     if vaga.status != novo_status:
@@ -436,7 +436,7 @@ def _atualizar_status_vaga(vaga):
 
 
 def _disparar_admissao(candidato, usuario):
-    """Gatilho automático: candidato aprovado → cria processo admissional no Módulo 2"""
+    """Gatilho autom├ítico: candidato aprovado ÔåÆ cria processo admissional no M├│dulo 2"""
     if not candidato.encaminhado_admissao:
         admissao = Admissao(
             candidato_nome=candidato.nome,
@@ -453,7 +453,7 @@ def _disparar_admissao(candidato, usuario):
         # Criar checklist de documentos automaticamente
         tipos_doc = [t[0] for t in DocumentoAdmissional.TIPOS]
         
-        # Filtrar documentos desnecessários baseados na flag
+        # Filtrar documentos desnecess├írios baseados na flag
         if not candidato.tem_filhos_menores_14:
             if 'carteira_vacinacao' in tipos_doc:
                 tipos_doc.remove('carteira_vacinacao')
@@ -470,7 +470,7 @@ def _disparar_admissao(candidato, usuario):
                 destinatario=rh_user,
                 tipo='gateway',
                 modulo='admissional',
-                titulo=f'🔔 Novo candidato aprovado: {candidato.nome}',
+                titulo=f'­ƒöö Novo candidato aprovado: {candidato.nome}',
                 mensagem=f'Candidato {candidato.nome} foi aprovado para a vaga "{candidato.vaga.nome_vaga}" '
                          f'({candidato.vaga.unidade}). Processo admissional criado automaticamente.',
                 url_acao=f'/admissional/{admissao.pk}/',
@@ -497,6 +497,81 @@ def banco_talentos(request):
         'vaga_filter': vaga_filter,
     })
 
+
+@login_required
+@access_required(permission='recrutamento.add_candidato', profiles=('rh', 'gestor'))
+@transaction.atomic
+def adicionar_talento(request):
+    """Cadastra uma pessoa diretamente no Banco de Talentos, sem vínculo com vaga."""
+    if request.method == 'POST':
+        nome = request.POST.get('nome', '').strip()
+        email = request.POST.get('email', '').strip()
+        telefone = request.POST.get('telefone', '').strip()
+        cidade = request.POST.get('cidade', '').strip()
+        cpf_cnpj = request.POST.get('cpf_cnpj', '').strip()
+        curriculo_obs = request.POST.get('curriculo_obs', '').strip()
+
+        erros = []
+        if not nome:
+            erros.append('Nome é obrigatório.')
+        if not email:
+            erros.append('E-mail é obrigatório.')
+        if not telefone:
+            erros.append('Telefone é obrigatório.')
+
+        if erros:
+            for erro in erros:
+                messages.error(request, erro)
+            return render(request, 'recrutamento/adicionar_talento.html', {'post_data': request.POST})
+
+        if Talento.objects.filter(email=email).exists():
+            messages.warning(request, f'⚠️ Já existe um talento com o e-mail "{email}". Cadastro não duplicado.')
+            return redirect('banco_talentos')
+
+        talento = Talento(
+            nome=nome,
+            email=email,
+            telefone=telefone,
+            cidade=cidade or 'Não Informado',
+            cpf_cnpj=cpf_cnpj or '000.000.000-00',
+            curriculo_texto=curriculo_obs,
+        )
+
+        arquivo_upload = request.FILES.get('curriculo_pdf')
+        try:
+            direct_key = verify_direct_upload(request, 'curriculo_pdf')
+        except ValidationError as exc:
+            messages.error(request, exc.messages[0])
+            return render(request, 'recrutamento/adicionar_talento.html', {'post_data': request.POST})
+
+        if arquivo_upload:
+            try:
+                validate_document_upload(arquivo_upload)
+            except ValidationError as exc:
+                messages.error(request, exc.messages[0])
+                return render(request, 'recrutamento/adicionar_talento.html', {'post_data': request.POST})
+            talento.arquivo = arquivo_upload
+        elif direct_key:
+            talento.arquivo.name = direct_key
+
+        try:
+            talento.full_clean()
+            talento.save()
+        except (ValidationError, OSError) as exc:
+            if isinstance(exc, OSError):
+                transaction.set_rollback(True)
+                mensagem = 'Não foi possível armazenar o currículo. Tente novamente.'
+            else:
+                mensagem = '; '.join(exc.messages)
+            messages.error(request, mensagem)
+            return render(request, 'recrutamento/adicionar_talento.html', {'post_data': request.POST})
+
+        messages.success(request, f'✅ Talento "{talento.nome}" cadastrado no Banco de Talentos com sucesso!')
+        return redirect('banco_talentos')
+
+    return render(request, 'recrutamento/adicionar_talento.html', {})
+
+
 @login_required
 def baixar_curriculo_candidato(request, pk):
     from django.http import HttpResponse, HttpResponseNotFound
@@ -508,7 +583,7 @@ def baixar_curriculo_candidato(request, pk):
         filename = get_valid_filename(f'curriculo_{candidato.nome}.pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
-    return HttpResponseNotFound("Currículo não encontrado.")
+    return HttpResponseNotFound("Curr├¡culo n├úo encontrado.")
 
 @login_required
 def baixar_curriculo_talento(request, pk):
@@ -521,15 +596,15 @@ def baixar_curriculo_talento(request, pk):
         filename = get_valid_filename(f'curriculo_{talento.nome}.pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
-    return HttpResponseNotFound("Currículo não encontrado.")
+    return HttpResponseNotFound("Curr├¡culo n├úo encontrado.")
 
 @login_required
 @access_required(permission='recrutamento.view_candidato', profiles=('rh', 'gestor', 'sesmet'))
 def parse_curriculo(request):
-    """Lê um PDF enviado por AJAX e tenta extrair nome, email e telefone."""
+    """L├¬ um PDF enviado por AJAX e tenta extrair nome, email e telefone."""
     if not HAS_FITZ:
         return JsonResponse({
-            'error': 'Leitura de PDF não disponível neste servidor. Configure localmente para usar esta funcionalidade.'
+            'error': 'Leitura de PDF n├úo dispon├¡vel neste servidor. Configure localmente para usar esta funcionalidade.'
         }, status=400)
     if request.method == 'POST':
         arquivo = request.FILES.get('curriculo')
@@ -545,50 +620,50 @@ def parse_curriculo(request):
             return JsonResponse({'error': exc.messages[0]}, status=400)
         texto = ""
         try:
-            # Lê os bytes apenas uma vez
+            # L├¬ os bytes apenas uma vez
             doc = fitz.open(stream=file_bytes, filetype="pdf")
             for page in doc:
                 page_text = page.get_text()
                 if len(page_text.strip()) > 5:
                     texto += page_text + "\n"
                 else:
-                    # OCR fallback para páginas escaneadas
+                    # OCR fallback para p├íginas escaneadas
                     if HAS_OCR:
                         try:
                             pix = page.get_pixmap(dpi=150)
                             img = Image.open(io.BytesIO(pix.tobytes()))
                             texto += pytesseract.image_to_string(img, lang='por') + "\n"
                         except Exception as ocr_e:
-                            print(f"OCR ignorado na página: {ocr_e}")
+                            print(f"OCR ignorado na p├ígina: {ocr_e}")
             doc.close()
         except Exception:
             logger.exception('Falha ao extrair texto do curriculo')
             return JsonResponse({'error': 'Nao foi possivel ler o PDF enviado.'}, status=400)
             
-        # Extração de Email
-        # Corrige possíveis erros de OCR (ex: copyright ou grau lidos no lugar do @)
-        texto_limpo = texto.replace('©', '@').replace('°', '@')
+        # Extra├º├úo de Email
+        # Corrige poss├¡veis erros de OCR (ex: copyright ou grau lidos no lugar do @)
+        texto_limpo = texto.replace('┬®', '@').replace('┬░', '@')
         email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', texto_limpo)
         email = email_match.group(0) if email_match else ''
         
-        # Extração de Telefone (padrão básico Brasil)
+        # Extra├º├úo de Telefone (padr├úo b├ísico Brasil)
         # Match para: (11) 99999-9999, 11 99999 9999, 11999999999, etc
         tel_match = re.search(r'\(?\d{2}\)?\s*9?\s*\d{4}[-\s]?\d{4}', texto)
         telefone = tel_match.group(0) if tel_match else ''
         
-        # Extração de Nome
+        # Extra├º├úo de Nome
         nome = ""
-        # 1. Tenta buscar um padrão explícito: "Nome: Fulano" ou "Nome completo: Fulano"
-        nome_match = re.search(r'(?i)(?:nome\s*completo|nome):\s*([A-Za-zÀ-ÿ\s]+)', texto_limpo)
+        # 1. Tenta buscar um padr├úo expl├¡cito: "Nome: Fulano" ou "Nome completo: Fulano"
+        nome_match = re.search(r'(?i)(?:nome\s*completo|nome):\s*([A-Za-z├Ç-├┐\s]+)', texto_limpo)
         if nome_match:
             nome = nome_match.group(1).strip()
         
-        # 2. Se não encontrou padrão explícito, usa heurística da primeira linha
+        # 2. Se n├úo encontrou padr├úo expl├¡cito, usa heur├¡stica da primeira linha
         if not nome or len(nome) < 3:
             linhas = [l.strip() for l in texto_limpo.split('\n') if len(l.strip()) > 2]
-            # Ignora a palavra "Currículo" ou "Curriculum" se for a primeira linha
+            # Ignora a palavra "Curr├¡culo" ou "Curriculum" se for a primeira linha
             if len(linhas) > 0:
-                if linhas[0].lower() in ['currículo', 'curriculo', 'curriculum vitae', 'curriculum']:
+                if linhas[0].lower() in ['curr├¡culo', 'curriculo', 'curriculum vitae', 'curriculum']:
                     linhas.pop(0)
                 if len(linhas) > 0 and linhas[0].lower() in ['dados pessoais', 'dados pessoais:']:
                     linhas.pop(0)
@@ -599,7 +674,7 @@ def parse_curriculo(request):
                     nome += " " + linhas[1]
         
         # Limpa caracteres bizarros do nome
-        nome = re.sub(r'[^a-zA-ZáéíóúâêôãõçÁÉÍÓÚÂÊÔÃÕÇ \-]', '', nome).strip()
+        nome = re.sub(r'[^a-zA-Z├í├®├¡├│├║├ó├¬├┤├ú├Á├º├ü├ë├ì├ô├Ü├é├è├ö├â├ò├ç \-]', '', nome).strip()
         
         if len(nome) > 100:
             nome = nome[:100]
@@ -611,4 +686,4 @@ def parse_curriculo(request):
             'texto_extraido': texto
         })
         
-    return JsonResponse({'error': 'Arquivo não enviado.'}, status=400)
+    return JsonResponse({'error': 'Arquivo n├úo enviado.'}, status=400)

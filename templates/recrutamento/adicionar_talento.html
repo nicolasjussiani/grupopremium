@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %}Cadastrar Talento — ERP Grupo PremiumBR{% endblock %}
+{% block nav_recrutamento %}active{% endblock %}
+{% block topbar_title %}Novo Talento{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;margin:0 auto;">
+
+  <a href="{% url 'banco_talentos' %}" style="color:var(--text-muted);font-size:0.82rem;text-decoration:none;">← Voltar ao Banco de Talentos</a>
+  <h1 style="font-size:1.4rem;font-weight:800;margin:8px 0 4px;">🌟 Cadastrar no Banco de Talentos</h1>
+  <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:24px;">
+    Cadastre uma pessoa no banco de talentos. Ela ficará disponível para ser indicada em futuras vagas.
+  </p>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags }}" style="margin-bottom:16px;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="card" style="padding:28px;">
+    {% csrf_token %}
+
+    <div class="card-title mb-4">📋 Dados Pessoais</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div>
+        <label class="form-label" for="id_nome">Nome Completo *</label>
+        <input type="text" id="id_nome" name="nome" class="form-control"
+               value="{{ post_data.nome|default:'' }}"
+               placeholder="Ex: João da Silva" required maxlength="200">
+      </div>
+      <div>
+        <label class="form-label" for="id_email">E-mail *</label>
+        <input type="email" id="id_email" name="email" class="form-control"
+               value="{{ post_data.email|default:'' }}"
+               placeholder="Ex: joao@email.com" required>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div>
+        <label class="form-label" for="id_telefone">Telefone *</label>
+        <input type="text" id="id_telefone" name="telefone" class="form-control"
+               value="{{ post_data.telefone|default:'' }}"
+               placeholder="(11) 99999-9999" required maxlength="20">
+      </div>
+      <div>
+        <label class="form-label" for="id_cidade">Cidade</label>
+        <input type="text" id="id_cidade" name="cidade" class="form-control"
+               value="{{ post_data.cidade|default:'' }}"
+               placeholder="Ex: São Paulo" maxlength="100">
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <label class="form-label" for="id_cpf_cnpj">CPF / CNPJ</label>
+      <input type="text" id="id_cpf_cnpj" name="cpf_cnpj" class="form-control"
+             value="{{ post_data.cpf_cnpj|default:'' }}"
+             placeholder="000.000.000-00" maxlength="18" style="max-width:260px;">
+    </div>
+
+    <div class="divider"></div>
+    <div class="card-title mb-4">📄 Currículo</div>
+
+    <div style="margin-bottom:16px;">
+      <label class="form-label" for="id_curriculo_pdf">Arquivo de Currículo (PDF)</label>
+      <input type="file" id="id_curriculo_pdf" name="curriculo_pdf" class="form-control"
+             accept=".pdf,.doc,.docx">
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Formatos aceitos: PDF, DOC, DOCX</div>
+    </div>
+
+    <div style="margin-bottom:24px;">
+      <label class="form-label" for="id_curriculo_obs">Observações / Resumo do Perfil</label>
+      <textarea id="id_curriculo_obs" name="curriculo_obs" class="form-control" rows="4"
+                placeholder="Descreva o perfil, habilidades, área de atuação, pretensão salarial, disponibilidade, etc...">{{ post_data.curriculo_obs|default:'' }}</textarea>
+    </div>
+
+    <div style="display:flex;gap:12px;justify-content:flex-end;">
+      <a href="{% url 'banco_talentos' %}" class="btn btn-outline">Cancelar</a>
+      <button type="submit" class="btn btn-mod1">✅ Cadastrar no Banco de Talentos</button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

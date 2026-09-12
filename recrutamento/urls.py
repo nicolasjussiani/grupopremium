@@ -11,6 +11,7 @@ urlpatterns = [
     path('<int:vaga_pk>/candidato/novo/', views.adicionar_candidato, name='adicionar_candidato'),
     path('candidato/<int:candidato_pk>/avancar/', views.avancar_etapa, name='avancar_etapa'),
     path('banco-talentos/', views.banco_talentos, name='banco_talentos'),
+    path('banco-talentos/novo/', views.adicionar_talento, name='adicionar_talento'),
     path('api/parse-curriculo/', views.parse_curriculo, name='parse_curriculo'),
     path('candidato/<int:pk>/baixar-curriculo/', views.baixar_curriculo_candidato, name='baixar_curriculo_candidato'),
     path('talento/<int:pk>/baixar-curriculo/', views.baixar_curriculo_talento, name='baixar_curriculo_talento'),

@@ -4,8 +4,13 @@
 {% block topbar_title %}Banco de Talentos{% endblock %}
 {% block content %}
 <div class="module-banner mod-banner-1" style="margin-bottom:20px;">
-  <div class="mod-title">🌟 Banco de Talentos</div>
-  <div class="mod-desc">Pessoas cadastradas ou que não foram selecionadas em processos anteriores.</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div class="mod-title">🌟 Banco de Talentos</div>
+      <div class="mod-desc">Pessoas cadastradas ou que não foram selecionadas em processos anteriores.</div>
+    </div>
+    <a href="{% url 'adicionar_talento' %}" class="btn btn-mod1">+ Adicionar Talento</a>
+  </div>
 </div>
 
 <div class="card mb-5">
@@ -55,6 +60,7 @@
   <div class="empty-state">
     <div class="empty-icon">📭</div>
     <p>Nenhum talento encontrado no banco.</p>
+    <a href="{% url 'adicionar_talento' %}" class="btn btn-mod1 mt-4">+ Cadastrar Primeiro Talento</a>
   </div>
 </div>
 {% endif %}
