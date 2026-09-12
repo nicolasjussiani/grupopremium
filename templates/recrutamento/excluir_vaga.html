@@ -9,7 +9,7 @@
   <div class="mod-desc">A exclusão será registrada permanentemente na tabela de histórico.</div>
 </div>
 <div class="card" style="max-width:760px;">
-  <div class="alert alert-error">
+  <div class="alert alert-error" data-persistent-alert>
     <strong>Atenção:</strong> você está excluindo “{{ vaga.nome_vaga }}”.
     {% if vaga.candidatos.count %}Os {{ vaga.candidatos.count }} candidato(s) vinculados também serão removidos.{% endif %}
   </div>
