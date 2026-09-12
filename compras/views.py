@@ -212,6 +212,27 @@ def criar_pedido_compra(request, solicitacao_pk):
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages))
             return render(request, 'compras/criar_pedido.html', {'solicitacao': sol})
+
+        # ─── Dispara o fluxo de aprovação central ───────────────────────────
+        from core.models import AprovacaoRegistro
+        AprovacaoRegistro.criar_para(
+            objeto=pedido,
+            titulo=f'Pedido de Compra: {sol.material.nome} — {pedido.fornecedor}',
+            descricao=(
+                f'Material: {sol.material.nome}\n'
+                f'Unidade destino: {sol.unidade_destino}\n'
+                f'Quantidade: {sol.quantidade_solicitada} {sol.material.get_unidade_medida_display()}\n'
+                f'Fornecedor: {pedido.fornecedor}\n'
+                f'Valor unitário: R$ {pedido.valor_unitario}\n'
+                f'Valor total: R$ {pedido.valor_total}\n'
+                f'Justificativa: {sol.justificativa}'
+            ),
+            modulo='compras',
+            nivel=1,
+            solicitado_por=request.user,
+        )
+        # ────────────────────────────────────────────────────────────────────
+
         messages.info(request,
             f'📋 Pedido de compra criado. Aguardando aprovação.')
         return redirect('detalhe_solicitacao', pk=solicitacao_pk)
