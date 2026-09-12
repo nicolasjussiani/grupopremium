@@ -61,6 +61,50 @@ class Vaga(models.Model):
         return cores.get(self.status, 'secondary')
 
 
+class HistoricoVaga(models.Model):
+    ACOES = [
+        ('edicao', 'Edição'),
+        ('exclusao', 'Exclusão'),
+    ]
+    MOTIVOS = [
+        ('erro_digitacao', 'Erro de digitação/cadastro'),
+        ('acidente', 'Acidente ou ocorrência'),
+        ('outros', 'Outros'),
+    ]
+
+    vaga = models.ForeignKey(
+        Vaga,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='historico',
+    )
+    vaga_id_original = models.PositiveBigIntegerField()
+    nome_vaga = models.CharField(max_length=200)
+    acao = models.CharField(max_length=20, choices=ACOES)
+    motivo = models.CharField(max_length=30, choices=MOTIVOS)
+    justificativa = models.TextField()
+    dados_anteriores = models.JSONField(default=dict)
+    dados_novos = models.JSONField(null=True, blank=True)
+    candidatos_afetados = models.PositiveIntegerField(default=0)
+    realizado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='alteracoes_vagas',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Histórico de vaga'
+        verbose_name_plural = 'Histórico de vagas'
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        return f'{self.get_acao_display()} — {self.nome_vaga}'
+
+
 class Candidato(models.Model):
     ETAPAS = [
         ('triagem', 'Triagem / Seleção'),

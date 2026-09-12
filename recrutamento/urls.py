@@ -5,6 +5,8 @@ from recrutamento import views
 urlpatterns = [
     path('', views.lista_vagas, name='lista_vagas'),
     path('nova/', views.nova_vaga, name='nova_vaga'),
+    path('<int:pk>/editar/', views.editar_vaga, name='editar_vaga'),
+    path('<int:pk>/excluir/', views.excluir_vaga, name='excluir_vaga'),
     path('<int:pk>/', views.detalhe_vaga, name='detalhe_vaga'),
     path('<int:vaga_pk>/candidato/novo/', views.adicionar_candidato, name='adicionar_candidato'),
     path('candidato/<int:candidato_pk>/avancar/', views.avancar_etapa, name='avancar_etapa'),

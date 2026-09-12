@@ -16,6 +16,10 @@
     <span class="badge badge-{% if vaga.status == 'em_selecao' %}info{% elif vaga.status == 'preenchida' %}success{% elif vaga.status == 'informacoes_incompletas' %}danger{% else %}warning{% endif %}" style="font-size:0.85rem;padding:6px 14px;">
       {{ vaga.get_status_display }}
     </span>
+    {% if pode_gerenciar_vagas %}
+    <a href="{% url 'editar_vaga' vaga.pk %}" class="btn btn-outline">Editar Vaga</a>
+    <a href="{% url 'excluir_vaga' vaga.pk %}" class="btn btn-danger">Excluir Vaga</a>
+    {% endif %}
     <a href="{% url 'adicionar_candidato' vaga.pk %}" class="btn btn-mod1">+ Adicionar Candidato</a>
   </div>
 </div>

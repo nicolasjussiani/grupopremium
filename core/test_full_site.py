@@ -228,6 +228,8 @@ class FullSiteRouteTests(TestCase):
             ('lista_vagas', (), 200),
             ('nova_vaga', (), 200),
             ('detalhe_vaga', (self.vaga.pk,), 200),
+            ('editar_vaga', (self.vaga.pk,), 200),
+            ('excluir_vaga', (self.vaga.pk,), 200),
             ('adicionar_candidato', (self.vaga.pk,), 200),
             ('avancar_etapa', (self.candidato.pk,), 200),
             ('banco_talentos', (), 200),

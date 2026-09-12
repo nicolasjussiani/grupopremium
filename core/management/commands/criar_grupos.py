@@ -35,11 +35,13 @@ class Command(BaseCommand):
         # ── RECRUTAMENTO ──────────────────────────────────────────────────────
         'Recrutamento_Gestor': {
             'recrutamento.Vaga':      ['add', 'change', 'view', 'delete'],
+            'recrutamento.HistoricoVaga': ['add', 'view'],
             'recrutamento.Candidato': ['add', 'change', 'view', 'delete'],
             'core.AprovacaoRegistro': ['view'],
         },
         'Recrutamento_RH': {
-            'recrutamento.Vaga':      ['add', 'change', 'view'],
+            'recrutamento.Vaga':      ['add', 'change', 'view', 'delete'],
+            'recrutamento.HistoricoVaga': ['add', 'view'],
             'recrutamento.Candidato': ['add', 'change', 'view'],
             'core.AprovacaoRegistro': ['add', 'view'],
         },

@@ -20,7 +20,7 @@
       <div style="font-size:0.75rem;color:var(--text-secondary);">Vagas Abertas</div>
     </div>
   </div>
-  <a href="{% url 'nova_vaga' %}" class="btn btn-mod1">+ Abrir Nova Vaga</a>
+  {% if pode_gerenciar_vagas %}<a href="{% url 'nova_vaga' %}" class="btn btn-mod1">+ Abrir Nova Vaga</a>{% endif %}
 </div>
 
 <!-- FILTROS -->
@@ -41,11 +41,10 @@
 {% if vagas %}
 <div class="grid-auto">
   {% for vaga in vagas %}
-  <a href="{% url 'detalhe_vaga' vaga.pk %}" style="text-decoration:none;">
-    <div class="card" style="height:100%;cursor:pointer;border-left:3px solid var(--mod1-blue);">
+    <div class="card" style="height:100%;border-left:3px solid var(--mod1-blue);">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
         <div>
-          <div style="font-weight:700;font-size:1rem;color:var(--text-primary);">{{ vaga.nome_vaga }}</div>
+          <a href="{% url 'detalhe_vaga' vaga.pk %}" style="font-weight:700;font-size:1rem;color:var(--text-primary);text-decoration:none;">{{ vaga.nome_vaga }}</a>
           <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">{{ vaga.unidade }} · {{ vaga.cidade }}</div>
         </div>
         <span class="badge badge-{% if vaga.status == 'em_selecao' %}info{% elif vaga.status == 'preenchida' %}success{% elif vaga.status == 'informacoes_incompletas' %}danger{% elif vaga.status == 'aguardando_aprovacao' %}warning{% else %}muted{% endif %}">
@@ -72,11 +71,17 @@
         </div>
       </div>
 
-      <div style="display:flex;align-items:center;gap:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <div style="font-size:0.74rem;color:var(--text-muted);">👤 {{ vaga.gestor_responsavel }}</div>
+        <div class="flex gap-2">
+          <a href="{% url 'detalhe_vaga' vaga.pk %}" class="btn btn-outline btn-sm">Ver</a>
+          {% if pode_gerenciar_vagas %}
+          <a href="{% url 'editar_vaga' vaga.pk %}" class="btn btn-outline btn-sm">Editar</a>
+          <a href="{% url 'excluir_vaga' vaga.pk %}" class="btn btn-danger btn-sm">Excluir</a>
+          {% endif %}
+        </div>
       </div>
     </div>
-  </a>
   {% endfor %}
 </div>
 {% else %}
@@ -88,4 +93,29 @@
   </div>
 </div>
 {% endif %}
+
+<div class="card mt-5">
+  <div class="card-title mb-4">Histórico de alterações e exclusões</div>
+  {% if historico_vagas %}
+  <div style="overflow-x:auto;">
+    <table class="table">
+      <thead><tr><th>Data</th><th>Vaga</th><th>Ação</th><th>Motivo</th><th>Descrição</th><th>Responsável</th></tr></thead>
+      <tbody>
+        {% for item in historico_vagas %}
+        <tr>
+          <td>{{ item.criado_em|date:"d/m/Y H:i" }}</td>
+          <td>{{ item.nome_vaga }} <span style="color:var(--text-muted);">#{{ item.vaga_id_original }}</span></td>
+          <td><span class="badge {% if item.acao == 'exclusao' %}badge-danger{% else %}badge-info{% endif %}">{{ item.get_acao_display }}</span></td>
+          <td>{{ item.get_motivo_display }}</td>
+          <td>{{ item.justificativa }}</td>
+          <td>{% if item.realizado_por %}{{ item.realizado_por.get_full_name|default:item.realizado_por.username }}{% else %}Usuário removido{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><p>Nenhuma alteração ou exclusão registrada.</p></div>
+  {% endif %}
+</div>
 {% endblock %}

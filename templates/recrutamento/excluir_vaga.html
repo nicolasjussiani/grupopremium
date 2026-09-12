@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Excluir {{ vaga.nome_vaga }} — ERP Grupo PremiumBR{% endblock %}
+{% block nav_recrutamento %}active{% endblock %}
+{% block topbar_title %}Excluir Vaga{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-1">
+  <div class="mod-title">Excluir Vaga</div>
+  <div class="mod-desc">A exclusão será registrada permanentemente na tabela de histórico.</div>
+</div>
+<div class="card" style="max-width:760px;">
+  <div class="alert alert-error">
+    <strong>Atenção:</strong> você está excluindo “{{ vaga.nome_vaga }}”.
+    {% if vaga.candidatos.count %}Os {{ vaga.candidatos.count }} candidato(s) vinculados também serão removidos.{% endif %}
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label class="form-label" for="id_motivo">Motivo da exclusão <span class="required">*</span></label>
+      <select name="motivo" id="id_motivo" class="form-control" required>
+        <option value="">Selecione...</option>
+        {% for valor, descricao in motivo_choices %}<option value="{{ valor }}" {% if request.POST.motivo == valor %}selected{% endif %}>{{ descricao }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group mt-4">
+      <label class="form-label" for="id_justificativa">Descreva o que aconteceu <span class="required">*</span></label>
+      <textarea name="justificativa" id="id_justificativa" class="form-control" rows="4" minlength="5" required>{{ request.POST.justificativa }}</textarea>
+    </div>
+    <div class="divider"></div>
+    <div class="flex justify-between items-center">
+      <a href="{% url 'detalhe_vaga' vaga.pk %}" class="btn btn-outline">Cancelar</a>
+      <button type="submit" class="btn btn-danger">Confirmar exclusão</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

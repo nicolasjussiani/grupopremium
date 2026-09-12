@@ -3,13 +3,14 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from .models import Vaga, Candidato, Talento
+from .forms import VagaEdicaoForm
+from .models import Vaga, Candidato, HistoricoVaga, Talento
 from admissional.models import Admissao, DocumentoAdmissional
 from core.models import Notificacao
 from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.core.files.storage import default_storage
-from core.access import access_required
+from core.access import access_required, user_has_access
 from core.validators import validate_document_upload
 from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
@@ -24,6 +25,34 @@ import os
 
 
 logger = logging.getLogger(__name__)
+
+
+def _pode_gerenciar_vagas(user):
+    return user_has_access(
+        user,
+        permission='recrutamento.change_vaga',
+        profiles=('rh', 'gestor'),
+    )
+
+
+def _snapshot_vaga(vaga):
+    """Retorna dados simples e permanentes para a trilha de auditoria."""
+    campos = (
+        'nome_vaga', 'quantidade_colaboradores', 'cidade', 'unidade',
+        'perfil_desejado', 'atividades', 'horario_trabalho',
+        'tipo_contratacao', 'valor_salario', 'previsao_inicio',
+        'exige_experiencia', 'descricao_experiencia',
+        'motivo_solicitacao', 'gestor_responsavel', 'status', 'observacoes',
+    )
+    dados = {}
+    for campo in campos:
+        valor = getattr(vaga, campo)
+        if hasattr(valor, 'isoformat'):
+            valor = valor.isoformat()
+        elif isinstance(valor, Decimal):
+            valor = str(valor)
+        dados[campo] = valor
+    return dados
 
 # OCR imports — opcionais (não disponíveis na Vercel)
 try:
@@ -61,6 +90,8 @@ def lista_vagas(request):
         'status_choices': Vaga.STATUS_CHOICES,
         'total_vagas': Vaga.objects.count(),
         'vagas_abertas': Vaga.objects.exclude(status__in=['preenchida', 'cancelada']).count(),
+        'historico_vagas': HistoricoVaga.objects.select_related('realizado_por')[:50],
+        'pode_gerenciar_vagas': _pode_gerenciar_vagas(request.user),
     }
     return render(request, 'recrutamento/lista_vagas.html', context)
 
@@ -143,6 +174,84 @@ def nova_vaga(request):
 
 
 @login_required
+@access_required(permission='recrutamento.change_vaga', profiles=('rh', 'gestor'))
+@transaction.atomic
+def editar_vaga(request, pk):
+    vaga = get_object_or_404(Vaga.objects.select_for_update(), pk=pk)
+    dados_anteriores = _snapshot_vaga(vaga)
+    form = VagaEdicaoForm(request.POST or None, instance=vaga)
+
+    if request.method == 'POST' and form.is_valid():
+        campos_alterados = set(form.changed_data) - {
+            'motivo_alteracao', 'justificativa_alteracao'
+        }
+        if not campos_alterados:
+            form.add_error(None, 'Altere pelo menos um dado da vaga.')
+        else:
+            vaga = form.save()
+            HistoricoVaga.objects.create(
+                vaga=vaga,
+                vaga_id_original=vaga.pk,
+                nome_vaga=vaga.nome_vaga,
+                acao='edicao',
+                motivo=form.cleaned_data['motivo_alteracao'],
+                justificativa=form.cleaned_data['justificativa_alteracao'],
+                dados_anteriores=dados_anteriores,
+                dados_novos=_snapshot_vaga(vaga),
+                candidatos_afetados=vaga.candidatos.count(),
+                realizado_por=request.user,
+            )
+            messages.success(request, f'Vaga "{vaga.nome_vaga}" atualizada e registrada no histórico.')
+            return redirect('detalhe_vaga', pk=vaga.pk)
+
+    return render(request, 'recrutamento/editar_vaga.html', {
+        'vaga': vaga,
+        'form': form,
+    })
+
+
+@login_required
+@access_required(permission='recrutamento.delete_vaga', profiles=('rh', 'gestor'))
+@transaction.atomic
+def excluir_vaga(request, pk):
+    vaga = get_object_or_404(Vaga.objects.select_for_update(), pk=pk)
+    if request.method == 'POST':
+        motivo = request.POST.get('motivo', '')
+        justificativa = request.POST.get('justificativa', '').strip()
+        motivos_validos = {valor for valor, _ in HistoricoVaga.MOTIVOS}
+        erros = []
+        if motivo not in motivos_validos:
+            erros.append('Selecione um motivo válido.')
+        if len(justificativa) < 5:
+            erros.append('Descreva o motivo da exclusão com pelo menos 5 caracteres.')
+        if not erros:
+            vaga_id = vaga.pk
+            nome_vaga = vaga.nome_vaga
+            candidatos_afetados = vaga.candidatos.count()
+            HistoricoVaga.objects.create(
+                vaga=vaga,
+                vaga_id_original=vaga_id,
+                nome_vaga=nome_vaga,
+                acao='exclusao',
+                motivo=motivo,
+                justificativa=justificativa,
+                dados_anteriores=_snapshot_vaga(vaga),
+                candidatos_afetados=candidatos_afetados,
+                realizado_por=request.user,
+            )
+            vaga.delete()
+            messages.success(request, f'Vaga "{nome_vaga}" excluída e registrada no histórico.')
+            return redirect('lista_vagas')
+        for erro in erros:
+            messages.error(request, erro)
+
+    return render(request, 'recrutamento/excluir_vaga.html', {
+        'vaga': vaga,
+        'motivo_choices': HistoricoVaga.MOTIVOS,
+    })
+
+
+@login_required
 def detalhe_vaga(request, pk):
     vaga = get_object_or_404(Vaga, pk=pk)
     candidatos = vaga.candidatos.all()
@@ -157,6 +266,7 @@ def detalhe_vaga(request, pk):
         'vaga': vaga,
         'candidatos': candidatos,
         'candidatos_por_etapa': candidatos_por_etapa,
+        'pode_gerenciar_vagas': _pode_gerenciar_vagas(request.user),
     })
 
 

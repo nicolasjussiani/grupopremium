@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Editar {{ vaga.nome_vaga }} — ERP Grupo PremiumBR{% endblock %}
+{% block nav_recrutamento %}active{% endblock %}
+{% block topbar_title %}Editar Vaga{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-1">
+  <div class="mod-title">Editar Vaga</div>
+  <div class="mod-desc">Corrija os dados e registre obrigatoriamente o motivo da alteração.</div>
+</div>
+<form method="post">
+  {% csrf_token %}
+  <div class="card">
+    {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+    <div class="form-grid">
+      {% for field in form %}
+      <div class="form-group {% if field.name == 'perfil_desejado' or field.name == 'atividades' or field.name == 'motivo_solicitacao' or field.name == 'observacoes' or field.name == 'justificativa_alteracao' %}form-full{% endif %}">
+        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="required">*</span>{% endif %}</label>
+        {{ field }}
+        {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="divider"></div>
+    <div class="flex justify-between items-center">
+      <a href="{% url 'detalhe_vaga' vaga.pk %}" class="btn btn-outline">Cancelar</a>
+      <button type="submit" class="btn btn-mod1">Salvar e registrar alteração</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
