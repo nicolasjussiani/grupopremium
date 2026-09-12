@@ -221,6 +221,7 @@ def criar_pedido_compra(request, solicitacao_pk):
 @login_required
 @access_required(
     permission='compras.change_pedidocompra',
+    profiles=('compras', 'gestor', 'estoque_compras'),
     groups=('Compras_Aprovador', 'Diretoria_Final'),
 )
 @transaction.atomic
