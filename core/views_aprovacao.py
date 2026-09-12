@@ -1,4 +1,4 @@
-"""ERP Grupo PremiumBR — Views da Linha de Aprovação"""
+"""ERP Grupo PremiumBR ÔÇö Views da Linha de Aprova├º├úo"""
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -24,7 +24,7 @@ def _redirect_seguro(request):
         return redirect(destino)
     return redirect('aprovacoes_pendentes')
 
-# Mapa: grupo → módulos que ele pode aprovar
+# Mapa: grupo ÔåÆ m├│dulos que ele pode aprovar
 GRUPOS_APROVADORES = {
     'Recrutamento_Gestor':   ['recrutamento'],
     'Admissional_RH':        ['admissional'],
@@ -38,6 +38,18 @@ GRUPOS_APROVADORES = {
 }
 
 
+# Mapa: perfil legado → módulos que ele pode aprovar
+PERFIS_APROVADORES = {
+    'compras':         ['compras'],
+    'estoque_compras': ['compras'],
+    'gestor':          ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
+    'admin':           ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao'],
+    'financeiro':      ['financeiro'],
+    'rh':              ['admissional', 'recrutamento'],
+    'sesmet':          ['sesmet'],
+}
+
+
 def _modulos_do_usuario(user):
     """Retorna a lista de módulos que o usuário pode aprovar."""
     if user.is_superuser:
@@ -46,6 +58,13 @@ def _modulos_do_usuario(user):
     grupos_usuario = user.groups.values_list('name', flat=True)
     for grupo in grupos_usuario:
         modulos.update(GRUPOS_APROVADORES.get(grupo, []))
+
+    # Fallback: verifica perfil legado se o usuário não está em nenhum grupo aprovador
+    if not modulos:
+        perfil_obj = getattr(user, 'perfil', None)
+        perfil = getattr(perfil_obj, 'perfil', None)
+        modulos.update(PERFIS_APROVADORES.get(perfil, []))
+
     return list(modulos)
 
 
@@ -119,8 +138,8 @@ def criar_notificacao_teste_mobile(request):
         destinatario=request.user,
         tipo='info',
         modulo='sistema',
-        titulo='Notificação de teste',
-        mensagem='O sistema de notificações do PremiumBR está funcionando corretamente.',
+        titulo='Notifica├º├úo de teste',
+        mensagem='O sistema de notifica├º├Áes do PremiumBR est├í funcionando corretamente.',
         url_acao=f"{reverse('painel_mobile')}#notificacoes",
     )
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -130,7 +149,7 @@ def criar_notificacao_teste_mobile(request):
             'mensagem': notificacao.mensagem,
             'url': notificacao.url_acao,
         })
-    messages.success(request, 'Notificação de teste criada com sucesso.')
+    messages.success(request, 'Notifica├º├úo de teste criada com sucesso.')
     return redirect(f"{reverse('painel_mobile')}#notificacoes")
 
 
@@ -139,7 +158,7 @@ def pwa_manifest(request):
         'id': '/mobile/',
         'name': 'PremiumBR ERP',
         'short_name': 'PremiumBR',
-        'description': 'Notificações, processos e aprovações do Grupo PremiumBR.',
+        'description': 'Notifica├º├Áes, processos e aprova├º├Áes do Grupo PremiumBR.',
         'start_url': '/mobile/',
         'scope': '/',
         'display': 'standalone',
@@ -191,7 +210,7 @@ self.addEventListener('fetch', event => {
 
 @login_required
 def aprovacoes_pendentes(request):
-    """Lista todas as aprovações pendentes para o usuário logado."""
+    """Lista todas as aprova├º├Áes pendentes para o usu├írio logado."""
     modulos = _modulos_do_usuario(request.user)
 
     aprovacoes = AprovacaoRegistro.objects.filter(
@@ -208,7 +227,7 @@ def aprovacoes_pendentes(request):
     if nivel_filtro:
         aprovacoes = aprovacoes.filter(nivel=nivel_filtro)
 
-    # Histórico recente (últimas 20 decididas)
+    # Hist├│rico recente (├║ltimas 20 decididas)
     historico = AprovacaoRegistro.objects.filter(
         modulo__in=modulos,
         status__in=['aprovado', 'rejeitado'],
@@ -251,13 +270,13 @@ def aprovar_registro(request, pk):
     aprovacao.comentario = comentario
     aprovacao.save()
 
-    # Callback: atualiza status do objeto vinculado se ele tiver método
+    # Callback: atualiza status do objeto vinculado se ele tiver m├®todo
     _executar_callback_aprovacao(aprovacao, 'aprovado', request.user)
 
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'status': 'ok', 'mensagem': 'Registro aprovado com sucesso!'})
 
-    messages.success(request, f'✅ "{aprovacao.titulo}" aprovado com sucesso!')
+    messages.success(request, f'Ô£à "{aprovacao.titulo}" aprovado com sucesso!')
     return _redirect_seguro(request)
 
 
@@ -277,8 +296,8 @@ def rejeitar_registro(request, pk):
     motivo = request.POST.get('motivo_rejeicao', '').strip()
     if not motivo:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({'status': 'erro', 'mensagem': 'Informe o motivo da rejeição.'}, status=400)
-        messages.error(request, '❌ Informe o motivo da rejeição.')
+            return JsonResponse({'status': 'erro', 'mensagem': 'Informe o motivo da rejei├º├úo.'}, status=400)
+        messages.error(request, 'ÔØî Informe o motivo da rejei├º├úo.')
         return _redirect_seguro(request)
 
     aprovacao.status = 'rejeitado'
@@ -292,13 +311,13 @@ def rejeitar_registro(request, pk):
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'status': 'ok', 'mensagem': 'Registro rejeitado.'})
 
-    messages.warning(request, f'🚫 "{aprovacao.titulo}" rejeitado.')
+    messages.warning(request, f'­ƒÜ½ "{aprovacao.titulo}" rejeitado.')
     return _redirect_seguro(request)
 
 
 @login_required
 def detalhe_aprovacao(request, pk):
-    """Exibe detalhes de uma aprovação (para modal ou página)."""
+    """Exibe detalhes de uma aprova├º├úo (para modal ou p├ígina)."""
     modulos = _modulos_do_usuario(request.user)
     aprovacao = get_object_or_404(AprovacaoRegistro, pk=pk, modulo__in=modulos)
     return render(request, 'core/detalhe_aprovacao.html', {'aprovacao': aprovacao})
@@ -306,21 +325,21 @@ def detalhe_aprovacao(request, pk):
 
 @login_required
 def api_aprovacoes_pendentes_count(request):
-    """API JSON: conta aprovações pendentes do usuário (para badge no menu)."""
+    """API JSON: conta aprova├º├Áes pendentes do usu├írio (para badge no menu)."""
     modulos = _modulos_do_usuario(request.user)
     total = AprovacaoRegistro.objects.filter(status='pendente', modulo__in=modulos).count()
     return JsonResponse({'total': total})
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CALLBACKS POR MÓDULO
-# Quando aprovação/rejeição acontece, atualiza o status do objeto vinculado.
-# ──────────────────────────────────────────────────────────────────────────────
+# ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+# CALLBACKS POR M├ôDULO
+# Quando aprova├º├úo/rejei├º├úo acontece, atualiza o status do objeto vinculado.
+# ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 def _executar_callback_aprovacao(aprovacao, decisao, usuario):
     """
-    Chama o callback correto conforme o módulo e decisão.
-    Cada módulo define o que acontece quando um item é aprovado/rejeitado.
+    Chama o callback correto conforme o m├│dulo e decis├úo.
+    Cada m├│dulo define o que acontece quando um item ├® aprovado/rejeitado.
     """
     obj = aprovacao.objeto
     if obj is None:
