@@ -51,8 +51,8 @@ class Material(models.Model):
         verbose_name_plural = 'Materiais'
         ordering = ['nome']
         constraints = [
-            models.CheckConstraint(check=models.Q(quantidade_estoque__gte=0), name='compras_estoque_nao_negativo'),
-            models.CheckConstraint(check=models.Q(estoque_minimo__gte=0), name='compras_estoque_minimo_nao_negativo'),
+            models.CheckConstraint(condition=models.Q(quantidade_estoque__gte=0), name='compras_estoque_nao_negativo'),
+            models.CheckConstraint(condition=models.Q(estoque_minimo__gte=0), name='compras_estoque_minimo_nao_negativo'),
         ]
 
     def __str__(self):
@@ -102,7 +102,7 @@ class SolicitacaoMaterial(models.Model):
         verbose_name_plural = 'Solicitações de Material'
         ordering = ['-criado_em']
         constraints = [
-            models.CheckConstraint(check=models.Q(quantidade_solicitada__gte=0), name='compras_quantidade_solicitada_nao_negativa'),
+            models.CheckConstraint(condition=models.Q(quantidade_solicitada__gte=0), name='compras_quantidade_solicitada_nao_negativa'),
         ]
 
     def __str__(self):
@@ -147,8 +147,8 @@ class PedidoCompra(models.Model):
         verbose_name_plural = 'Pedidos de Compra'
         ordering = ['-criado_em']
         constraints = [
-            models.CheckConstraint(check=models.Q(valor_unitario__gte=0), name='compras_valor_unitario_nao_negativo'),
-            models.CheckConstraint(check=models.Q(valor_total__gte=0), name='compras_valor_total_nao_negativo'),
+            models.CheckConstraint(condition=models.Q(valor_unitario__gte=0), name='compras_valor_unitario_nao_negativo'),
+            models.CheckConstraint(condition=models.Q(valor_total__gte=0), name='compras_valor_total_nao_negativo'),
         ]
 
     def __str__(self):

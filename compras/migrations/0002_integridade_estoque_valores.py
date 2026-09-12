@@ -21,22 +21,22 @@ class Migration(migrations.Migration):
         migrations.RunPython(normalizar_dados, migrations.RunPython.noop),
         migrations.AddConstraint(
             model_name='material',
-            constraint=models.CheckConstraint(check=models.Q(quantidade_estoque__gte=0), name='compras_estoque_nao_negativo'),
+            constraint=models.CheckConstraint(condition=models.Q(quantidade_estoque__gte=0), name='compras_estoque_nao_negativo'),
         ),
         migrations.AddConstraint(
             model_name='material',
-            constraint=models.CheckConstraint(check=models.Q(estoque_minimo__gte=0), name='compras_estoque_minimo_nao_negativo'),
+            constraint=models.CheckConstraint(condition=models.Q(estoque_minimo__gte=0), name='compras_estoque_minimo_nao_negativo'),
         ),
         migrations.AddConstraint(
             model_name='solicitacaomaterial',
-            constraint=models.CheckConstraint(check=models.Q(quantidade_solicitada__gte=0), name='compras_quantidade_solicitada_nao_negativa'),
+            constraint=models.CheckConstraint(condition=models.Q(quantidade_solicitada__gte=0), name='compras_quantidade_solicitada_nao_negativa'),
         ),
         migrations.AddConstraint(
             model_name='pedidocompra',
-            constraint=models.CheckConstraint(check=models.Q(valor_unitario__gte=0), name='compras_valor_unitario_nao_negativo'),
+            constraint=models.CheckConstraint(condition=models.Q(valor_unitario__gte=0), name='compras_valor_unitario_nao_negativo'),
         ),
         migrations.AddConstraint(
             model_name='pedidocompra',
-            constraint=models.CheckConstraint(check=models.Q(valor_total__gte=0), name='compras_valor_total_nao_negativo'),
+            constraint=models.CheckConstraint(condition=models.Q(valor_total__gte=0), name='compras_valor_total_nao_negativo'),
         ),
     ]

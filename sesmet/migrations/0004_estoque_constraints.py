@@ -18,14 +18,14 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name='equipamentoprotecao',
             constraint=models.CheckConstraint(
-                check=models.Q(estoque_atual__gte=0),
+                condition=models.Q(estoque_atual__gte=0),
                 name='sesmet_estoque_epi_nao_negativo',
             ),
         ),
         migrations.AddConstraint(
             model_name='registroepi',
             constraint=models.CheckConstraint(
-                check=models.Q(quantidade__gt=0),
+                condition=models.Q(quantidade__gt=0),
                 name='sesmet_quantidade_epi_positiva',
             ),
         ),

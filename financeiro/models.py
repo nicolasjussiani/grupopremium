@@ -48,7 +48,7 @@ class DocumentoFinanceiro(models.Model):
         verbose_name_plural = 'Documentos Financeiros'
         ordering = ['-criado_em']
         constraints = [
-            models.CheckConstraint(check=models.Q(valor__gt=0), name='financeiro_documento_valor_positivo'),
+            models.CheckConstraint(condition=models.Q(valor__gt=0), name='financeiro_documento_valor_positivo'),
         ]
 
     def __str__(self):
@@ -124,7 +124,7 @@ class LancamentoERP(models.Model):
         verbose_name_plural = 'Lançamentos ERP'
         ordering = ['-criado_em']
         constraints = [
-            models.CheckConstraint(check=models.Q(valor__gt=0), name='financeiro_lancamento_valor_positivo'),
+            models.CheckConstraint(condition=models.Q(valor__gt=0), name='financeiro_lancamento_valor_positivo'),
         ]
 
     def __str__(self):
@@ -147,9 +147,9 @@ class OrcamentoCentroCusto(models.Model):
         ordering = ['-competencia']
         unique_together = ('centro_custo', 'competencia')
         constraints = [
-            models.CheckConstraint(check=models.Q(valor_orcado__gte=0), name='financeiro_orcamento_nao_negativo'),
+            models.CheckConstraint(condition=models.Q(valor_orcado__gte=0), name='financeiro_orcamento_nao_negativo'),
             models.CheckConstraint(
-                check=models.Q(meta_reducao_custo__gte=0, meta_reducao_custo__lte=100),
+                condition=models.Q(meta_reducao_custo__gte=0, meta_reducao_custo__lte=100),
                 name='financeiro_meta_percentual_valida',
             ),
         ]
@@ -171,9 +171,9 @@ class ItemDocumentoFinanceiro(models.Model):
         verbose_name = 'Item do Documento'
         verbose_name_plural = 'Itens do Documento'
         constraints = [
-            models.CheckConstraint(check=models.Q(quantidade__gt=0), name='financeiro_item_quantidade_positiva'),
-            models.CheckConstraint(check=models.Q(valor_unitario__gte=0), name='financeiro_item_unitario_nao_negativo'),
-            models.CheckConstraint(check=models.Q(valor_total__gte=0), name='financeiro_item_total_nao_negativo'),
+            models.CheckConstraint(condition=models.Q(quantidade__gt=0), name='financeiro_item_quantidade_positiva'),
+            models.CheckConstraint(condition=models.Q(valor_unitario__gte=0), name='financeiro_item_unitario_nao_negativo'),
+            models.CheckConstraint(condition=models.Q(valor_total__gte=0), name='financeiro_item_total_nao_negativo'),
         ]
 
     def __str__(self):

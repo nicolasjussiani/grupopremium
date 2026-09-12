@@ -29,7 +29,7 @@ class Ativo(models.Model):
         ordering = ['nome']
         constraints = [
             models.CheckConstraint(
-                check=models.Q(valor_aquisicao__isnull=True) | models.Q(valor_aquisicao__gte=0),
+                condition=models.Q(valor_aquisicao__isnull=True) | models.Q(valor_aquisicao__gte=0),
                 name='manutencao_valor_ativo_nao_negativo',
             ),
         ]
@@ -67,11 +67,11 @@ class RegistroManutencao(models.Model):
         ordering = ['-data_inicio']
         constraints = [
             models.CheckConstraint(
-                check=models.Q(custo_reparo__isnull=True) | models.Q(custo_reparo__gte=0),
+                condition=models.Q(custo_reparo__isnull=True) | models.Q(custo_reparo__gte=0),
                 name='manutencao_custo_nao_negativo',
             ),
             models.CheckConstraint(
-                check=models.Q(data_conclusao__isnull=True) | models.Q(data_conclusao__gte=models.F('data_inicio')),
+                condition=models.Q(data_conclusao__isnull=True) | models.Q(data_conclusao__gte=models.F('data_inicio')),
                 name='manutencao_conclusao_apos_inicio',
             ),
         ]

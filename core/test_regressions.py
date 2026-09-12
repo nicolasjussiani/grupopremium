@@ -341,7 +341,7 @@ class AuditNotificationTests(TestCase):
 class MobilePwaTests(TestCase):
     def test_painel_mobile_disponivel_para_todos_sem_liberar_aprovacoes(self):
         regular = User.objects.create_user('regular-mobile', password='senha-forte-123')
-        PerfilUsuario.objects.create(usuario=regular, perfil='rh')
+        PerfilUsuario.objects.create(usuario=regular, perfil='operacional')
         self.client.force_login(regular)
         response = self.client.get(reverse('painel_mobile'))
         self.assertEqual(response.status_code, 200)

@@ -138,8 +138,8 @@ def criar_notificacao_teste_mobile(request):
         destinatario=request.user,
         tipo='info',
         modulo='sistema',
-        titulo='Notifica├º├úo de teste',
-        mensagem='O sistema de notifica├º├Áes do PremiumBR est├í funcionando corretamente.',
+        titulo='Notificação de teste',
+        mensagem='O sistema de notificações do PremiumBR está funcionando corretamente.',
         url_acao=f"{reverse('painel_mobile')}#notificacoes",
     )
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':

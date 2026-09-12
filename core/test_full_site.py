@@ -233,6 +233,7 @@ class FullSiteRouteTests(TestCase):
             ('adicionar_candidato', (self.vaga.pk,), 200),
             ('avancar_etapa', (self.candidato.pk,), 200),
             ('banco_talentos', (), 200),
+            ('adicionar_talento', (), 200),
             ('parse_curriculo', (), 400),
             ('presign_upload', (), 405),
             ('lista_usuarios', (), 200),

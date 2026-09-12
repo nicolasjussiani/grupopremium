@@ -50,7 +50,7 @@ class EquipamentoProtecao(models.Model):
         verbose_name_plural = 'Equipamentos de Proteção (Catálogo)'
         ordering = ['nome']
         constraints = [
-            models.CheckConstraint(check=models.Q(estoque_atual__gte=0), name='sesmet_estoque_epi_nao_negativo'),
+            models.CheckConstraint(condition=models.Q(estoque_atual__gte=0), name='sesmet_estoque_epi_nao_negativo'),
         ]
 
     def __str__(self):
@@ -95,7 +95,7 @@ class RegistroEPI(models.Model):
         verbose_name_plural = 'Movimentações de EPIs'
         ordering = ['-data_movimentacao', '-criado_em']
         constraints = [
-            models.CheckConstraint(check=models.Q(quantidade__gt=0), name='sesmet_quantidade_epi_positiva'),
+            models.CheckConstraint(condition=models.Q(quantidade__gt=0), name='sesmet_quantidade_epi_positiva'),
         ]
 
     def __str__(self):

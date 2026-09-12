@@ -23,21 +23,21 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name='ativo',
             constraint=models.CheckConstraint(
-                check=models.Q(('valor_aquisicao__isnull', True), ('valor_aquisicao__gte', 0), _connector='OR'),
+                condition=models.Q(('valor_aquisicao__isnull', True), ('valor_aquisicao__gte', 0), _connector='OR'),
                 name='manutencao_valor_ativo_nao_negativo',
             ),
         ),
         migrations.AddConstraint(
             model_name='registromanutencao',
             constraint=models.CheckConstraint(
-                check=models.Q(('custo_reparo__isnull', True), ('custo_reparo__gte', 0), _connector='OR'),
+                condition=models.Q(('custo_reparo__isnull', True), ('custo_reparo__gte', 0), _connector='OR'),
                 name='manutencao_custo_nao_negativo',
             ),
         ),
         migrations.AddConstraint(
             model_name='registromanutencao',
             constraint=models.CheckConstraint(
-                check=models.Q(('data_conclusao__isnull', True), ('data_conclusao__gte', models.F('data_inicio')), _connector='OR'),
+                condition=models.Q(('data_conclusao__isnull', True), ('data_conclusao__gte', models.F('data_inicio')), _connector='OR'),
                 name='manutencao_conclusao_apos_inicio',
             ),
         ),

@@ -30,49 +30,49 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name='documentofinanceiro',
             constraint=models.CheckConstraint(
-                check=models.Q(('valor__gt', 0)),
+                condition=models.Q(('valor__gt', 0)),
                 name='financeiro_documento_valor_positivo',
             ),
         ),
         migrations.AddConstraint(
             model_name='lancamentoerp',
             constraint=models.CheckConstraint(
-                check=models.Q(('valor__gt', 0)),
+                condition=models.Q(('valor__gt', 0)),
                 name='financeiro_lancamento_valor_positivo',
             ),
         ),
         migrations.AddConstraint(
             model_name='orcamentocentrocusto',
             constraint=models.CheckConstraint(
-                check=models.Q(('valor_orcado__gte', 0)),
+                condition=models.Q(('valor_orcado__gte', 0)),
                 name='financeiro_orcamento_nao_negativo',
             ),
         ),
         migrations.AddConstraint(
             model_name='orcamentocentrocusto',
             constraint=models.CheckConstraint(
-                check=models.Q(('meta_reducao_custo__gte', 0), ('meta_reducao_custo__lte', 100)),
+                condition=models.Q(('meta_reducao_custo__gte', 0), ('meta_reducao_custo__lte', 100)),
                 name='financeiro_meta_percentual_valida',
             ),
         ),
         migrations.AddConstraint(
             model_name='itemdocumentofinanceiro',
             constraint=models.CheckConstraint(
-                check=models.Q(('quantidade__gt', 0)),
+                condition=models.Q(('quantidade__gt', 0)),
                 name='financeiro_item_quantidade_positiva',
             ),
         ),
         migrations.AddConstraint(
             model_name='itemdocumentofinanceiro',
             constraint=models.CheckConstraint(
-                check=models.Q(('valor_unitario__gte', 0)),
+                condition=models.Q(('valor_unitario__gte', 0)),
                 name='financeiro_item_unitario_nao_negativo',
             ),
         ),
         migrations.AddConstraint(
             model_name='itemdocumentofinanceiro',
             constraint=models.CheckConstraint(
-                check=models.Q(('valor_total__gte', 0)),
+                condition=models.Q(('valor_total__gte', 0)),
                 name='financeiro_item_total_nao_negativo',
             ),
         ),
