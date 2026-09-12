@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Documentos de {{ colaborador.nome }} — ERP Grupo PremiumBR{% endblock %}
+{% block nav_colaboradores %}active{% endblock %}
+{% block topbar_title %}Documentos do colaborador{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-2" style="margin-bottom:20px;">
+  <div class="mod-title">Documentos de {{ colaborador.nome }}</div>
+  <div class="mod-desc">Código {{ colaborador.pk|stringformat:"04d" }} · {{ colaborador.cargo }} · {{ colaborador.unidade }}</div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="form-section-heading" style="margin-bottom:16px;">
+    <span class="form-section-icon">01</span>
+    <div><h2>Anexar documento</h2><p>PDF, PNG ou JPG, enviado diretamente ao Supabase Storage.</p></div>
+  </div>
+  <form method="post" enctype="multipart/form-data" id="documento-colaborador-form">
+    {% csrf_token %}
+    <input type="hidden" name="direct_upload_arquivo_colaborador" value="{{ request.POST.direct_upload_arquivo_colaborador|default:'' }}">
+    <input type="hidden" name="nome_original" id="nome-original" value="{{ request.POST.nome_original|default:'' }}">
+    <div class="alert alert-error" data-upload-size-error data-persistent-alert hidden></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label" for="tipo-documento">Tipo <span class="required">*</span></label>
+        <select id="tipo-documento" name="tipo" class="form-control" required>
+          <option value="">Selecione</option>
+          {% for value, label in tipos_documento %}<option value="{{ value }}" {% if request.POST.tipo == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group" id="grupo-data-referencia">
+        <label class="form-label" for="data-referencia">Data/semana de referência</label>
+        <input id="data-referencia" type="date" name="data_referencia" class="form-control" value="{{ request.POST.data_referencia|default:'' }}">
+        <small style="color:var(--text-muted);">Obrigatória para ajuda de custo semanal.</small>
+      </div>
+      <div class="form-group field-span-2">
+        <label class="form-label" for="arquivo-colaborador">Arquivo <span class="required">*</span></label>
+        <input id="arquivo-colaborador" type="file" name="arquivo_colaborador" class="form-control" accept=".pdf,.png,.jpg,.jpeg">
+      </div>
+      <div class="form-group field-span-2">
+        <label class="form-label" for="descricao">Observação</label>
+        <input id="descricao" type="text" name="descricao" maxlength="255" class="form-control" value="{{ request.POST.descricao|default:'' }}" placeholder="Ex.: contrato renovado, semana 36, serviço da unidade...">
+      </div>
+    </div>
+    <div class="gateway-actions">
+      <button type="submit" class="btn btn-mod1">Anexar documento</button>
+      <a href="{% url 'lista_colaboradores' %}" class="btn btn-outline">Voltar aos colaboradores</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="form-section-heading" style="margin-bottom:16px;">
+    <span class="form-section-icon">02</span>
+    <div><h2>Histórico de documentos</h2><p>Contratos e comprovantes permanecem separados por tipo e colaborador.</p></div>
+  </div>
+  {% if documentos %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tipo</th><th>Referência</th><th>Arquivo</th><th>Enviado em</th><th>Responsável</th><th>Ações</th></tr></thead>
+      <tbody>
+      {% for documento in documentos %}
+        <tr>
+          <td><span class="badge badge-info">{{ documento.get_tipo_display }}</span></td>
+          <td>{{ documento.data_referencia|date:"d/m/Y"|default:"—" }}</td>
+          <td>{{ documento.nome_original|default:"Documento armazenado"|truncatechars:38 }}</td>
+          <td>{{ documento.criado_em|date:"d/m/Y H:i" }}</td>
+          <td>{% if documento.enviado_por %}{{ documento.enviado_por.get_full_name|default:documento.enviado_por.username }}{% else %}Sistema{% endif %}</td>
+          <td>
+            <a href="{% url 'baixar_documento_colaborador' colaborador.pk documento.pk %}" target="_blank" class="btn btn-sm btn-outline">Visualizar</a>
+            <form method="post" action="{% url 'excluir_documento_colaborador' colaborador.pk documento.pk %}" style="display:inline;" onsubmit="return confirm('Remover este documento?');">
+              {% csrf_token %}<button type="submit" class="btn btn-sm btn-danger">Excluir</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state"><p>Nenhum documento adicional anexado.</p></div>{% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const tipoDocumento = document.getElementById('tipo-documento');
+const dataReferencia = document.getElementById('data-referencia');
+const arquivoColaborador = document.getElementById('arquivo-colaborador');
+const nomeOriginal = document.getElementById('nome-original');
+function atualizarObrigatoriedadeData() {
+  dataReferencia.required = tipoDocumento.value === 'ajuda_custo';
+}
+tipoDocumento.addEventListener('change', atualizarObrigatoriedadeData);
+arquivoColaborador.addEventListener('change', () => {
+  nomeOriginal.value = arquivoColaborador.files[0] ? arquivoColaborador.files[0].name : '';
+});
+atualizarObrigatoriedadeData();
+</script>
+{% endblock %}

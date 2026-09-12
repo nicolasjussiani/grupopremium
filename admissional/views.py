@@ -3,7 +3,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from .models import Admissao, Colaborador, DocumentoAdmissional
+from django.utils.dateparse import parse_date
+from .models import Admissao, Colaborador, DocumentoAdmissional, DocumentoColaborador
 from .forms import ColaboradorForm
 from core.models import Notificacao
 from sesmet.models import IntegracaoSeguranca, RegistroEPI, OrdemServico
@@ -267,7 +268,7 @@ def novo_colaborador(request):
                 form.add_error(None, 'Nao foi possivel armazenar os anexos. Tente novamente.')
                 return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Novo'})
             messages.success(request, f'Colaborador {colaborador.nome} cadastrado com sucesso!')
-            return redirect('lista_colaboradores')
+            return redirect('documentos_colaborador', pk=colaborador.pk)
     else:
         form = ColaboradorForm()
     return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Novo'})
@@ -298,6 +299,84 @@ def editar_colaborador(request, pk):
     else:
         form = ColaboradorForm(instance=colaborador)
     return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Editar'})
+
+
+@login_required
+@access_required(permission='admissional.change_colaborador', profiles=('rh', 'sesmet', 'gestor'))
+@transaction.atomic
+def documentos_colaborador(request, pk):
+    colaborador = get_object_or_404(Colaborador, pk=pk)
+    if request.method == 'POST':
+        tipo = request.POST.get('tipo', '').strip()
+        descricao = request.POST.get('descricao', '').strip()[:255]
+        data_texto = request.POST.get('data_referencia', '').strip()
+        data_referencia = parse_date(data_texto) if data_texto else None
+        tipos_validos = {value for value, _label in DocumentoColaborador.TIPOS}
+        arquivo_upload = request.FILES.get('arquivo_colaborador')
+
+        if tipo not in tipos_validos:
+            messages.error(request, 'Selecione um tipo de documento válido.')
+        elif tipo == 'ajuda_custo' and not data_referencia:
+            messages.error(request, 'Informe a semana de referência da ajuda de custo.')
+        else:
+            try:
+                direct_key = verify_direct_upload(request, 'arquivo_colaborador')
+                if arquivo_upload:
+                    validate_document_upload(arquivo_upload)
+                if not arquivo_upload and not direct_key:
+                    raise ValidationError('Selecione um arquivo PDF, PNG ou JPG.')
+
+                documento = DocumentoColaborador(
+                    colaborador=colaborador,
+                    tipo=tipo,
+                    data_referencia=data_referencia,
+                    descricao=descricao,
+                    enviado_por=request.user,
+                )
+                if arquivo_upload:
+                    documento.arquivo = arquivo_upload
+                    documento.nome_original = get_valid_filename(arquivo_upload.name)[:255]
+                else:
+                    documento.arquivo.name = direct_key
+                    nome_enviado = request.POST.get('nome_original', '').strip()
+                    documento.nome_original = get_valid_filename(nome_enviado)[:255]
+                documento.full_clean()
+                documento.save()
+            except (ValidationError, OSError) as exc:
+                mensagem = '; '.join(exc.messages) if isinstance(exc, ValidationError) else str(exc)
+                messages.error(request, mensagem or 'Não foi possível salvar o documento.')
+            else:
+                messages.success(request, 'Documento anexado ao colaborador com sucesso.')
+                return redirect('documentos_colaborador', pk=colaborador.pk)
+
+    documentos = colaborador.documentos_arquivo.select_related('enviado_por')
+    return render(request, 'admissional/documentos_colaborador.html', {
+        'colaborador': colaborador,
+        'documentos': documentos,
+        'tipos_documento': DocumentoColaborador.TIPOS,
+    })
+
+
+@login_required
+@access_required(permission='admissional.change_colaborador', profiles=('rh', 'sesmet', 'gestor'))
+def baixar_documento_colaborador(request, pk, documento_pk):
+    documento = get_object_or_404(
+        DocumentoColaborador, pk=documento_pk, colaborador_id=pk
+    )
+    return redirect(documento.arquivo.url)
+
+
+@login_required
+@require_POST
+@access_required(permission='admissional.change_colaborador', profiles=('rh', 'sesmet', 'gestor'))
+@transaction.atomic
+def excluir_documento_colaborador(request, pk, documento_pk):
+    documento = get_object_or_404(
+        DocumentoColaborador, pk=documento_pk, colaborador_id=pk
+    )
+    documento.delete()
+    messages.success(request, 'Documento removido do colaborador.')
+    return redirect('documentos_colaborador', pk=pk)
 
 @login_required
 @access_required(permission='admissional.delete_colaborador', profiles=('rh',))

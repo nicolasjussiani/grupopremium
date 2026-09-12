@@ -18,6 +18,7 @@ FILE_FIELDS = {
         'anexo_aso',
     ),
     'admissional.DocumentoAdmissional': ('arquivo_nuvem',),
+    'admissional.DocumentoColaborador': ('arquivo',),
     'recrutamento.Candidato': ('arquivo',),
     'recrutamento.Talento': ('arquivo',),
     'financeiro.DocumentoFinanceiro': ('arquivo',),
@@ -47,6 +48,12 @@ def canonical_prefix(instance, field_name):
         doc_type = _safe_segment(instance.tipo, 'sem_tipo')
         return (
             f'admissional/admissoes/{instance.admissao_id}/documentos/'
+            f'{doc_type}/{instance.pk}/'
+        )
+    if label == 'admissional.DocumentoColaborador':
+        doc_type = _safe_segment(instance.tipo, 'sem_tipo')
+        return (
+            f'admissional/colaboradores/{instance.colaborador_id}/documentos/'
             f'{doc_type}/{instance.pk}/'
         )
     if label == 'recrutamento.Candidato':

@@ -21,6 +21,7 @@ UPLOAD_RULES = {
     'curriculo_pdf': ('_temporarios/recrutamento/curriculos', 'document'),
     'foto': ('_temporarios/imagens/foto', 'image'),
     'foto_equipamento': ('_temporarios/manutencao/registros', 'image'),
+    'arquivo_colaborador': ('_temporarios/admissional/documentos-colaboradores', 'document'),
 }
 
 DOCUMENT_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}

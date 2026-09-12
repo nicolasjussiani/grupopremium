@@ -162,10 +162,11 @@ class TestNovoColaboradorHTTP(TestCase):
         )
         self.assertTrue(Colaborador.objects.filter(cpf='111.222.333-44').exists())
 
-    def test_POST_valido_redireciona_para_lista(self):
-        """Apos criar, deve redirecionar para lista_colaboradores."""
+    def test_POST_valido_redireciona_para_documentos(self):
+        """Apos criar, deve abrir a guia de documentos do colaborador."""
         response = self.client.post(self.url, data=_colaborador_data())
-        self.assertRedirects(response, reverse('lista_colaboradores'))
+        colaborador = Colaborador.objects.get(cpf='111.222.333-44')
+        self.assertRedirects(response, reverse('documentos_colaborador', args=[colaborador.pk]))
 
     def test_POST_com_arquivo_multipart(self):
         """POST multipart/form-data com upload nao deve retornar 505."""
@@ -209,7 +210,7 @@ class TestNovoColaboradorHTTP(TestCase):
     def test_POST_invalido_preserva_token_do_upload_direto(self):
         key = '_temporarios/admissional/colaboradores/teste-preservado.pdf'
         token = self._direct_upload_token(key)
-        data = _colaborador_data(email='')
+        data = _colaborador_data(nome='')
         data['direct_upload_anexo_cpf'] = token
 
         response = self.client.post(self.url, data=data)
@@ -374,10 +375,9 @@ class TestColaboradorForm(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('cpf', form.errors)
 
-    def test_form_invalido_sem_email(self):
+    def test_form_valido_sem_email(self):
         form = ColaboradorForm(data=_colaborador_data(email=''))
-        self.assertFalse(form.is_valid())
-        self.assertIn('email', form.errors)
+        self.assertTrue(form.is_valid(), form.errors)
 
     def test_form_invalido_email_mal_formatado(self):
         form = ColaboradorForm(data=_colaborador_data(email='isso-nao-e-email'))

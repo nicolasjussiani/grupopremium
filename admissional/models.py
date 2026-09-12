@@ -75,6 +75,42 @@ class Colaborador(models.Model):
         return f"{self.nome} — {self.cargo} ({self.unidade})"
 
 
+class DocumentoColaborador(models.Model):
+    TIPOS = [
+        ('comprovante_endereco', 'Comprovante de endereço'),
+        ('ajuda_custo', 'Ajuda de custo semanal'),
+        ('comprovante_servico', 'Comprovante de serviço'),
+        ('contrato', 'Contrato'),
+    ]
+
+    colaborador = models.ForeignKey(
+        Colaborador, on_delete=models.CASCADE, related_name='documentos_arquivo'
+    )
+    tipo = models.CharField(max_length=30, choices=TIPOS)
+    arquivo = models.FileField(upload_to='colaboradores/documentos/')
+    nome_original = models.CharField(max_length=255, blank=True)
+    data_referencia = models.DateField(
+        null=True, blank=True, verbose_name='Data de referência'
+    )
+    descricao = models.CharField(max_length=255, blank=True, verbose_name='Observação')
+    enviado_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='documentos_colaboradores_enviados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Documento do colaborador'
+        verbose_name_plural = 'Documentos dos colaboradores'
+        ordering = ['-data_referencia', '-criado_em']
+        indexes = [
+            models.Index(fields=['colaborador', 'tipo', 'data_referencia']),
+        ]
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} - {self.colaborador.nome}'
+
+
 class Admissao(models.Model):
     STATUS = [
         ('aguardando_documentos', 'Aguardando Documentos'),

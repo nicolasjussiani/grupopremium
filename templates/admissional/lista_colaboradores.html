@@ -79,6 +79,7 @@
         </td>
         <td>
           {% if can_edit_colaborador %}
+            <a href="{% url 'documentos_colaborador' c.pk %}" class="btn btn-sm btn-outline" title="Documentos">Arquivos</a>
             <a href="{% url 'editar_colaborador' c.pk %}" class="btn btn-sm btn-mod1" title="Editar">✏️</a>
           {% endif %}
           {% if can_delete_colaborador %}

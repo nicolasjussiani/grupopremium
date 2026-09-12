@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import URLResolver, get_resolver, reverse
 
 from administrativo.models import DemandaAdministrativa
-from admissional.models import Admissao, Colaborador, DocumentoAdmissional
+from admissional.models import Admissao, Colaborador, DocumentoAdmissional, DocumentoColaborador
 from compras.models import Material, PedidoCompra, SolicitacaoMaterial
 from core.models import AprovacaoRegistro, Notificacao, PerfilUsuario
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
@@ -85,6 +85,13 @@ class FullSiteRouteTests(TestCase):
             arquivo=b'documento de teste',
             arquivo_nome='rg-teste.pdf',
             arquivo_mimetype='application/pdf',
+        )
+        cls.documento_colaborador = DocumentoColaborador.objects.create(
+            colaborador=cls.colaborador,
+            tipo='contrato',
+            arquivo='testes/contrato-colaborador.pdf',
+            nome_original='contrato.pdf',
+            enviado_por=cls.user,
         )
         cls.demanda = DemandaAdministrativa.objects.create(
             tipo='contratos',
@@ -247,6 +254,9 @@ class FullSiteRouteTests(TestCase):
             ('lista_colaboradores', (), 200),
             ('novo_colaborador', (), 200),
             ('editar_colaborador', (self.colaborador.pk,), 200),
+            ('documentos_colaborador', (self.colaborador.pk,), 200),
+            ('baixar_documento_colaborador', (self.colaborador.pk, self.documento_colaborador.pk), 302),
+            ('excluir_documento_colaborador', (self.colaborador.pk, self.documento_colaborador.pk), 405),
             ('excluir_colaborador', (self.colaborador.pk,), 200),
             ('controle_presenca', (), 200),
             ('exportar_presenca_csv', (), 400),

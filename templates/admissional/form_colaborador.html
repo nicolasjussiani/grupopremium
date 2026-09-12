@@ -24,7 +24,7 @@
         <span class="form-section-icon" aria-hidden="true">01</span>
         <div>
           <h2 id="dados-colaborador-title">Dados do colaborador</h2>
-          <p>Informações pessoais, profissionais e contratuais.</p>
+          <p>Informações pessoais e profissionais. O e-mail é opcional.</p>
         </div>
       </div>
       <div class="collaborator-fields-grid">
@@ -50,6 +50,10 @@
           <p>PDF, PNG ou JPG. Cada arquivo pode ter até 50 MB.</p>
         </div>
         <span class="direct-upload-badge">Upload direto e seguro</span>
+      </div>
+      <div class="alert alert-info" style="margin:0 0 16px;">
+        Comprovante de endereço, ajudas de custo semanais, comprovantes de serviço e contratos ficam na guia de documentos do colaborador.
+        {% if form.instance.pk %}<a href="{% url 'documentos_colaborador' form.instance.pk %}">Abrir documentos</a>{% else %}Ela será aberta depois que o cadastro for salvo.{% endif %}
       </div>
       <div class="document-grid">
         {% for field in form %}
