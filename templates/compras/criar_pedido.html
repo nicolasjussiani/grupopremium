@@ -34,8 +34,9 @@
                  value="{{ solicitacao.material.fornecedor_preferencial }}">
         </div>
         <div class="form-group">
-          <label class="form-label">CNPJ do Fornecedor</label>
-          <input type="text" name="cnpj_fornecedor" class="form-control" placeholder="00.000.000/0001-00">
+          <label class="form-label">CNPJ do Fornecedor <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
+          <input type="text" name="cnpj_fornecedor" class="form-control" placeholder="Pode ser preenchido depois da compra" value="{{ request.POST.cnpj_fornecedor }}">
+          <small style="color:var(--text-muted);">Em compras por marketplace, deixe em branco e informe depois que o pedido for emitido.</small>
         </div>
         <div class="form-group">
           <label class="form-label">Prazo de Entrega</label>

@@ -1,4 +1,6 @@
 """ERP Grupo PremiumBR — Views do Módulo 5: Compras"""
+import re
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -11,6 +13,23 @@ from .forms import MaterialForm
 from core.access import access_required, user_has_access
 from core.direct_uploads import assign_direct_upload
 from django.core.exceptions import ValidationError
+from django.views.decorators.http import require_POST
+
+
+STATUS_COMPRA_REALIZADA = {
+    'pedido_emitido', 'aguardando_recebimento', 'recebido_conferencia',
+    'entrada_estoque', 'concluido',
+}
+
+
+def _normalizar_cnpj(valor):
+    valor = valor.strip()
+    if not valor:
+        return ''
+    digitos = re.sub(r'\D', '', valor)
+    if len(digitos) != 14:
+        raise ValidationError('Informe um CNPJ com 14 dígitos.')
+    return f'{digitos[:2]}.{digitos[2:5]}.{digitos[5:8]}/{digitos[8:12]}-{digitos[12:]}'
 
 
 @login_required
@@ -271,3 +290,31 @@ def aprovar_pedido(request, pk):
             return redirect('detalhe_solicitacao', pk=pedido.solicitacao.pk)
         return redirect('detalhe_solicitacao', pk=pedido.solicitacao.pk)
     return render(request, 'compras/aprovar_pedido.html', {'pedido': pedido})
+
+
+@login_required
+@require_POST
+@access_required(
+    permission='compras.change_pedidocompra',
+    profiles=('compras', 'gestor', 'estoque_compras'),
+    groups=('Compras_Aprovador', 'Diretoria_Final'),
+)
+@transaction.atomic
+def atualizar_cnpj_pedido(request, pk):
+    pedido = get_object_or_404(PedidoCompra.objects.select_for_update(), pk=pk)
+    if pedido.status not in STATUS_COMPRA_REALIZADA:
+        messages.error(request, 'O CNPJ poderá ser informado depois que a compra for aprovada e emitida.')
+        return redirect('detalhe_solicitacao', pk=pedido.solicitacao_id)
+
+    try:
+        cnpj = _normalizar_cnpj(request.POST.get('cnpj_fornecedor', ''))
+    except ValidationError as exc:
+        messages.error(request, exc.messages[0])
+    else:
+        pedido.cnpj_fornecedor = cnpj
+        pedido.save(update_fields=['cnpj_fornecedor', 'atualizado_em'])
+        if cnpj:
+            messages.success(request, 'CNPJ do fornecedor atualizado com sucesso.')
+        else:
+            messages.success(request, 'CNPJ removido. Ele continua sendo um dado opcional.')
+    return redirect('detalhe_solicitacao', pk=pedido.solicitacao_id)

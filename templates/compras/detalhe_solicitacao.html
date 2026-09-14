@@ -110,7 +110,17 @@
         <tr>
           <td style="font-family:monospace;font-size:0.78rem;">{{ p.numero_pedido }}</td>
           <td style="font-weight:600;">{{ p.fornecedor }}</td>
-          <td style="font-size:0.78rem;color:var(--text-muted);">{{ p.cnpj_fornecedor|default:"—" }}</td>
+          <td style="font-size:0.78rem;color:var(--text-muted);">
+            {% if p.status == 'pedido_emitido' or p.status == 'aguardando_recebimento' or p.status == 'recebido_conferencia' or p.status == 'entrada_estoque' or p.status == 'concluido' %}
+            <form method="post" action="{% url 'atualizar_cnpj_pedido' p.pk %}" style="display:flex;gap:6px;align-items:center;min-width:250px;">
+              {% csrf_token %}
+              <input type="text" name="cnpj_fornecedor" class="form-control" value="{{ p.cnpj_fornecedor }}" placeholder="00.000.000/0001-00" maxlength="18" style="min-width:165px;font-size:.76rem;padding:7px;">
+              <button type="submit" class="btn btn-sm btn-outline">Salvar</button>
+            </form>
+            {% else %}
+              {{ p.cnpj_fornecedor|default:"Opcional após a compra" }}
+            {% endif %}
+          </td>
           <td>R$ {{ p.valor_unitario|floatformat:2 }}</td>
           <td style="font-weight:700;">R$ {{ p.valor_total|floatformat:2 }}</td>
           <td style="font-size:0.82rem;">{{ p.prazo_entrega|date:"d/m/Y"|default:"—" }}</td>

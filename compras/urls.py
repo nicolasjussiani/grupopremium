@@ -11,4 +11,5 @@ urlpatterns = [
     path('solicitacao/<int:pk>/', views.detalhe_solicitacao, name='detalhe_solicitacao'),
     path('solicitacao/<int:solicitacao_pk>/pedido/', views.criar_pedido_compra, name='criar_pedido'),
     path('pedido/<int:pk>/aprovar/', views.aprovar_pedido, name='aprovar_pedido'),
+    path('pedido/<int:pk>/cnpj/', views.atualizar_cnpj_pedido, name='atualizar_cnpj_pedido'),
 ]
