@@ -9,7 +9,7 @@ from django.utils import timezone
 from administrativo.models import DemandaAdministrativa
 from admissional.models import Admissao, Colaborador, DocumentoAdmissional, DocumentoColaborador
 from compras.models import Material, PedidoCompra, SolicitacaoMaterial
-from core.models import AprovacaoRegistro, Notificacao, PerfilUsuario
+from core.models import AprovacaoRegistro, Fornecedor, Notificacao, PerfilUsuario, Unidade
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
 from manutencao.models import Ativo, RegistroManutencao
 from recrutamento.models import Candidato, Talento, Vaga
@@ -189,6 +189,17 @@ class FullSiteRouteTests(TestCase):
             titulo='Notificacao de teste',
             mensagem='Teste integral',
         )
+        cls.fornecedor = Fornecedor.objects.create(
+            razao_social='Fornecedor Cadastro Integral',
+            cnpj='12.345.678/0001-90',
+            criado_por=cls.user,
+        )
+        cls.unidade = Unidade.objects.create(
+            nome='Unidade Cadastro Integral',
+            cidade='Sao Paulo',
+            estado='SP',
+            criado_por=cls.user,
+        )
 
     def setUp(self):
         self.client.force_login(self.user)
@@ -212,6 +223,11 @@ class FullSiteRouteTests(TestCase):
             ('logout', (), 405),
             ('dashboard', (), 200),
             ('ajuda', (), 200),
+            ('cadastros_gerais', (), 200),
+            ('novo_fornecedor', (), 200),
+            ('editar_fornecedor', (self.fornecedor.pk,), 200),
+            ('nova_unidade', (), 200),
+            ('editar_unidade', (self.unidade.pk,), 200),
             ('notificacoes_json', (), 200),
             ('marcar_lida', (self.notificacao.pk,), 405),
             ('aprovacoes_pendentes', (), 200),
@@ -370,6 +386,10 @@ class FullSiteRouteTests(TestCase):
             ('criar_notificacao_teste_mobile', ()),
             ('aprovar_registro', (self.aprovacao.pk,)),
             ('rejeitar_registro', (self.aprovacao.pk,)),
+            ('novo_fornecedor', ()),
+            ('editar_fornecedor', (self.fornecedor.pk,)),
+            ('nova_unidade', ()),
+            ('editar_unidade', (self.unidade.pk,)),
             ('nova_vaga', ()),
             ('adicionar_candidato', (self.vaga.pk,)),
             ('avancar_etapa', (self.candidato.pk,)),

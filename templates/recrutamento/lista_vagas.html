@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="module-banner mod-banner-1">
-  <div class="mod-title">👥 Recrutamento e Seleção</div>
+  <h1 class="mod-title">👥 Recrutamento e Seleção</h1>
   <div class="mod-desc">Gestão de vagas, pipeline de candidatos e encaminhamento para admissão</div>
 </div>
 
@@ -26,7 +26,8 @@
 <!-- FILTROS -->
 <div class="card mb-5">
   <form method="get" class="flex gap-3 items-center flex-wrap">
-    <select name="status" class="form-control" style="max-width:220px;">
+    <label class="sr-only" for="filtro-status-vaga">Filtrar vagas por status</label>
+    <select id="filtro-status-vaga" name="status" class="form-control" style="max-width:220px;">
       <option value="">Todos os Status</option>
       {% for val, label in status_choices %}
       <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>

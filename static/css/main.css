@@ -424,6 +424,37 @@ body {
   min-width: 0;
 }
 
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 3000;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0d2149;
+  font-weight: 700;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-150%);
+  transition: transform 0.15s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 .mobile-menu-button,
 .sidebar-backdrop { display: none; }
 

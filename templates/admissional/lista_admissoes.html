@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="module-banner mod-banner-2">
-  <div class="mod-title">📋 RH / Processo Admissional</div>
+  <h1 class="mod-title">📋 RH / Processo Admissional</h1>
   <div class="mod-desc">Gestão de documentação, cadastro e integração de novos colaboradores</div>
 </div>
 
@@ -25,7 +25,8 @@
 <!-- FILTROS -->
 <div class="card mb-5">
   <form method="get" class="flex gap-3 items-center flex-wrap">
-    <select name="status" class="form-control" style="max-width:260px;">
+    <label class="sr-only" for="filtro-status-admissao">Filtrar admissões por status</label>
+    <select id="filtro-status-admissao" name="status" class="form-control" style="max-width:260px;">
       <option value="">Todos os Status</option>
       {% for val, label in status_choices %}
       <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>

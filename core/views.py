@@ -6,7 +6,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
+from django.template import loader
 from django.middleware.csrf import get_token
 from django.db.models import Count, Q
 from django.core.paginator import Paginator
@@ -728,3 +729,33 @@ def painel_sla_processos(request):
         'faixa_filter': faixa_filter,
         'atualizado_em': agora,
     })
+
+
+def permission_denied_view(request, exception=None):
+    return render(request, 'errors/error.html', {
+        'status_code': 403,
+        'titulo': 'Acesso não autorizado',
+        'mensagem': 'Seu usuário não possui permissão para acessar esta área.',
+        'orientacao': 'Volte ao painel ou solicite a liberação da área ao administrador.',
+    }, status=403)
+
+
+def page_not_found_view(request, exception=None):
+    return render(request, 'errors/error.html', {
+        'status_code': 404,
+        'titulo': 'Página não encontrada',
+        'mensagem': 'O endereço acessado não existe ou não está mais disponível.',
+        'orientacao': 'Confira o endereço ou volte ao painel para continuar.',
+    }, status=404)
+
+
+def server_error_view(request):
+    # O handler 500 nao usa os context processors, pois a falha original pode
+    # ser justamente uma indisponibilidade do banco usada por algum processor.
+    conteudo = loader.get_template('errors/error.html').render({
+        'status_code': 500,
+        'titulo': 'Não foi possível concluir',
+        'mensagem': 'O sistema encontrou uma falha inesperada.',
+        'orientacao': 'Tente novamente em alguns instantes. Se persistir, informe o suporte.',
+    })
+    return HttpResponse(conteudo, status=500)

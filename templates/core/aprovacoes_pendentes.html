@@ -14,7 +14,7 @@
   gap: 1rem;
   flex-wrap: wrap;
 }
-.aprovacoes-header h2 {
+.aprovacoes-header h1 {
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -279,22 +279,24 @@
 
 {% block content %}
 <div class="aprovacoes-header">
-  <h2>
+  <h1>
     ✅ Aprovações Pendentes
     {% if total_pendentes > 0 %}
     <span class="badge-total">{{ total_pendentes }}</span>
     {% endif %}
-  </h2>
+  </h1>
 </div>
 
 <!-- Filtros -->
 <form method="get" class="filtros-bar">
+  <label class="sr-only" for="filtroModulo">Filtrar aprovações por módulo</label>
   <select name="modulo" class="filtro-select" id="filtroModulo">
     <option value="">Todos os Módulos</option>
     {% for key, label in MODULOS_CHOICES %}
     <option value="{{ key }}" {% if modulo_filtro == key %}selected{% endif %}>{{ label }}</option>
     {% endfor %}
   </select>
+  <label class="sr-only" for="filtroNivel">Filtrar aprovações por nível</label>
   <select name="nivel" class="filtro-select" id="filtroNivel">
     <option value="">Todos os Níveis</option>
     {% for val, label in NIVEL_CHOICES %}
@@ -391,7 +393,8 @@
     <form method="post" id="formAprovar">
       {% csrf_token %}
       <input type="hidden" name="next" value="{% url 'aprovacoes_pendentes' %}">
-      <textarea name="comentario" class="modal-textarea" placeholder="Comentário (opcional)…" rows="3"></textarea>
+      <label class="sr-only" for="comentarioAprovacao">Comentário da aprovação (opcional)</label>
+      <textarea id="comentarioAprovacao" name="comentario" class="modal-textarea" placeholder="Comentário (opcional)…" rows="3"></textarea>
       <div class="modal-acoes">
         <button type="button" class="btn-cancelar-modal" onclick="fecharModal('modalAprovar')">Cancelar</button>
         <button type="submit" class="btn-aprovar">✅ Confirmar Aprovação</button>
@@ -408,7 +411,8 @@
     <form method="post" id="formRejeitar">
       {% csrf_token %}
       <input type="hidden" name="next" value="{% url 'aprovacoes_pendentes' %}">
-      <textarea name="motivo_rejeicao" class="modal-textarea" placeholder="Motivo da rejeição (obrigatório)…" rows="4" required></textarea>
+      <label class="sr-only" for="motivoRejeicao">Motivo da rejeição</label>
+      <textarea id="motivoRejeicao" name="motivo_rejeicao" class="modal-textarea" placeholder="Motivo da rejeição (obrigatório)…" rows="4" required></textarea>
       <div class="modal-acoes">
         <button type="button" class="btn-cancelar-modal" onclick="fecharModal('modalRejeitar')">Cancelar</button>
         <button type="submit" class="btn-rejeitar">🚫 Confirmar Rejeição</button>

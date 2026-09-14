@@ -4,6 +4,10 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+handler403 = 'core.views.permission_denied_view'
+handler404 = 'core.views.page_not_found_view'
+handler500 = 'core.views.server_error_view'
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('core.urls')),
