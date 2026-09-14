@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import URLResolver, get_resolver, reverse
+from django.utils import timezone
 
 from administrativo.models import DemandaAdministrativa
 from admissional.models import Admissao, Colaborador, DocumentoAdmissional, DocumentoColaborador
@@ -319,6 +320,30 @@ class FullSiteRouteTests(TestCase):
         )
         self.assertEqual(export_response.status_code, 200)
         self.assertEqual(export_response['Content-Type'], 'text/csv')
+
+    def test_painel_sla_consolida_todos_os_modulos_e_calcula_alertas(self):
+        Vaga.objects.filter(pk=self.vaga.pk).update(
+            criado_em=timezone.now() - timedelta(days=8)
+        )
+
+        response = self.client.get(reverse('painel_sla'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['total_processos'], 9)
+        self.assertEqual(response.context['total_criticos'], 1)
+        tipos = {processo['tipo'] for processo in response.context['processos']}
+        self.assertSetEqual(tipos, {
+            'Aprovação Genérica', 'Pedido de Compra', 'Documento Financeiro',
+            'Vaga', 'Admissão', 'Demanda Administrativa',
+            'Solicitação de Material', 'Lançamento ERP', 'Manutenção',
+        })
+        self.assertContains(response, 'Resumo por área')
+        self.assertContains(response, 'Distribuição por tempo')
+
+        filtrado = self.client.get(reverse('painel_sla'), {'modulo': 'Recrutamento'})
+        self.assertEqual(len(filtrado.context['processos']), 1)
+        self.assertEqual(filtrado.context['total_processos'], 9)
+        self.assertEqual(filtrado.context['modulo_filter'], 'Recrutamento')
 
     def test_formularios_rejeitam_dados_incompletos_sem_erro_interno(self):
         post_routes = (

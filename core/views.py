@@ -19,14 +19,15 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.csrf import csrf_failure as default_csrf_failure
 
-from core.models import PerfilUsuario, Notificacao
+from core.models import AprovacaoRegistro, PerfilUsuario, Notificacao
 from core.forms import UsuarioERPForm
 from recrutamento.models import Vaga, Candidato
 from admissional.models import Admissao, Colaborador
 from administrativo.models import DemandaAdministrativa
 from sesmet.models import RegistroEPI
-from compras.models import SolicitacaoMaterial, Material
+from compras.models import Material, PedidoCompra, SolicitacaoMaterial
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
+from manutencao.models import RegistroManutencao
 
 
 logger = logging.getLogger(__name__)
@@ -342,11 +343,6 @@ def auditoria_sistema(request):
     })
 
 
-from django.utils import timezone
-from core.models import AprovacaoRegistro
-from compras.models import PedidoCompra
-from financeiro.models import DocumentoFinanceiro
-
 @login_required
 def painel_sla_processos(request):
     """
@@ -375,11 +371,12 @@ def painel_sla_processos(request):
             'dias': delta.days,
             'horas': delta.seconds // 3600,
             'alerta': delta.days >= 2,
+            'url': reverse('detalhe_aprovacao', args=[ap.pk]),
         })
 
     # 2. Pedidos de Compra Pendentes
-    pedidos = PedidoCompra.objects.filter(
-        status__in=['em_cotacao', 'aguardando_aprovacao']
+    pedidos = PedidoCompra.objects.exclude(
+        status='concluido'
     ).select_related('solicitacao__material', 'aprovado_por').only(
         'status', 'fornecedor', 'criado_em', 'aprovado_por__first_name',
         'aprovado_por__last_name', 'solicitacao__material__nome',
@@ -397,12 +394,16 @@ def painel_sla_processos(request):
             'dias': delta.days,
             'horas': delta.seconds // 3600,
             'alerta': delta.days >= 2,
+            'url': reverse('detalhe_solicitacao', args=[pc.solicitacao_id]),
         })
 
     # 3. Documentos Financeiros Pendentes
-    docs = DocumentoFinanceiro.objects.filter(
-        status__in=['recebido', 'em_auditoria', 'aguardando_correcao']
-    ).only('numero_documento', 'valor', 'status', 'criado_em')
+    docs = DocumentoFinanceiro.objects.exclude(
+        status='arquivado'
+    ).select_related('recebido_por').only(
+        'numero_documento', 'valor', 'status', 'criado_em',
+        'recebido_por__first_name', 'recebido_por__last_name',
+    )
     for doc in docs:
         delta = agora - doc.criado_em
         processos.append({
@@ -410,17 +411,168 @@ def painel_sla_processos(request):
             'modulo': 'Financeiro',
             'titulo': f"{doc.numero_documento} - R$ {doc.valor}",
             'status': doc.get_status_display(),
-            'responsavel': 'Financeiro / Auditoria',
+            'responsavel': doc.recebido_por.get_full_name() if doc.recebido_por else 'Financeiro / Auditoria',
             'criado_em': doc.criado_em,
             'dias': delta.days,
             'horas': delta.seconds // 3600,
             'alerta': delta.days >= 2,
+            'url': reverse('detalhe_documento', args=[doc.pk]),
         })
 
-    # Ordenar pelos mais demorados
-    processos = sorted(processos, key=lambda x: x['criado_em'])
+    # 4. Vagas ainda abertas
+    for vaga in Vaga.objects.exclude(status__in=['preenchida', 'cancelada']).only(
+        'nome_vaga', 'unidade', 'status', 'gestor_responsavel', 'criado_em'
+    ):
+        processos.append({
+            'tipo': 'Vaga', 'modulo': 'Recrutamento',
+            'titulo': f'{vaga.nome_vaga} - {vaga.unidade}',
+            'status': vaga.get_status_display(),
+            'responsavel': vaga.gestor_responsavel or 'RH / Recrutamento',
+            'criado_em': vaga.criado_em,
+            'url': reverse('detalhe_vaga', args=[vaga.pk]),
+        })
+
+    # 5. Processos admissionais ainda em andamento
+    for admissao in Admissao.objects.exclude(status='concluido').select_related(
+        'responsavel_rh'
+    ).only(
+        'candidato_nome', 'vaga_nome', 'status', 'criado_em',
+        'responsavel_rh__first_name', 'responsavel_rh__last_name',
+    ):
+        processos.append({
+            'tipo': 'Admissão', 'modulo': 'Admissional',
+            'titulo': f'{admissao.candidato_nome} - {admissao.vaga_nome}',
+            'status': admissao.get_status_display(),
+            'responsavel': admissao.responsavel_rh.get_full_name() if admissao.responsavel_rh else 'RH / Admissional',
+            'criado_em': admissao.criado_em,
+            'url': reverse('detalhe_admissao', args=[admissao.pk]),
+        })
+
+    # 6. Demandas administrativas não arquivadas
+    for demanda in DemandaAdministrativa.objects.exclude(status='arquivada').select_related(
+        'responsavel'
+    ).only(
+        'titulo', 'status', 'criado_em',
+        'responsavel__first_name', 'responsavel__last_name',
+    ):
+        processos.append({
+            'tipo': 'Demanda Administrativa', 'modulo': 'Administrativo',
+            'titulo': demanda.titulo, 'status': demanda.get_status_display(),
+            'responsavel': demanda.responsavel.get_full_name() if demanda.responsavel else 'Administrativo',
+            'criado_em': demanda.criado_em,
+            'url': reverse('detalhe_demanda', args=[demanda.pk]),
+        })
+
+    # 7. Solicitações de materiais ainda não encerradas
+    solicitacoes_encerradas = ['atendido_interno', 'entregue', 'cancelado']
+    for solicitacao in SolicitacaoMaterial.objects.exclude(
+        status__in=solicitacoes_encerradas
+    ).select_related('material', 'atendida_por').only(
+        'status', 'unidade_destino', 'criado_em', 'material__nome',
+        'atendida_por__first_name', 'atendida_por__last_name',
+    ):
+        processos.append({
+            'tipo': 'Solicitação de Material', 'modulo': 'Compras',
+            'titulo': f'{solicitacao.material.nome} - {solicitacao.unidade_destino}',
+            'status': solicitacao.get_status_display(),
+            'responsavel': solicitacao.atendida_por.get_full_name() if solicitacao.atendida_por else 'Compras / Almoxarifado',
+            'criado_em': solicitacao.criado_em,
+            'url': reverse('detalhe_solicitacao', args=[solicitacao.pk]),
+        })
+
+    # 8. Lançamentos financeiros não finalizados
+    for lancamento in LancamentoERP.objects.exclude(status='finalizado').select_related(
+        'documento', 'lancado_por'
+    ).only(
+        'status', 'criado_em', 'documento__numero_documento',
+        'lancado_por__first_name', 'lancado_por__last_name',
+    ):
+        processos.append({
+            'tipo': 'Lançamento ERP', 'modulo': 'Financeiro',
+            'titulo': f'Documento {lancamento.documento.numero_documento}',
+            'status': lancamento.get_status_display(),
+            'responsavel': lancamento.lancado_por.get_full_name() if lancamento.lancado_por else 'Financeiro',
+            'criado_em': lancamento.criado_em,
+            'url': reverse('validar_lancamento', args=[lancamento.pk]),
+        })
+
+    # 9. Manutenções ainda abertas
+    for manutencao in RegistroManutencao.objects.exclude(
+        status__in=['concluida', 'cancelada']
+    ).select_related('ativo', 'registrado_por').only(
+        'status', 'criado_em', 'ativo__nome', 'ativo__numero_patrimonio',
+        'registrado_por__first_name', 'registrado_por__last_name',
+    ):
+        processos.append({
+            'tipo': 'Manutenção', 'modulo': 'Manutenção',
+            'titulo': f'{manutencao.ativo.numero_patrimonio} - {manutencao.ativo.nome}',
+            'status': manutencao.get_status_display(),
+            'responsavel': manutencao.registrado_por.get_full_name() if manutencao.registrado_por else 'Manutenção / Patrimônio',
+            'criado_em': manutencao.criado_em,
+            'url': reverse('lista_manutencoes'),
+        })
+
+    # Normaliza tempos e níveis de atenção para todas as fontes.
+    for processo in processos:
+        total_horas = max(0, int((agora - processo['criado_em']).total_seconds() // 3600))
+        processo['total_horas'] = total_horas
+        processo['dias'] = total_horas // 24
+        processo['horas'] = total_horas % 24
+        processo['alerta'] = total_horas >= 48
+        processo['critico'] = total_horas >= 168
+        processo.setdefault('url', '')
+
+    processos = sorted(processos, key=lambda item: item['total_horas'], reverse=True)
+    todos_processos = processos
+
+    modulos = sorted({processo['modulo'] for processo in todos_processos})
+    modulo_filter = request.GET.get('modulo', '').strip()
+    faixa_filter = request.GET.get('faixa', '').strip()
+    if modulo_filter and modulo_filter not in modulos:
+        modulo_filter = ''
+    if faixa_filter not in {'', 'alerta', 'critico'}:
+        faixa_filter = ''
+
+    if modulo_filter:
+        processos = [p for p in processos if p['modulo'] == modulo_filter]
+    if faixa_filter == 'alerta':
+        processos = [p for p in processos if p['alerta']]
+    elif faixa_filter == 'critico':
+        processos = [p for p in processos if p['critico']]
+
+    resumo_modulos = []
+    for modulo in modulos:
+        itens = [p for p in todos_processos if p['modulo'] == modulo]
+        resumo_modulos.append({
+            'nome': modulo,
+            'total': len(itens),
+            'alertas': sum(1 for p in itens if p['alerta']),
+            'criticos': sum(1 for p in itens if p['critico']),
+            'mais_antigo': max((p['dias'] for p in itens), default=0),
+            'percentual': round(len(itens) * 100 / len(todos_processos)) if todos_processos else 0,
+        })
+
+    total = len(todos_processos)
+    total_horas = sum(p['total_horas'] for p in todos_processos)
+    faixas = [
+        {'nome': 'Até 24 horas', 'total': sum(1 for p in todos_processos if p['total_horas'] < 24)},
+        {'nome': 'De 1 a 2 dias', 'total': sum(1 for p in todos_processos if 24 <= p['total_horas'] < 48)},
+        {'nome': 'De 2 a 7 dias', 'total': sum(1 for p in todos_processos if 48 <= p['total_horas'] < 168)},
+        {'nome': 'Acima de 7 dias', 'total': sum(1 for p in todos_processos if p['total_horas'] >= 168)},
+    ]
+    for faixa in faixas:
+        faixa['percentual'] = round(faixa['total'] * 100 / total) if total else 0
 
     return render(request, 'core/painel_sla.html', {
         'processos': processos,
-        'total_alertas': sum(1 for processo in processos if processo['alerta']),
+        'total_processos': total,
+        'total_alertas': sum(1 for p in todos_processos if p['alerta']),
+        'total_criticos': sum(1 for p in todos_processos if p['critico']),
+        'media_horas': round(total_horas / total) if total else 0,
+        'resumo_modulos': resumo_modulos,
+        'faixas': faixas,
+        'modulos': modulos,
+        'modulo_filter': modulo_filter,
+        'faixa_filter': faixa_filter,
+        'atualizado_em': agora,
     })

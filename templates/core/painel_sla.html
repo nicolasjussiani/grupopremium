@@ -4,95 +4,155 @@
 
 {% block extra_css %}
 <style>
-  .sla-header { margin-bottom: 22px; }
-  .sla-header h1 { color: var(--text-primary); font-size: 1.55rem; line-height: 1.25; }
-  .sla-header p { color: var(--text-muted); font-size: .86rem; margin-top: 5px; }
-  .sla-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 240px)); gap: 14px; margin-bottom: 22px; }
-  .sla-stat {
-    background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--brand);
-    border-radius: 12px; box-shadow: var(--shadow-card); padding: 17px 20px;
-  }
-  .sla-stat.is-alert { border-left-color: var(--danger); }
-  .sla-stat span { color: var(--text-muted); display: block; font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
-  .sla-stat strong { color: var(--text-primary); display: block; font-size: 1.8rem; line-height: 1.15; margin-top: 5px; }
-  .sla-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-card); overflow: hidden; }
-  .sla-panel-header { align-items: center; background: var(--bg-input); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; padding: 15px 20px; }
-  .sla-panel-header h2 { color: var(--text-primary); font-size: 1rem; }
-  .sla-alert-label { background: rgba(214, 158, 46, .15); border-radius: 99px; color: var(--warning); font-size: .68rem; font-weight: 700; padding: 5px 10px; }
-  .sla-table-wrap { overflow-x: auto; }
-  .sla-table td:last-child, .sla-table th:last-child { text-align: right; }
-  .sla-type { color: var(--text-primary); display: block; font-weight: 700; }
-  .sla-module { color: var(--text-muted); display: block; font-size: .72rem; }
-  .sla-row-alert td { background: rgba(229, 62, 62, .06); }
-  .sla-time { color: var(--text-primary); font-weight: 700; }
-  .sla-row-alert .sla-time { color: var(--danger); }
+  .sla-header { align-items:flex-start; display:flex; justify-content:space-between; gap:18px; margin-bottom:22px; }
+  .sla-header h1 { color:var(--text-primary); font-size:1.55rem; line-height:1.25; }
+  .sla-header p { color:var(--text-muted); font-size:.86rem; margin-top:5px; }
+  .sla-updated { color:var(--text-muted); font-size:.72rem; white-space:nowrap; }
+  .sla-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:22px; }
+  .sla-stat { background:var(--bg-card); border:1px solid var(--border); border-left:4px solid var(--brand); border-radius:12px; box-shadow:var(--shadow-card); padding:17px 20px; }
+  .sla-stat.is-alert { border-left-color:var(--warning); }
+  .sla-stat.is-critical { border-left-color:var(--danger); }
+  .sla-stat.is-average { border-left-color:var(--mod1-blue); }
+  .sla-stat span { color:var(--text-muted); display:block; font-size:.68rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+  .sla-stat strong { color:var(--text-primary); display:block; font-size:1.8rem; line-height:1.15; margin-top:5px; }
+  .sla-grid { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(280px,.7fr); gap:18px; margin-bottom:22px; }
+  .sla-panel { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-card); overflow:hidden; }
+  .sla-panel-header { align-items:center; background:var(--bg-input); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; gap:12px; padding:15px 20px; }
+  .sla-panel-header h2 { color:var(--text-primary); font-size:1rem; }
+  .sla-panel-body { padding:16px 20px; }
+  .sla-module-row { display:grid; grid-template-columns:minmax(130px,1fr) 55px 65px 65px 75px; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); font-size:.8rem; }
+  .sla-module-row:last-child { border-bottom:0; }
+  .sla-module-name { font-weight:700; }
+  .sla-module-row small { color:var(--text-muted); display:block; font-size:.62rem; text-transform:uppercase; }
+  .sla-bar { background:var(--bg-input); border-radius:99px; height:7px; margin-top:5px; overflow:hidden; }
+  .sla-bar span { background:var(--brand); display:block; height:100%; min-width:3px; }
+  .sla-bucket { margin-bottom:14px; }
+  .sla-bucket:last-child { margin-bottom:0; }
+  .sla-bucket-line { display:flex; justify-content:space-between; gap:12px; font-size:.8rem; }
+  .sla-bucket-line strong { color:var(--text-primary); }
+  .sla-filter { align-items:flex-end; display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; padding:15px 20px; }
+  .sla-filter .form-group { margin:0; min-width:190px; }
+  .sla-table-wrap { overflow-x:auto; }
+  .sla-table td:last-child, .sla-table th:last-child { text-align:right; }
+  .sla-type { color:var(--text-primary); display:block; font-weight:700; }
+  .sla-module { color:var(--text-muted); display:block; font-size:.72rem; }
+  .sla-row-alert td { background:rgba(245,158,11,.05); }
+  .sla-row-critical td { background:rgba(229,62,62,.07); }
+  .sla-time { color:var(--text-primary); font-weight:700; white-space:nowrap; }
+  .sla-row-alert .sla-time { color:var(--warning); }
+  .sla-row-critical .sla-time { color:var(--danger); }
+  .sla-link { color:var(--mod1-blue); font-weight:600; text-decoration:none; }
 
+  @media (max-width: 980px) {
+    .sla-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .sla-grid { grid-template-columns:1fr; }
+  }
   @media (max-width: 768px) {
-    .sla-header { margin-bottom: 16px; }
-    .sla-header h1 { font-size: 1.25rem; }
-    .sla-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
-    .sla-stat { padding: 14px; }
-    .sla-stat strong { font-size: 1.55rem; }
-    .sla-panel { background: transparent; border: 0; box-shadow: none; overflow: visible; }
-    .sla-panel-header { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; padding: 13px; }
-    .sla-table-wrap { overflow: visible; }
-    .sla-table, .sla-table tbody, .sla-table tr, .sla-table td { display: block; width: 100%; }
-    .sla-table { min-width: 0; }
-    .sla-table thead { display: none; }
-    .sla-table tr {
-      background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
-      box-shadow: var(--shadow-card); margin-bottom: 12px; overflow: hidden; padding: 7px 0;
-    }
-    .sla-table tr.sla-row-alert { border-left: 4px solid var(--danger); }
-    .sla-table td, .sla-table td:last-child {
-      align-items: start; background: transparent; border: 0; display: grid;
-      grid-template-columns: 92px minmax(0, 1fr); gap: 10px; padding: 8px 13px; text-align: left;
-    }
-    .sla-table td::before { content: attr(data-label); color: var(--text-muted); font-size: .65rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-    .sla-table td[colspan] { display: block; text-align: center; }
-    .sla-table td[colspan]::before { display: none; }
+    .sla-header { flex-direction:column; margin-bottom:16px; }
+    .sla-header h1 { font-size:1.25rem; }
+    .sla-stats { gap:10px; }
+    .sla-stat { padding:14px; }
+    .sla-stat strong { font-size:1.55rem; }
+    .sla-module-row { grid-template-columns:minmax(120px,1fr) repeat(3,55px); }
+    .sla-module-oldest { display:none; }
+    .sla-filter .form-group { min-width:100%; }
+    .sla-table-wrap { overflow:visible; }
+    .sla-table, .sla-table tbody, .sla-table tr, .sla-table td { display:block; width:100%; }
+    .sla-table { min-width:0; }
+    .sla-table thead { display:none; }
+    .sla-table tr { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-card); margin:0 12px 12px; overflow:hidden; padding:7px 0; width:calc(100% - 24px); }
+    .sla-table tr.sla-row-alert { border-left:4px solid var(--warning); }
+    .sla-table tr.sla-row-critical { border-left:4px solid var(--danger); }
+    .sla-table td, .sla-table td:last-child { align-items:start; background:transparent; border:0; display:grid; grid-template-columns:92px minmax(0,1fr); gap:10px; padding:8px 13px; text-align:left; }
+    .sla-table td::before { content:attr(data-label); color:var(--text-muted); font-size:.65rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+    .sla-table td[colspan] { display:block; text-align:center; }
+    .sla-table td[colspan]::before { display:none; }
   }
-  @media (max-width: 390px) {
-    .sla-stats { grid-template-columns: 1fr; }
-    .sla-panel-header { align-items: flex-start; flex-direction: column; }
-  }
+  @media (max-width:390px) { .sla-stats { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
 
 {% block content %}
 <header class="sla-header">
-  <h1>Painel de Tempo de Processos (SLA)</h1>
-  <p>Acompanhamento do tempo de execucao dos processos pendentes. Exclusivo da Diretoria.</p>
+  <div>
+    <h1>Painel de Tempo de Processos (SLA)</h1>
+    <p>Visão consolidada dos processos pendentes de todas as áreas. Exclusivo da Diretoria.</p>
+  </div>
+  <span class="sla-updated">Atualizado em {{ atualizado_em|date:"d/m/Y H:i" }}</span>
 </header>
 
 <section class="sla-stats" aria-label="Resumo dos processos">
-  <article class="sla-stat"><span>Processos monitorados</span><strong>{{ processos|length }}</strong></article>
+  <article class="sla-stat"><span>Processos monitorados</span><strong>{{ total_processos }}</strong></article>
   <article class="sla-stat is-alert"><span>Acima de 2 dias</span><strong>{{ total_alertas }}</strong></article>
+  <article class="sla-stat is-critical"><span>Críticos: acima de 7 dias</span><strong>{{ total_criticos }}</strong></article>
+  <article class="sla-stat is-average"><span>Tempo médio</span><strong>{{ media_horas }}h</strong></article>
+</section>
+
+<section class="sla-grid">
+  <article class="sla-panel">
+    <header class="sla-panel-header"><h2>Resumo por área</h2><span class="badge badge-info">{{ resumo_modulos|length }} áreas</span></header>
+    <div class="sla-panel-body">
+      {% for item in resumo_modulos %}
+      <div class="sla-module-row">
+        <div><span class="sla-module-name">{{ item.nome }}</span><div class="sla-bar"><span style="width:{{ item.percentual }}%"></span></div></div>
+        <div><small>Total</small><strong>{{ item.total }}</strong></div>
+        <div><small>+2 dias</small><strong>{{ item.alertas }}</strong></div>
+        <div><small>Críticos</small><strong>{{ item.criticos }}</strong></div>
+        <div class="sla-module-oldest"><small>Mais antigo</small><strong>{{ item.mais_antigo }}d</strong></div>
+      </div>
+      {% empty %}<p style="color:var(--text-muted);">Nenhuma área com processos pendentes.</p>{% endfor %}
+    </div>
+  </article>
+  <article class="sla-panel">
+    <header class="sla-panel-header"><h2>Distribuição por tempo</h2></header>
+    <div class="sla-panel-body">
+      {% for faixa in faixas %}
+      <div class="sla-bucket">
+        <div class="sla-bucket-line"><span>{{ faixa.nome }}</span><strong>{{ faixa.total }}</strong></div>
+        <div class="sla-bar"><span style="width:{{ faixa.percentual }}%"></span></div>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
 </section>
 
 <section class="sla-panel">
-  <header class="sla-panel-header">
-    <h2>Processos pendentes</h2>
-    <span class="sla-alert-label">Atencao aos alertas</span>
-  </header>
+  <header class="sla-panel-header"><h2>Processos pendentes</h2><span class="badge badge-muted">{{ processos|length }} exibido(s)</span></header>
+  <form method="get" class="sla-filter">
+    <div class="form-group">
+      <label class="form-label" for="sla-modulo">Área</label>
+      <select class="form-control" id="sla-modulo" name="modulo">
+        <option value="">Todas as áreas</option>
+        {% for modulo in modulos %}<option value="{{ modulo }}" {% if modulo_filter == modulo %}selected{% endif %}>{{ modulo }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="sla-faixa">Tempo</label>
+      <select class="form-control" id="sla-faixa" name="faixa">
+        <option value="">Todos os tempos</option>
+        <option value="alerta" {% if faixa_filter == 'alerta' %}selected{% endif %}>Acima de 2 dias</option>
+        <option value="critico" {% if faixa_filter == 'critico' %}selected{% endif %}>Acima de 7 dias</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-mod1">Filtrar</button>
+    {% if modulo_filter or faixa_filter %}<a href="{% url 'painel_sla' %}" class="btn btn-outline">Limpar</a>{% endif %}
+  </form>
   <div class="sla-table-wrap">
     <table class="sla-table">
-      <thead><tr><th>Tipo / Modulo</th><th>Titulo</th><th>Responsavel</th><th>Status</th><th>Tempo decorrido</th></tr></thead>
+      <thead><tr><th>Tipo / Área</th><th>Processo</th><th>Responsável</th><th>Status</th><th>Tempo decorrido</th></tr></thead>
       <tbody>
         {% for p in processos %}
-        <tr class="{% if p.alerta %}sla-row-alert{% endif %}">
-          <td data-label="Tipo / Modulo"><span class="sla-type">{{ p.tipo }}</span><span class="sla-module">{{ p.modulo }}</span></td>
-          <td data-label="Titulo">{{ p.titulo|truncatechars:60 }}</td>
-          <td data-label="Responsavel">{{ p.responsavel }}</td>
-          <td data-label="Status"><span class="badge {% if p.alerta %}badge-danger{% else %}badge-muted{% endif %}">{{ p.status }}</span></td>
+        <tr class="{% if p.critico %}sla-row-critical{% elif p.alerta %}sla-row-alert{% endif %}">
+          <td data-label="Tipo / Área"><span class="sla-type">{{ p.tipo }}</span><span class="sla-module">{{ p.modulo }}</span></td>
+          <td data-label="Processo">{% if p.url %}<a class="sla-link" href="{{ p.url }}">{{ p.titulo|truncatechars:60 }}</a>{% else %}{{ p.titulo|truncatechars:60 }}{% endif %}</td>
+          <td data-label="Responsável">{{ p.responsavel|default:"Não definido" }}</td>
+          <td data-label="Status"><span class="badge {% if p.critico %}badge-danger{% elif p.alerta %}badge-warning{% else %}badge-info{% endif %}">{{ p.status }}</span></td>
           <td data-label="Tempo" class="sla-time">
             {% if p.dias > 0 %}{{ p.dias }} dia{{ p.dias|pluralize }} e {{ p.horas }}h{% else %}{{ p.horas }} horas{% endif %}
-            {% if p.alerta %}<span title="Tempo elevado">&#9888;</span>{% endif %}
+            {% if p.critico %}<span title="Processo crítico">&#9888;</span>{% endif %}
           </td>
         </tr>
-        {% empty %}
-        <tr><td colspan="5" style="padding:32px;text-align:center;color:var(--text-muted);">Nenhum processo pendente no momento.</td></tr>
-        {% endfor %}
+        {% empty %}<tr><td colspan="5" style="padding:32px;text-align:center;color:var(--text-muted);">Nenhum processo encontrado com os filtros selecionados.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
