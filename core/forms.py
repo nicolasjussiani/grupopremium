@@ -20,7 +20,7 @@ class FornecedorForm(forms.ModelForm):
 
     def clean_cnpj(self):
         import re
-        valor = self.cleaned_data.get('cnpj', '').strip()
+        valor = (self.cleaned_data.get('cnpj') or '').strip()
         if not valor:
             return None
         digitos = re.sub(r'\D', '', valor)

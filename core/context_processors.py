@@ -1,6 +1,7 @@
 """Flags leves usadas para segmentar a navegacao do ERP."""
 
 from django.core.cache import cache
+from django.db import DatabaseError
 
 
 def navigation_access(request):
@@ -16,14 +17,18 @@ def navigation_access(request):
     opcoes = cache.get('cadastros_gerais_opcoes_v1')
     if opcoes is None:
         from core.models import Fornecedor, Unidade
-        opcoes = {
-            'fornecedores_cadastrados': list(
-                Fornecedor.objects.filter(ativo=True).values('razao_social', 'cnpj')
-            ),
-            'unidades_cadastradas': list(
-                Unidade.objects.filter(ativo=True).values_list('nome', flat=True)
-            ),
-        }
-        cache.set('cadastros_gerais_opcoes_v1', opcoes, 300)
+        try:
+            opcoes = {
+                'fornecedores_cadastrados': list(
+                    Fornecedor.objects.filter(ativo=True).values('razao_social', 'cnpj')
+                ),
+                'unidades_cadastradas': list(
+                    Unidade.objects.filter(ativo=True).values_list('nome', flat=True)
+                ),
+            }
+            cache.set('cadastros_gerais_opcoes_v1', opcoes, 300)
+        except DatabaseError:
+            # Mantem login e telas operacionais acessiveis durante uma migracao.
+            opcoes = {'fornecedores_cadastrados': [], 'unidades_cadastradas': []}
     contexto.update(opcoes)
     return contexto
