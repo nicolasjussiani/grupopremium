@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Colaborador
+from .models import Colaborador, DocumentoColaborador
 
 
 class ListaColaboradoresContratoTest(TestCase):
@@ -50,3 +50,70 @@ class ListaColaboradoresContratoTest(TestCase):
         response = self.client.get(reverse('lista_colaboradores'))
 
         self.assertContains(response, 'Não informado')
+
+    def test_desativar_preserva_colaborador_e_documentos(self):
+        colaborador = Colaborador.objects.create(
+            nome='Pessoa a Desativar', cpf='98765432100', cargo='Auxiliar',
+            unidade='Matriz', data_admissao=date(2026, 4, 10), status='ativo',
+        )
+        documento = DocumentoColaborador.objects.create(
+            colaborador=colaborador, tipo='contrato',
+            arquivo='admissional/colaboradores/teste/contrato.pdf',
+        )
+
+        response = self.client.post(reverse('excluir_colaborador', args=[colaborador.pk]))
+
+        self.assertRedirects(response, f"{reverse('lista_colaboradores')}?status=inativo")
+        colaborador.refresh_from_db()
+        self.assertEqual(colaborador.status, 'inativo')
+        self.assertTrue(Colaborador.objects.filter(pk=colaborador.pk).exists())
+        self.assertTrue(DocumentoColaborador.objects.filter(pk=documento.pk).exists())
+
+    def test_lista_permite_consultar_inativos_e_reativar(self):
+        inativo = Colaborador.objects.create(
+            nome='Pessoa Inativa', cpf='98765432101', cargo='Auxiliar',
+            unidade='Matriz', data_admissao=date(2026, 4, 10), status='inativo',
+        )
+
+        lista = self.client.get(reverse('lista_colaboradores'), {'status': 'inativo'})
+
+        self.assertContains(lista, inativo.nome)
+        self.assertContains(lista, reverse('reativar_colaborador', args=[inativo.pk]))
+        response = self.client.post(reverse('reativar_colaborador', args=[inativo.pk]))
+        self.assertRedirects(response, reverse('lista_colaboradores'))
+        inativo.refresh_from_db()
+        self.assertEqual(inativo.status, 'ativo')
+
+    def test_confirmacao_explica_que_dados_nao_serao_excluidos(self):
+        colaborador = Colaborador.objects.create(
+            nome='Pessoa Preservada', cpf='98765432102', cargo='Auxiliar',
+            unidade='Matriz', data_admissao=date(2026, 4, 10),
+        )
+
+        response = self.client.get(reverse('excluir_colaborador', args=[colaborador.pk]))
+
+        self.assertContains(response, 'Desativar Colaborador')
+        self.assertContains(response, 'documentos, EPIs e demais registros serão preservados')
+        self.assertNotContains(response, 'removerá todos os registros')
+
+    def test_delete_direto_no_modelo_tambem_apenas_desativa(self):
+        colaborador = Colaborador.objects.create(
+            nome='Pessoa Protegida', cpf='98765432103', cargo='Auxiliar',
+            unidade='Matriz', data_admissao=date(2026, 4, 10),
+        )
+
+        colaborador.delete()
+
+        colaborador.refresh_from_db()
+        self.assertEqual(colaborador.status, 'inativo')
+
+    def test_delete_em_lote_tambem_apenas_desativa(self):
+        colaborador = Colaborador.objects.create(
+            nome='Pessoa Protegida em Lote', cpf='98765432104', cargo='Auxiliar',
+            unidade='Matriz', data_admissao=date(2026, 4, 10),
+        )
+
+        Colaborador.objects.filter(pk=colaborador.pk).delete()
+
+        colaborador.refresh_from_db()
+        self.assertEqual(colaborador.status, 'inativo')

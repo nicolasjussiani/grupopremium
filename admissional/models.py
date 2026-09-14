@@ -3,6 +3,13 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
+class ColaboradorQuerySet(models.QuerySet):
+    def delete(self):
+        """Desativa em massa sem remover pessoas ou seus relacionamentos."""
+        quantidade = self.exclude(status='inativo').update(status='inativo')
+        return quantidade, {self.model._meta.label: quantidade}
+
+
 class Colaborador(models.Model):
     STATUS = [
         ('ativo', 'Ativo'),
@@ -65,6 +72,14 @@ class Colaborador(models.Model):
     
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
+
+    objects = ColaboradorQuerySet.as_manager()
+
+    def delete(self, using=None, keep_parents=False):
+        """Protege o historico: excluir um colaborador significa desativa-lo."""
+        self.status = 'inativo'
+        self.save(using=using, update_fields=['status'])
+        return 1, {self._meta.label: 1}
 
     class Meta:
         verbose_name = 'Colaborador'

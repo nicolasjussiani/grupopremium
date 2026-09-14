@@ -16,6 +16,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.utils.text import get_valid_filename
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
 
@@ -208,8 +209,14 @@ def avancar_admissao(request, pk):
 
 @login_required
 def lista_colaboradores(request):
-    colaboradores = Colaborador.objects.filter(status='ativo')
-    total_ativos = colaboradores.count()
+    colaboradores = Colaborador.objects.all()
+    total_ativos = colaboradores.filter(status='ativo').count()
+    status_filter = request.GET.get('status', 'ativo').strip()
+    status_validos = {valor for valor, _ in Colaborador.STATUS}
+    if status_filter != 'todos' and status_filter not in status_validos:
+        status_filter = 'ativo'
+    if status_filter != 'todos':
+        colaboradores = colaboradores.filter(status=status_filter)
     query = request.GET.get('q', '').strip()[:100]
     if query:
         filtros = (
@@ -230,6 +237,8 @@ def lista_colaboradores(request):
         'total': colaboradores.count(),
         'total_ativos': total_ativos,
         'query': query,
+        'status_filter': status_filter,
+        'status_choices': Colaborador.STATUS,
         'can_add_colaborador': user_has_access(
             request.user,
             permission='admissional.add_colaborador',
@@ -384,12 +393,23 @@ def excluir_colaborador(request, pk):
     colaborador = get_object_or_404(Colaborador, pk=pk)
     if request.method == 'POST':
         nome = colaborador.nome
-        # Preserva o historico trabalhista, anexos e movimentacoes relacionadas.
-        colaborador.status = 'desligado'
+        # Desativacao logica: preserva cadastro, documentos e todo o historico.
+        colaborador.status = 'inativo'
         colaborador.save(update_fields=['status'])
-        messages.success(request, f'Colaborador {nome} excluído com sucesso!')
-        return redirect('lista_colaboradores')
+        messages.success(request, f'Colaborador {nome} desativado com sucesso. Nenhum dado foi excluído.')
+        return redirect(f"{reverse('lista_colaboradores')}?status=inativo")
     return render(request, 'admissional/excluir_colaborador.html', {'colaborador': colaborador})
+
+
+@login_required
+@require_POST
+@access_required(permission='admissional.delete_colaborador', profiles=('rh',))
+def reativar_colaborador(request, pk):
+    colaborador = get_object_or_404(Colaborador, pk=pk, status='inativo')
+    colaborador.status = 'ativo'
+    colaborador.save(update_fields=['status'])
+    messages.success(request, f'Colaborador {colaborador.nome} reativado com sucesso.')
+    return redirect('lista_colaboradores')
 
 
 @login_required
