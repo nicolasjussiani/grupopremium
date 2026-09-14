@@ -10,8 +10,9 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from core.access import user_is_executive
+from core.access import user_has_access, user_is_executive
 from core.models import AprovacaoRegistro, LogAtividade, Notificacao
+from admissional.models import Colaborador
 
 
 def _redirect_seguro(request):
@@ -82,6 +83,17 @@ def painel_mobile(request):
         modulo__in=modulos, status__in=('aprovado', 'rejeitado')
     ).select_related('aprovado_por').order_by('-decidido_em')[:10]
     is_visao_executiva = user_is_executive(request.user)
+    pode_ver_documentos_pendentes = user_has_access(
+        request.user,
+        permission='admissional.view_colaborador',
+        profiles=('rh',),
+        groups=('Admissional_RH',),
+    )
+    documentos_incompletos = (
+        Colaborador.objects.exclude(status__in=['inativo', 'desligado'])
+        .com_documentacao_incompleta().count()
+        if pode_ver_documentos_pendentes else 0
+    )
     atividades_recentes = []
     areas_movimentadas = []
     movimentacoes_hoje = decisoes_hoje = 0
@@ -114,6 +126,8 @@ def painel_mobile(request):
         'areas_movimentadas': areas_movimentadas,
         'movimentacoes_hoje': movimentacoes_hoje,
         'decisoes_hoje': decisoes_hoje,
+        'pode_ver_documentos_pendentes': pode_ver_documentos_pendentes,
+        'documentos_incompletos': documentos_incompletos,
     })
 
 
@@ -209,8 +223,8 @@ def pwa_manifest(request):
 
 def service_worker(request):
     script = """
-const CACHE = 'premiumbr-mobile-v5';
-const ASSETS = ['/static/css/mobile.css?v=4', '/static/pwa-icon-192.png', '/static/pwa-icon-512.png', '/static/favicon.jpeg'];
+const CACHE = 'premiumbr-mobile-v6';
+const ASSETS = ['/static/css/mobile.css?v=5', '/static/pwa-icon-192.png', '/static/pwa-icon-512.png', '/static/favicon.jpeg'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))));
 self.addEventListener('fetch', event => {

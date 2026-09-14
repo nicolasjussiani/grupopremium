@@ -209,14 +209,25 @@ def avancar_admissao(request, pk):
 
 @login_required
 def lista_colaboradores(request):
-    colaboradores = Colaborador.objects.all()
+    colaboradores = Colaborador.objects.com_status_documental()
     total_ativos = colaboradores.filter(status='ativo').count()
+    documentos_incompletos = Colaborador.objects.exclude(
+        status__in=['inativo', 'desligado']
+    ).com_documentacao_incompleta().count()
     status_filter = request.GET.get('status', 'ativo').strip()
     status_validos = {valor for valor, _ in Colaborador.STATUS}
     if status_filter != 'todos' and status_filter not in status_validos:
         status_filter = 'ativo'
     if status_filter != 'todos':
         colaboradores = colaboradores.filter(status=status_filter)
+    documentos_filter = request.GET.get('documentos', '').strip()
+    if documentos_filter not in {'', 'incompletos', 'completos'}:
+        documentos_filter = ''
+    if documentos_filter:
+        colaboradores = colaboradores.exclude(status__in=['inativo', 'desligado'])
+        colaboradores = colaboradores.filter(
+            documentacao_incompleta=documentos_filter == 'incompletos'
+        )
     query = request.GET.get('q', '').strip()[:100]
     if query:
         filtros = (
@@ -239,6 +250,8 @@ def lista_colaboradores(request):
         'query': query,
         'status_filter': status_filter,
         'status_choices': Colaborador.STATUS,
+        'documentos_filter': documentos_filter,
+        'documentos_incompletos': documentos_incompletos,
         'can_add_colaborador': user_has_access(
             request.user,
             permission='admissional.add_colaborador',

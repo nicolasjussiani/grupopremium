@@ -1,9 +1,38 @@
 """ERP Grupo PremiumBR — Models do Módulo 2: Admissional"""
 from django.db import models
+from django.db.models import BooleanField, Case, Exists, OuterRef, Q, Value, When
 from django.contrib.auth.models import User
 
 
 class ColaboradorQuerySet(models.QuerySet):
+    CAMPOS_DOCUMENTAIS_ESSENCIAIS = ('anexo_cpf', 'anexo_rg', 'anexo_aso')
+
+    def com_status_documental(self):
+        """Anota a situação do checklist sem carregar ou abrir arquivos."""
+        documentos = DocumentoColaborador.objects.filter(colaborador_id=OuterRef('pk'))
+        queryset = self.annotate(
+            tem_comprovante_endereco=Exists(
+                documentos.filter(tipo='comprovante_endereco')
+            ),
+            tem_contrato_arquivo=Exists(documentos.filter(tipo='contrato')),
+        )
+        faltando = Q(tem_comprovante_endereco=False) | Q(tem_contrato_arquivo=False)
+        for campo in self.CAMPOS_DOCUMENTAIS_ESSENCIAIS:
+            faltando |= Q(**{f'{campo}__isnull': True}) | Q(**{campo: ''})
+        return queryset.annotate(
+            documentacao_incompleta=Case(
+                When(faltando, then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField(),
+            )
+        )
+
+    def com_documentacao_incompleta(self):
+        return self.com_status_documental().filter(documentacao_incompleta=True)
+
+    def com_documentacao_completa(self):
+        return self.com_status_documental().filter(documentacao_incompleta=False)
+
     def delete(self):
         """Desativa em massa sem remover pessoas ou seus relacionamentos."""
         quantidade = self.exclude(status='inativo').update(status='inativo')

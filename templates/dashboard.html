@@ -103,6 +103,15 @@
     <div class="kpi-label" style="font-weight: 600;">Admissões em Andamento</div>
     <div class="kpi-sub">{{ colaboradores_ativos }} colaboradores ativos</div>
   </a>
+
+  {% if pode_ver_documentos_pendentes %}
+  <a href="{% url 'lista_colaboradores' %}?status=todos&amp;documentos=incompletos" class="kpi-card kpi-mod2 kpi-card-custom" style="text-decoration:none;">
+    <div class="kpi-icon" style="opacity:.8;">📄</div>
+    <div class="kpi-value">{{ documentos_incompletos }}</div>
+    <div class="kpi-label" style="font-weight:600;">Documentação Incompleta</div>
+    <div class="kpi-sub">Colaboradores que precisam de regularização</div>
+  </a>
+  {% endif %}
   {% endif %}
 
   {% if is_visao_executiva or request.user.perfil.perfil == 'gestor' %}

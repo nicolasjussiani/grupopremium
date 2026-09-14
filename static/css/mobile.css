@@ -71,6 +71,13 @@ a { color: inherit; }
 .install-actions { display: flex; flex: 0 0 auto; flex-direction: column; gap: 6px; }
 .install-card button:disabled { cursor: default; opacity: .7; }
 .install-card.show-install-help { border-color: var(--gold); background: #fff8e9; }
+.document-pending-card { display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:11px; align-items:center; padding:14px; margin:-14px 0 28px; border:1px solid #f0d5a6; border-radius:15px; background:#fffaf0; color:var(--ink); text-decoration:none; box-shadow:0 5px 18px rgba(13,33,73,.04); }
+.document-pending-icon { display:grid; place-items:center; width:40px; height:40px; border-radius:12px; background:#fff0d4; font-size:1.05rem; }
+.document-pending-card > span:nth-child(2) { min-width:0; display:flex; flex-direction:column; }
+.document-pending-card small { color:#9a691d; font-size:.55rem; font-weight:850; letter-spacing:.08em; }
+.document-pending-card strong { margin-top:3px; font-size:.72rem; line-height:1.35; }
+.document-pending-card em { margin-top:3px; color:var(--muted); font-size:.59rem; font-style:normal; }
+.document-pending-card > b { color:var(--navy); font-size:1.35rem; }
 
 .mobile-section { margin: 0 0 32px; scroll-margin-top: 84px; }
 .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }

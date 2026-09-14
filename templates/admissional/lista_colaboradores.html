@@ -6,7 +6,7 @@
 {% block content %}
 <div class="module-banner mod-banner-2" style="margin-bottom:20px;">
   <div class="mod-title">🏢 Colaboradores Ativos</div>
-  <div class="mod-desc">{{ total_ativos }} colaborador(es) ativo(s) no sistema</div>
+  <div class="mod-desc">{{ total_ativos }} colaborador(es) ativo(s) · {{ documentos_incompletos }} com documentação incompleta</div>
 </div>
 
 <div class="card" style="margin-bottom:20px;">
@@ -32,8 +32,16 @@
         {% endfor %}
       </select>
     </div>
+    <div style="min-width:210px;">
+      <label for="documentos-colaborador">Documentação</label>
+      <select id="documentos-colaborador" class="form-control" name="documentos">
+        <option value="" {% if not documentos_filter %}selected{% endif %}>Todas</option>
+        <option value="incompletos" {% if documentos_filter == 'incompletos' %}selected{% endif %}>Documentos incompletos</option>
+        <option value="completos" {% if documentos_filter == 'completos' %}selected{% endif %}>Documentação completa</option>
+      </select>
+    </div>
     <button type="submit" class="btn btn-mod1">🔎 Pesquisar</button>
-    {% if query or status_filter != 'ativo' %}
+    {% if query or status_filter != 'ativo' or documentos_filter %}
       <a href="{% url 'lista_colaboradores' %}" class="btn">Limpar</a>
     {% endif %}
   </form>
@@ -42,6 +50,11 @@
       {{ total }} resultado(s) para “{{ query }}”
     </div>
   {% endif %}
+</div>
+
+<div class="card" style="margin-bottom:20px;padding:13px 16px;border-left:4px solid var(--mod2-green);">
+  <strong style="font-size:.82rem;">Checklist documental</strong>
+  <span style="color:var(--text-muted);font-size:.78rem;"> CPF/CNPJ, RG, ASO, comprovante de endereço e contrato. CTPS, PIS e e-mail não fazem parte desta pendência.</span>
 </div>
 
 {% if can_add_colaborador %}
@@ -62,6 +75,7 @@
         <th>Contrato</th>
         <th>Admissão</th>
         <th>Status</th>
+        <th>Documentos</th>
         <th>EPIs</th>
         <th>Ações</th>
       </tr>
@@ -83,6 +97,7 @@
         <td>
           <span class="badge {% if c.status == 'ativo' %}badge-success{% elif c.status == 'inativo' or c.status == 'desligado' %}badge-danger{% else %}badge-warning{% endif %}">{{ c.get_status_display }}</span>
         </td>
+        <td><span class="badge {% if c.documentacao_incompleta %}badge-danger{% else %}badge-success{% endif %}">{% if c.documentacao_incompleta %}Incompletos{% else %}Completos{% endif %}</span></td>
         <td>
           {% if c.status == 'ativo' %}
           <a href="{% url 'registrar_epi_colaborador' c.pk %}" class="btn btn-sm btn-mod4">🦺 EPI</a>

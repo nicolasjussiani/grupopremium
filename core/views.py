@@ -19,7 +19,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.csrf import csrf_failure as default_csrf_failure
 
-from core.access import user_is_executive
+from core.access import user_has_access, user_is_executive
 from core.models import AprovacaoRegistro, LogAtividade, PerfilUsuario, Notificacao
 from core.forms import UsuarioERPForm
 from recrutamento.models import Vaga, Candidato
@@ -110,6 +110,12 @@ def logout_view(request):
 def dashboard(request):
     hoje = timezone.now().date()
     is_visao_executiva = user_is_executive(request.user)
+    pode_ver_documentos_pendentes = user_has_access(
+        request.user,
+        permission='admissional.view_colaborador',
+        profiles=('rh',),
+        groups=('Admissional_RH',),
+    )
 
     # Perfil do usuário (pode não existir em modo demo)
     perfil = None
@@ -132,6 +138,11 @@ def dashboard(request):
         # Módulo 2 - Admissional
         admissoes_em_andamento = Admissao.objects.exclude(status__in=['concluido']).count()
         colaboradores_ativos   = Colaborador.objects.filter(status='ativo').count()
+        documentos_incompletos = (
+            Colaborador.objects.exclude(status__in=['inativo', 'desligado'])
+            .com_documentacao_incompleta().count()
+            if pode_ver_documentos_pendentes else 0
+        )
 
         # Módulo 3 - Administrativo
         demandas_abertas  = DemandaAdministrativa.objects.exclude(status__in=['arquivada']).count()
@@ -191,6 +202,7 @@ def dashboard(request):
         # Banco indisponível — retorna zeros
         vagas_abertas = vagas_em_selecao = candidatos_pendentes = 0
         admissoes_em_andamento = colaboradores_ativos = 0
+        documentos_incompletos = 0
         demandas_abertas = demandas_urgentes = 0
         epis_vencidos = epis_vencendo_7d = 0
         solicitacoes_pendentes = materiais_criticos = 0
@@ -208,6 +220,8 @@ def dashboard(request):
         'candidatos_pendentes': candidatos_pendentes,
         'admissoes_em_andamento': admissoes_em_andamento,
         'colaboradores_ativos': colaboradores_ativos,
+        'documentos_incompletos': documentos_incompletos,
+        'pode_ver_documentos_pendentes': pode_ver_documentos_pendentes,
         'demandas_abertas': demandas_abertas,
         'demandas_urgentes': demandas_urgentes,
         'epis_vencidos': epis_vencidos,

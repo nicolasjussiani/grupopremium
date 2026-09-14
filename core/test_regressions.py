@@ -14,7 +14,7 @@ from django.conf import settings
 from django.urls import reverse
 
 from administrativo.models import DemandaAdministrativa
-from admissional.models import Colaborador
+from admissional.models import Colaborador, DocumentoColaborador
 from core.middleware import AuditLogMiddleware
 from core.models import AprovacaoRegistro, LogAtividade, Notificacao, PerfilUsuario
 from core.validators import MAX_REQUEST_UPLOAD_SIZE, validate_document_upload
@@ -607,6 +607,60 @@ class ColaboradorAccessTests(TestCase):
         por_codigo = self.client.get(lista_url, {'q': f'{self.colaborador.pk:04d}'})
         self.assertContains(por_codigo, self.colaborador.nome)
         self.assertNotContains(por_codigo, outro.nome)
+
+
+class DocumentacaoColaboradorTests(TestCase):
+    def setUp(self):
+        self.incompleto = Colaborador.objects.create(
+            nome='Pessoa Pendente', status='ativo', anexo_cpf='docs/cpf.pdf'
+        )
+        self.completo = Colaborador.objects.create(
+            nome='Pessoa Regularizada',
+            status='ativo',
+            anexo_cpf='docs/cpf.pdf',
+            anexo_rg='docs/rg.pdf',
+            anexo_aso='docs/aso.pdf',
+        )
+        DocumentoColaborador.objects.create(
+            colaborador=self.completo,
+            tipo='comprovante_endereco',
+            arquivo='docs/endereco.pdf',
+        )
+        DocumentoColaborador.objects.create(
+            colaborador=self.completo,
+            tipo='contrato',
+            arquivo='docs/contrato.pdf',
+        )
+
+    def test_filtro_lista_sinaliza_apenas_documentacao_incompleta(self):
+        rh = User.objects.create_user('rh-documentos', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=rh, perfil='rh')
+        self.client.force_login(rh)
+
+        response = self.client.get(
+            reverse('lista_colaboradores'),
+            {'status': 'todos', 'documentos': 'incompletos'},
+        )
+
+        self.assertEqual(response.context['documentos_incompletos'], 1)
+        self.assertContains(response, self.incompleto.nome)
+        self.assertNotContains(response, self.completo.nome)
+        self.assertContains(response, 'CTPS, PIS e e-mail não fazem parte')
+
+    def test_ceo_e_rh_visualizam_a_mesma_contagem(self):
+        rh = User.objects.create_user('rh-painel-docs', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=rh, perfil='rh')
+        ceo = User.objects.create_user('ceo_premium', password='senha-forte-123')
+
+        for usuario in (rh, ceo):
+            with self.subTest(usuario=usuario.username):
+                self.client.force_login(usuario)
+                desktop = self.client.get(reverse('dashboard'))
+                mobile = self.client.get(reverse('painel_mobile'))
+                self.assertEqual(desktop.context['documentos_incompletos'], 1)
+                self.assertContains(desktop, 'Documentação Incompleta')
+                self.assertEqual(mobile.context['documentos_incompletos'], 1)
+                self.assertContains(mobile, 'com documentação incompleta')
 
 
 class WorkflowIntegrityTests(TestCase):

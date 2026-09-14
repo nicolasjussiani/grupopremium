@@ -31,6 +31,14 @@
     </div>
   </section>
 
+  {% if pode_ver_documentos_pendentes %}
+  <a class="document-pending-card" href="{% url 'lista_colaboradores' %}?status=todos&amp;documentos=incompletos">
+    <span class="document-pending-icon">📄</span>
+    <span><small>RH · DOCUMENTOS</small><strong>{{ documentos_incompletos }} colaborador{{ documentos_incompletos|pluralize:"es" }} com documentação incompleta</strong><em>Toque para visualizar e regularizar</em></span>
+    <b>›</b>
+  </a>
+  {% endif %}
+
   {% if is_visao_executiva %}
   <section class="mobile-section" id="visao">
     <div class="section-title"><div><span>DIRETORIA</span><h2>Visão executiva</h2></div><a class="section-link" href="{% url 'painel_sla' %}">Ver processos</a></div>
