@@ -339,6 +339,30 @@ class AuditNotificationTests(TestCase):
 
 
 class MobilePwaTests(TestCase):
+    def test_ceo_enxerga_visao_global_no_desktop_e_no_celular(self):
+        ceo = User.objects.create_user('ceo_premium', password='senha-forte-123')
+        LogAtividade.objects.create(
+            usuario=ceo,
+            acao='Criou um novo registro',
+            modulo='compras',
+            url='/compras/',
+        )
+        self.client.force_login(ceo)
+
+        desktop = self.client.get(reverse('dashboard'))
+        mobile = self.client.get(reverse('painel_mobile'))
+
+        self.assertEqual(desktop.status_code, 200)
+        self.assertTrue(desktop.context['is_visao_executiva'])
+        self.assertContains(desktop, 'O que está acontecendo agora')
+        self.assertContains(desktop, 'Auditoria completa')
+        self.assertEqual(mobile.status_code, 200)
+        self.assertTrue(mobile.context['is_visao_executiva'])
+        self.assertContains(mobile, 'Visão executiva')
+        self.assertContains(mobile, 'Criou um novo registro')
+        self.assertEqual(self.client.get(reverse('auditoria_sistema')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('painel_sla')).status_code, 200)
+
     def test_painel_mobile_disponivel_para_todos_sem_liberar_aprovacoes(self):
         regular = User.objects.create_user('regular-mobile', password='senha-forte-123')
         PerfilUsuario.objects.create(usuario=regular, perfil='operacional')

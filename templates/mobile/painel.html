@@ -31,6 +31,38 @@
     </div>
   </section>
 
+  {% if is_visao_executiva %}
+  <section class="mobile-section" id="visao">
+    <div class="section-title"><div><span>DIRETORIA</span><h2>Visão executiva</h2></div><a class="section-link" href="{% url 'painel_sla' %}">Ver processos</a></div>
+    <div class="executive-mobile-grid">
+      <a href="#atividades" class="executive-mobile-card"><strong>{{ movimentacoes_hoje }}</strong><span>movimentações hoje</span></a>
+      <a href="#aprovacoes" class="executive-mobile-card attention"><strong>{{ total_pendentes }}</strong><span>aguardando decisão</span></a>
+      <div class="executive-mobile-card"><strong>{{ decisoes_hoje }}</strong><span>decisões hoje</span></div>
+      <div class="executive-mobile-card"><strong>{{ areas_movimentadas|length }}</strong><span>áreas ativas em 7 dias</span></div>
+    </div>
+    {% if areas_movimentadas %}<div class="mobile-area-strip" aria-label="Movimentações por área">
+      {% for area in areas_movimentadas %}<span>{{ area.modulo|capfirst }} <b>{{ area.total }}</b></span>{% endfor %}
+    </div>{% endif %}
+    <div class="executive-mobile-actions">
+      <a href="{% url 'auditoria_sistema' %}">Abrir auditoria completa</a>
+      <a href="{% url 'dashboard' %}">Abrir painel geral</a>
+    </div>
+  </section>
+
+  <section class="mobile-section" id="atividades">
+    <div class="section-title"><div><span>TODAS AS ÁREAS</span><h2>Atividade recente</h2></div></div>
+    <div class="activity-mobile-list">
+      {% for log in atividades_recentes %}
+        <a class="activity-mobile-item" href="{% url 'auditoria_sistema' %}?destaque={{ log.pk }}">
+          <span class="activity-module">{{ log.modulo|slice:':2'|upper }}</span>
+          <span><strong>{{ log.acao }}</strong><small>{{ log.modulo|capfirst }} · {% if log.usuario %}{{ log.usuario.get_full_name|default:log.usuario.username }}{% else %}Sistema{% endif %}</small></span>
+          <time>{{ log.criado_em|date:'d/m H:i' }}</time>
+        </a>
+      {% empty %}<div class="mobile-empty compact"><p>Nenhuma movimentação registrada.</p></div>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   {% if pode_aprovar %}<section class="mobile-section" id="aprovacoes">
     <div class="section-title"><div><span>DECISÕES</span><h2>Aprovações pendentes</h2></div><b>{{ total_pendentes }}</b></div>
     <div class="approval-list">

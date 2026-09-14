@@ -19,7 +19,8 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.csrf import csrf_failure as default_csrf_failure
 
-from core.models import AprovacaoRegistro, PerfilUsuario, Notificacao
+from core.access import user_is_executive
+from core.models import AprovacaoRegistro, LogAtividade, PerfilUsuario, Notificacao
 from core.forms import UsuarioERPForm
 from recrutamento.models import Vaga, Candidato
 from admissional.models import Admissao, Colaborador
@@ -37,8 +38,7 @@ def _usuario_admin(user):
     return (
         user.is_authenticated
         and (
-            user.is_superuser
-            or user.groups.filter(name='Admin_Global').exists()
+            user_is_executive(user)
             or getattr(getattr(user, 'perfil', None), 'perfil', None) == 'admin'
         )
     )
@@ -109,6 +109,7 @@ def logout_view(request):
 @login_required
 def dashboard(request):
     hoje = timezone.now().date()
+    is_visao_executiva = user_is_executive(request.user)
 
     # Perfil do usuário (pode não existir em modo demo)
     perfil = None
@@ -165,6 +166,26 @@ def dashboard(request):
         admissoes_recentes= Admissao.objects.order_by('-criado_em')[:3]
         demandas_recentes = DemandaAdministrativa.objects.order_by('-criado_em')[:3]
 
+        atividades_recentes = []
+        areas_movimentadas = []
+        movimentacoes_hoje = decisoes_hoje = aprovacoes_pendentes_total = 0
+        if is_visao_executiva:
+            inicio_hoje = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+            inicio_periodo = inicio_hoje - timezone.timedelta(days=6)
+            atividades_recentes = LogAtividade.objects.select_related('usuario').only(
+                'usuario__first_name', 'usuario__last_name', 'usuario__username',
+                'acao', 'modulo', 'url', 'criado_em',
+            )[:12]
+            movimentacoes_hoje = LogAtividade.objects.filter(criado_em__gte=inicio_hoje).count()
+            areas_movimentadas = list(
+                LogAtividade.objects.filter(criado_em__gte=inicio_periodo)
+                .values('modulo').annotate(total=Count('id')).order_by('-total', 'modulo')[:8]
+            )
+            aprovacoes_pendentes_total = AprovacaoRegistro.objects.filter(status='pendente').count()
+            decisoes_hoje = AprovacaoRegistro.objects.filter(
+                status__in=['aprovado', 'rejeitado'], decidido_em__gte=inicio_hoje,
+            ).count()
+
     except Exception:
         logger.exception('Falha ao carregar os indicadores do dashboard')
         # Banco indisponível — retorna zeros
@@ -177,6 +198,8 @@ def dashboard(request):
         notificacoes_nao_lidas = 0
         ultimas_notificacoes = []
         vagas_recentes = admissoes_recentes = demandas_recentes = []
+        atividades_recentes = areas_movimentadas = []
+        movimentacoes_hoje = decisoes_hoje = aprovacoes_pendentes_total = 0
 
     context = {
         'perfil': perfil,
@@ -190,6 +213,7 @@ def dashboard(request):
         'epis_vencidos': epis_vencidos,
         'epis_vencendo_7d': epis_vencendo_7d,
         'solicitacoes_pendentes': solicitacoes_pendentes,
+        'materiais_criticos': materiais_criticos,
         'docs_em_auditoria': docs_em_auditoria,
         'lancamentos_pendentes': lancamentos_pendentes,
         'notificacoes_nao_lidas': notificacoes_nao_lidas,
@@ -197,6 +221,12 @@ def dashboard(request):
         'vagas_recentes': vagas_recentes,
         'admissoes_recentes': admissoes_recentes,
         'demandas_recentes': demandas_recentes,
+        'is_visao_executiva': is_visao_executiva,
+        'atividades_recentes': atividades_recentes,
+        'areas_movimentadas': areas_movimentadas,
+        'movimentacoes_hoje': movimentacoes_hoje,
+        'decisoes_hoje': decisoes_hoje,
+        'aprovacoes_pendentes_total': aprovacoes_pendentes_total,
         'hoje': hoje,
         'modo_demo': False,
     }
@@ -273,14 +303,12 @@ def editar_usuario(request, pk):
 
 
 
-from core.models import LogAtividade
-
 @login_required
 def auditoria_sistema(request):
     """
     Dashboard de Auditoria Global. Exclusivo para CEO/Admin.
     """
-    if not (request.user.is_superuser or request.user.groups.filter(name='Admin_Global').exists()):
+    if not user_is_executive(request.user):
         messages.error(request, '⛔ Acesso restrito à Diretoria.')
         return redirect('dashboard')
 
@@ -348,7 +376,7 @@ def painel_sla_processos(request):
     """
     Dashboard de Tempo de Processos (SLA). Exclusivo para CEO/Admin.
     """
-    if not (request.user.is_superuser or request.user.groups.filter(name='Admin_Global').exists()):
+    if not user_is_executive(request.user):
         messages.error(request, '⛔ Acesso restrito à Diretoria.')
         return redirect('dashboard')
 

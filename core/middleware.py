@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 
 from core.notifications import destinatarios_da_area
+from core.access import user_is_executive
 
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class AcessoModuloMiddleware(MiddlewareMixin):
         if path.startswith(self.ROTAS_LIVRES):
             return None
 
-        if request.user.is_superuser or request.user.groups.filter(name='Admin_Global').exists():
+        if user_is_executive(request.user):
             return None
 
         if (

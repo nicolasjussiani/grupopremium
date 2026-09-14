@@ -32,6 +32,21 @@
     color: #ffffff !important;
     border-color: var(--text-primary, #1e293b) !important;
   }
+  .executive-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:20px; }
+  .executive-stat { padding:17px; border:1px solid #dfe6ef; border-radius:14px; background:#fff; }
+  .executive-stat span { display:block; color:var(--text-muted); font-size:.72rem; font-weight:650; }
+  .executive-stat strong { display:block; margin:7px 0 3px; color:var(--text-primary); font-size:1.65rem; }
+  .executive-stat small { color:var(--text-muted); font-size:.68rem; }
+  .executive-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .executive-feed { display:grid; grid-template-columns:minmax(0,2fr) minmax(230px,1fr); gap:16px; margin-bottom:24px; }
+  .executive-log { display:grid; grid-template-columns:10px minmax(0,1fr) auto; gap:10px; align-items:center; padding:11px 0; border-bottom:1px solid rgba(0,0,0,.06); text-decoration:none; }
+  .executive-log:last-child { border-bottom:0; }
+  .executive-log-dot { width:8px; height:8px; border-radius:50%; background:var(--brand); }
+  .executive-log strong { display:block; color:var(--text-primary); font-size:.82rem; }
+  .executive-log small, .executive-log time { color:var(--text-muted); font-size:.7rem; }
+  .area-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid rgba(0,0,0,.06); font-size:.78rem; text-transform:capitalize; }
+  @media (max-width:900px) { .executive-strip { grid-template-columns:repeat(2,1fr); } .executive-feed { grid-template-columns:1fr; } }
+  @media (max-width:520px) { .executive-strip { grid-template-columns:1fr 1fr; gap:8px; } .executive-stat { padding:13px; } .executive-stat strong { font-size:1.35rem; } }
 </style>
 
 <div class="page-header" style="margin-bottom: 2rem;">
@@ -40,21 +55,37 @@
     <p style="color: var(--text-muted); font-size: 0.9rem;">Visão geral de todos os processos integrados — {{ hoje|date:"d \d\e F \d\e Y" }}</p>
   </div>
   <div class="flex gap-2">
-    {% if request.user.is_superuser or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
+    {% if is_visao_executiva or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
     <a href="{% url 'nova_vaga' %}" class="btn btn-mod1 btn-sm" style="font-weight: 500; border-radius: var(--radius-sm);">+ Abrir Vaga</a>
     {% endif %}
-    {% if request.user.is_superuser or request.user.perfil.perfil == 'gestor' %}
+    {% if is_visao_executiva or request.user.perfil.perfil == 'gestor' %}
     <a href="{% url 'nova_demanda' %}" class="btn btn-mod3 btn-sm" style="font-weight: 500; border-radius: var(--radius-sm);">+ Nova Demanda</a>
     {% endif %}
-    {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
+    {% if is_visao_executiva or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
     <a href="{% url 'entrada_documento' %}" class="btn btn-mod6 btn-sm" style="font-weight: 500; border-radius: var(--radius-sm);">+ Documento Fin.</a>
     {% endif %}
   </div>
 </div>
 
+{% if is_visao_executiva %}
+<section aria-label="Resumo executivo">
+  <div class="executive-strip">
+    <div class="executive-stat"><span>Movimentações hoje</span><strong>{{ movimentacoes_hoje }}</strong><small>Alterações registradas no ERP</small></div>
+    <div class="executive-stat"><span>Aguardando decisão</span><strong>{{ aprovacoes_pendentes_total }}</strong><small>Aprovações de todas as áreas</small></div>
+    <div class="executive-stat"><span>Decisões hoje</span><strong>{{ decisoes_hoje }}</strong><small>Aprovadas ou rejeitadas</small></div>
+    <div class="executive-stat"><span>Pontos de atenção</span><strong>{{ demandas_urgentes|add:epis_vencidos|add:materiais_criticos }}</strong><small>Urgências, EPIs e estoque crítico</small></div>
+  </div>
+  <div class="executive-toolbar">
+    <a href="{% url 'painel_mobile' %}" class="btn btn-primary btn-sm">Central de decisões</a>
+    <a href="{% url 'painel_sla' %}" class="btn btn-outline btn-sm">Tempo dos processos</a>
+    <a href="{% url 'auditoria_sistema' %}" class="btn btn-outline btn-sm">Auditoria completa</a>
+  </div>
+</section>
+{% endif %}
+
 <div class="kpi-grid mb-6">
 
-  {% if request.user.is_superuser or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
+  {% if is_visao_executiva or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
   <a href="{% url 'lista_vagas' %}" class="kpi-card kpi-mod1 kpi-card-custom" style="text-decoration:none;">
     <div class="kpi-icon" style="opacity: 0.8;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -74,7 +105,7 @@
   </a>
   {% endif %}
 
-  {% if request.user.is_superuser or request.user.perfil.perfil == 'gestor' %}
+  {% if is_visao_executiva or request.user.perfil.perfil == 'gestor' %}
   <a href="{% url 'lista_demandas' %}" class="kpi-card kpi-mod3 kpi-card-custom" style="text-decoration:none;">
     <div class="kpi-icon" style="opacity: 0.8;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -87,7 +118,7 @@
   </a>
   {% endif %}
 
-  {% if request.user.is_superuser or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' or perms.sesmet.view_equipamentoprotecao %}
+  {% if is_visao_executiva or request.user.perfil.perfil == 'sesmet' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' or perms.sesmet.view_equipamentoprotecao %}
   <a href="{% if is_estoque_compras %}{% url 'catalogo_equipamentos' %}{% else %}{% url 'dashboard_sesmet' %}{% endif %}" class="kpi-card kpi-mod4 kpi-card-custom" style="text-decoration:none;">
     <div class="kpi-icon" style="opacity: 0.8;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -100,7 +131,7 @@
   </a>
   {% endif %}
 
-  {% if request.user.is_superuser or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
+  {% if is_visao_executiva or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
   <a href="{% url 'painel_compras' %}" class="kpi-card kpi-mod5 kpi-card-custom" style="text-decoration:none;">
     <div class="kpi-icon" style="opacity: 0.8;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
@@ -111,7 +142,7 @@
   </a>
   {% endif %}
 
-  {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
+  {% if is_visao_executiva or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
   <a href="{% url 'painel_financeiro' %}" class="kpi-card kpi-mod6 kpi-card-custom" style="text-decoration:none;">
     <div class="kpi-icon" style="opacity: 0.8;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -124,9 +155,30 @@
 
 </div>
 
+{% if is_visao_executiva %}
+<div class="executive-feed">
+  <div class="card">
+    <div class="card-header"><div class="card-title">O que está acontecendo agora</div><a href="{% url 'auditoria_sistema' %}" class="btn btn-outline btn-sm">Ver tudo</a></div>
+    {% for log in atividades_recentes %}
+      <a class="executive-log" href="{% url 'auditoria_sistema' %}?destaque={{ log.pk }}">
+        <span class="executive-log-dot"></span>
+        <span><strong>{{ log.acao }}</strong><small>{{ log.modulo|capfirst }} · {% if log.usuario %}{{ log.usuario.get_full_name|default:log.usuario.username }}{% else %}Sistema{% endif %}</small></span>
+        <time>{{ log.criado_em|date:"d/m H:i" }}</time>
+      </a>
+    {% empty %}<div class="empty-state"><p>Nenhuma movimentação registrada.</p></div>{% endfor %}
+  </div>
+  <div class="card">
+    <div class="card-title">Áreas mais movimentadas</div>
+    <p style="color:var(--text-muted);font-size:.72rem;margin:5px 0 10px;">Últimos 7 dias</p>
+    {% for area in areas_movimentadas %}<div class="area-row"><span>{{ area.modulo }}</span><strong>{{ area.total }}</strong></div>
+    {% empty %}<div class="empty-state"><p>Sem movimentações no período.</p></div>{% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <div class="grid-2">
 
-  {% if not is_estoque_compras %}
+  {% if not is_estoque_compras and not is_visao_executiva %}
   <div class="card" style="border-radius: var(--radius-md); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);">
     <div class="card-header" style="border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 12px;">
       <div class="card-title" style="font-weight: 600; font-size: 1rem;">Atividade Recente</div>
@@ -218,23 +270,23 @@
     <div class="divider" style="margin: 20px 0 15px 0; border-top: 1px solid rgba(0,0,0,0.06);"></div>
     <div class="card-title mb-3" style="font-size:0.88rem; font-weight: 600; color: var(--text-primary);">Acesso Rápido</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
+      {% if is_visao_executiva or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'nova_vaga' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Nova Vaga</a>
       {% endif %}
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
+      {% if is_visao_executiva or request.user.perfil.perfil == 'compras' or request.user.perfil.perfil == 'gestor' or request.user.perfil.perfil == 'estoque_compras' %}
       <a href="{% url 'nova_solicitacao' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Solicitar Material</a>
       <a href="{% url 'novo_material' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Novo Material</a>
       {% endif %}
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
+      {% if is_visao_executiva or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
       <a href="{% url 'entrada_documento' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Entrada Fiscal</a>
       {% endif %}
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'gestor' %}
+      {% if is_visao_executiva or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'nova_demanda' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Nova Demanda</a>
       {% endif %}
       
       {% if not is_estoque_compras %}<a href="{% url 'lista_colaboradores' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Colaboradores</a>{% endif %}
       
-      {% if not is_estoque_compras and request.user.is_superuser or not is_estoque_compras and request.user.perfil.perfil == 'sesmet' or not is_estoque_compras and request.user.perfil.perfil == 'gestor' or not is_estoque_compras and perms.sesmet.view_equipamentoprotecao %}
+      {% if not is_estoque_compras and is_visao_executiva or not is_estoque_compras and request.user.perfil.perfil == 'sesmet' or not is_estoque_compras and request.user.perfil.perfil == 'gestor' or not is_estoque_compras and perms.sesmet.view_equipamentoprotecao %}
       <a href="{% url 'matriz_epis' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Matriz EPI</a>
       {% endif %}
       {% if is_estoque_compras %}<a href="{% url 'catalogo_equipamentos' %}" class="btn btn-outline btn-sm quick-btn" style="border-radius: var(--radius-sm); font-size: 0.78rem; text-align: center;">Estoque de EPIs</a>{% endif %}

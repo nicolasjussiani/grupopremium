@@ -4,14 +4,14 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.db import transaction
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from core.models import AprovacaoRegistro
-from core.models import Notificacao
+from core.access import user_is_executive
+from core.models import AprovacaoRegistro, LogAtividade, Notificacao
 
 
 def _redirect_seguro(request):
@@ -52,7 +52,7 @@ PERFIS_APROVADORES = {
 
 def _modulos_do_usuario(user):
     """Retorna a lista de módulos que o usuário pode aprovar."""
-    if user.is_superuser:
+    if user_is_executive(user):
         return ['recrutamento', 'admissional', 'administrativo', 'sesmet', 'compras', 'financeiro', 'manutencao']
     modulos = set()
     grupos_usuario = user.groups.values_list('name', flat=True)
@@ -81,6 +81,25 @@ def painel_mobile(request):
     historico = AprovacaoRegistro.objects.filter(
         modulo__in=modulos, status__in=('aprovado', 'rejeitado')
     ).select_related('aprovado_por').order_by('-decidido_em')[:10]
+    is_visao_executiva = user_is_executive(request.user)
+    atividades_recentes = []
+    areas_movimentadas = []
+    movimentacoes_hoje = decisoes_hoje = 0
+    if is_visao_executiva:
+        inicio_hoje = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+        inicio_periodo = inicio_hoje - timezone.timedelta(days=6)
+        atividades_recentes = LogAtividade.objects.select_related('usuario').only(
+            'usuario__first_name', 'usuario__last_name', 'usuario__username',
+            'acao', 'modulo', 'url', 'criado_em',
+        )[:12]
+        movimentacoes_hoje = LogAtividade.objects.filter(criado_em__gte=inicio_hoje).count()
+        decisoes_hoje = AprovacaoRegistro.objects.filter(
+            status__in=['aprovado', 'rejeitado'], decidido_em__gte=inicio_hoje,
+        ).count()
+        areas_movimentadas = list(
+            LogAtividade.objects.filter(criado_em__gte=inicio_periodo)
+            .values('modulo').annotate(total=Count('id')).order_by('-total', 'modulo')[:8]
+        )
     return render(request, 'mobile/painel.html', {
         'aprovacoes': aprovacoes,
         'notificacoes': notificacoes,
@@ -90,6 +109,11 @@ def painel_mobile(request):
             destinatario=request.user, lida=False
         ).count(),
         'pode_aprovar': bool(modulos),
+        'is_visao_executiva': is_visao_executiva,
+        'atividades_recentes': atividades_recentes,
+        'areas_movimentadas': areas_movimentadas,
+        'movimentacoes_hoje': movimentacoes_hoje,
+        'decisoes_hoje': decisoes_hoje,
     })
 
 
@@ -185,8 +209,8 @@ def pwa_manifest(request):
 
 def service_worker(request):
     script = """
-const CACHE = 'premiumbr-mobile-v4';
-const ASSETS = ['/static/css/mobile.css?v=3', '/static/pwa-icon-192.png', '/static/pwa-icon-512.png', '/static/favicon.jpeg'];
+const CACHE = 'premiumbr-mobile-v5';
+const ASSETS = ['/static/css/mobile.css?v=4', '/static/pwa-icon-192.png', '/static/pwa-icon-512.png', '/static/favicon.jpeg'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))));
 self.addEventListener('fetch', event => {
