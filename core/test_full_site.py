@@ -13,7 +13,9 @@ from core.models import AprovacaoRegistro, Notificacao, PerfilUsuario
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
 from manutencao.models import Ativo, RegistroManutencao
 from recrutamento.models import Candidato, Talento, Vaga
-from sesmet.models import EquipamentoProtecao, RegistroEPI
+from sesmet.models import (
+    EquipamentoProtecao, IntegracaoSeguranca, OrdemServico, RegistroEPI,
+)
 
 
 class FullSiteRouteTests(TestCase):
@@ -325,24 +327,39 @@ class FullSiteRouteTests(TestCase):
         Vaga.objects.filter(pk=self.vaga.pk).update(
             criado_em=timezone.now() - timedelta(days=8)
         )
+        IntegracaoSeguranca.objects.create(
+            colaborador=self.colaborador,
+            data_integracao=date.today(),
+            apresentador='Técnico SESMET',
+        )
+        OrdemServico.objects.create(
+            colaborador=self.colaborador,
+            numero='OS-SLA-001',
+            descricao_riscos='Riscos de teste',
+            medidas_preventivas='Medidas de teste',
+            epis_obrigatorios='Capacete',
+            data_emissao=date.today(),
+            emitido_por=self.user,
+        )
 
         response = self.client.get(reverse('painel_sla'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['total_processos'], 9)
+        self.assertEqual(response.context['total_processos'], 12)
         self.assertEqual(response.context['total_criticos'], 1)
         tipos = {processo['tipo'] for processo in response.context['processos']}
         self.assertSetEqual(tipos, {
             'Aprovação Genérica', 'Pedido de Compra', 'Documento Financeiro',
             'Vaga', 'Admissão', 'Demanda Administrativa',
             'Solicitação de Material', 'Lançamento ERP', 'Manutenção',
+            'Entrega de EPI', 'Integração de Segurança', 'Ordem de Serviço',
         })
         self.assertContains(response, 'Resumo por área')
         self.assertContains(response, 'Distribuição por tempo')
 
         filtrado = self.client.get(reverse('painel_sla'), {'modulo': 'Recrutamento'})
         self.assertEqual(len(filtrado.context['processos']), 1)
-        self.assertEqual(filtrado.context['total_processos'], 9)
+        self.assertEqual(filtrado.context['total_processos'], 12)
         self.assertEqual(filtrado.context['modulo_filter'], 'Recrutamento')
 
     def test_formularios_rejeitam_dados_incompletos_sem_erro_interno(self):

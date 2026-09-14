@@ -24,7 +24,7 @@ from core.forms import UsuarioERPForm
 from recrutamento.models import Vaga, Candidato
 from admissional.models import Admissao, Colaborador
 from administrativo.models import DemandaAdministrativa
-from sesmet.models import RegistroEPI
+from sesmet.models import IntegracaoSeguranca, OrdemServico, RegistroEPI
 from compras.models import Material, PedidoCompra, SolicitacaoMaterial
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
 from manutencao.models import RegistroManutencao
@@ -510,6 +510,51 @@ def painel_sla_processos(request):
             'responsavel': manutencao.registrado_por.get_full_name() if manutencao.registrado_por else 'Manutenção / Patrimônio',
             'criado_em': manutencao.criado_em,
             'url': reverse('lista_manutencoes'),
+        })
+
+    # 10. Pendências de integração e assinatura do SESMET
+    for integracao in IntegracaoSeguranca.objects.filter(
+        concluida=False, colaborador__status='ativo'
+    ).select_related('colaborador').only(
+        'apresentador', 'criado_em', 'colaborador__nome'
+    ):
+        processos.append({
+            'tipo': 'Integração de Segurança', 'modulo': 'SESMET',
+            'titulo': integracao.colaborador.nome,
+            'status': 'Integração pendente',
+            'responsavel': integracao.apresentador or 'SESMET',
+            'criado_em': integracao.criado_em,
+            'url': reverse('dashboard_sesmet'),
+        })
+
+    for registro in RegistroEPI.objects.filter(
+        tipo_movimentacao='retirada', assinado=False, colaborador__status='ativo'
+    ).select_related('colaborador', 'equipamento', 'registrado_por').only(
+        'criado_em', 'colaborador__nome', 'equipamento__nome',
+        'registrado_por__first_name', 'registrado_por__last_name',
+    ):
+        processos.append({
+            'tipo': 'Entrega de EPI', 'modulo': 'SESMET',
+            'titulo': f'{registro.colaborador.nome} - {registro.equipamento.nome}',
+            'status': 'Aguardando assinatura',
+            'responsavel': registro.registrado_por.get_full_name() if registro.registrado_por else 'SESMET',
+            'criado_em': registro.criado_em,
+            'url': reverse('assinar_epi', args=[registro.pk]),
+        })
+
+    for ordem in OrdemServico.objects.filter(
+        assinado=False, colaborador__status='ativo'
+    ).select_related('colaborador', 'emitido_por').only(
+        'numero', 'criado_em', 'colaborador__nome',
+        'emitido_por__first_name', 'emitido_por__last_name',
+    ):
+        processos.append({
+            'tipo': 'Ordem de Serviço', 'modulo': 'SESMET',
+            'titulo': f'{ordem.numero} - {ordem.colaborador.nome}',
+            'status': 'Aguardando assinatura',
+            'responsavel': ordem.emitido_por.get_full_name() if ordem.emitido_por else 'SESMET',
+            'criado_em': ordem.criado_em,
+            'url': reverse('dashboard_sesmet'),
         })
 
     # Normaliza tempos e níveis de atenção para todas as fontes.
