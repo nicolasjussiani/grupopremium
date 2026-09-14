@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Fornecedores e Unidades — ERP Grupo PremiumBR{% endblock %}
+{% block nav_cadastros %}active{% endblock %}
+{% block topbar_title %}Fornecedores e Unidades{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Cadastros Gerais</h1><p>Listas compartilhadas por todas as áreas do ERP.</p></div>
+  <div class="flex gap-2"><a class="btn btn-mod5" href="{% url 'novo_fornecedor' %}">+ Fornecedor</a><a class="btn btn-mod2" href="{% url 'nova_unidade' %}">+ Unidade</a></div>
+</div>
+<div class="card" style="margin-bottom:18px;">
+  <form method="get" style="display:flex;gap:8px;flex-wrap:wrap;"><input class="form-control" type="search" name="q" value="{{ busca }}" placeholder="Código, nome, CNPJ, cidade ou UF" style="flex:1;min-width:230px;"><button class="btn btn-primary">Pesquisar</button>{% if busca %}<a class="btn btn-outline" href="{% url 'cadastros_gerais' %}">Limpar</a>{% endif %}</form>
+</div>
+<div class="grid-2 cadastros-grid">
+  <section class="card">
+    <div class="card-header"><div class="card-title">Fornecedores</div><span class="badge badge-info">{{ fornecedores|length }}</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Código</th><th>Fornecedor</th><th>CNPJ</th><th>Status</th><th></th></tr></thead><tbody>
+      {% for item in fornecedores %}<tr><td><strong>{{ item.codigo }}</strong></td><td>{{ item.razao_social }}{% if item.nome_fantasia %}<small style="display:block;color:var(--text-muted);">{{ item.nome_fantasia }}</small>{% endif %}</td><td>{{ item.cnpj|default:'—' }}</td><td><span class="badge {% if item.ativo %}badge-success{% else %}badge-danger{% endif %}">{% if item.ativo %}Ativo{% else %}Inativo{% endif %}</span></td><td><a class="btn btn-sm btn-outline" href="{% url 'editar_fornecedor' item.pk %}">Editar</a></td></tr>
+      {% empty %}<tr><td colspan="5">Nenhum fornecedor cadastrado.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+  <section class="card">
+    <div class="card-header"><div class="card-title">Unidades</div><span class="badge badge-info">{{ unidades|length }}</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Código</th><th>Unidade</th><th>Local</th><th>Status</th><th></th></tr></thead><tbody>
+      {% for item in unidades %}<tr><td><strong>{{ item.codigo }}</strong></td><td>{{ item.nome }}</td><td>{{ item.cidade|default:'—' }}{% if item.estado %}/{{ item.estado }}{% endif %}</td><td><span class="badge {% if item.ativo %}badge-success{% else %}badge-danger{% endif %}">{% if item.ativo %}Ativa{% else %}Inativa{% endif %}</span></td><td><a class="btn btn-sm btn-outline" href="{% url 'editar_unidade' item.pk %}">Editar</a></td></tr>
+      {% empty %}<tr><td colspan="5">Nenhuma unidade cadastrada.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+</div>
+<style>@media(max-width:900px){.cadastros-grid{grid-template-columns:1fr;}} @media(max-width:600px){.page-header{align-items:flex-start}.page-header .flex{width:100%}.page-header .btn{flex:1}.cadastros-grid table,.cadastros-grid tbody,.cadastros-grid tr,.cadastros-grid td{display:block}.cadastros-grid thead{display:none}.cadastros-grid tr{padding:10px;border-bottom:1px solid var(--border)}.cadastros-grid td{padding:4px;border:0}}</style>
+{% endblock %}

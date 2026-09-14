@@ -3,6 +3,69 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from uuid import uuid4
+
+
+class CadastroBase(models.Model):
+    codigo = models.CharField(max_length=24, unique=True, blank=True)
+    ativo = models.BooleanField(default=True)
+    criado_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='%(app_label)s_%(class)s_criados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    PREFIXO_CODIGO = 'CAD'
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        gerar_codigo = self.pk is None and not self.codigo
+        if gerar_codigo:
+            self.codigo = f'TMP-{uuid4().hex[:16]}'
+        super().save(*args, **kwargs)
+        if gerar_codigo:
+            self.codigo = f'{self.PREFIXO_CODIGO}-{self.pk:06d}'
+            type(self).objects.filter(pk=self.pk).update(codigo=self.codigo)
+
+
+class Fornecedor(CadastroBase):
+    PREFIXO_CODIGO = 'FOR'
+    razao_social = models.CharField(max_length=200, unique=True, verbose_name='Razão social')
+    nome_fantasia = models.CharField(max_length=200, blank=True, verbose_name='Nome fantasia')
+    cnpj = models.CharField(max_length=18, unique=True, null=True, blank=True, verbose_name='CNPJ')
+    contato = models.CharField(max_length=150, blank=True)
+    telefone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True, verbose_name='E-mail')
+    observacoes = models.TextField(blank=True, verbose_name='Observações')
+
+    class Meta:
+        ordering = ['razao_social']
+        verbose_name = 'Fornecedor'
+        verbose_name_plural = 'Fornecedores'
+
+    def __str__(self):
+        return f'[{self.codigo}] {self.razao_social}'
+
+
+class Unidade(CadastroBase):
+    PREFIXO_CODIGO = 'UNI'
+    nome = models.CharField(max_length=150, unique=True)
+    cidade = models.CharField(max_length=100, blank=True)
+    estado = models.CharField(max_length=2, blank=True, verbose_name='UF')
+    endereco = models.CharField(max_length=255, blank=True, verbose_name='Endereço')
+    responsavel = models.CharField(max_length=150, blank=True, verbose_name='Responsável')
+    telefone = models.CharField(max_length=20, blank=True)
+
+    class Meta:
+        ordering = ['nome']
+        verbose_name = 'Unidade'
+        verbose_name_plural = 'Unidades'
+
+    def __str__(self):
+        return f'[{self.codigo}] {self.nome}'
 
 
 class PerfilUsuario(models.Model):

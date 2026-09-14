@@ -4,7 +4,44 @@ from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import transaction
 
-from core.models import PerfilUsuario
+from core.models import Fornecedor, PerfilUsuario, Unidade
+
+
+class FornecedorForm(forms.ModelForm):
+    class Meta:
+        model = Fornecedor
+        fields = ('razao_social', 'nome_fantasia', 'cnpj', 'contato', 'telefone', 'email', 'observacoes', 'ativo')
+        widgets = {'observacoes': forms.Textarea(attrs={'rows': 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'
+
+    def clean_cnpj(self):
+        import re
+        valor = self.cleaned_data.get('cnpj', '').strip()
+        if not valor:
+            return None
+        digitos = re.sub(r'\D', '', valor)
+        if len(digitos) != 14:
+            raise ValidationError('Informe um CNPJ com 14 dígitos.')
+        return f'{digitos[:2]}.{digitos[2:5]}.{digitos[5:8]}/{digitos[8:12]}-{digitos[12:]}'
+
+
+class UnidadeForm(forms.ModelForm):
+    class Meta:
+        model = Unidade
+        fields = ('nome', 'cidade', 'estado', 'endereco', 'responsavel', 'telefone', 'ativo')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'
+        self.fields['estado'].widget.attrs['maxlength'] = 2
+
+    def clean_estado(self):
+        return self.cleaned_data.get('estado', '').strip().upper()
 
 
 PROFILE_GROUPS = {

@@ -7,6 +7,11 @@ from core import views_upload
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('ajuda/', views.ajuda, name='ajuda'),
+    path('cadastros/', views.cadastros_gerais, name='cadastros_gerais'),
+    path('cadastros/fornecedores/novo/', views.novo_fornecedor, name='novo_fornecedor'),
+    path('cadastros/fornecedores/<int:pk>/editar/', views.editar_fornecedor, name='editar_fornecedor'),
+    path('cadastros/unidades/nova/', views.nova_unidade, name='nova_unidade'),
+    path('cadastros/unidades/<int:pk>/editar/', views.editar_unidade, name='editar_unidade'),
     path('login/', views.login_view, name='login'),
     path('api/csrf/', views.csrf_token_json, name='csrf_token_json'),
     path('logout/', views.logout_view, name='logout'),

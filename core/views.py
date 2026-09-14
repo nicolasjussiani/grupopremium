@@ -20,8 +20,8 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.csrf import csrf_failure as default_csrf_failure
 
 from core.access import user_has_access, user_is_executive
-from core.models import AprovacaoRegistro, LogAtividade, PerfilUsuario, Notificacao
-from core.forms import UsuarioERPForm
+from core.models import AprovacaoRegistro, Fornecedor, LogAtividade, PerfilUsuario, Notificacao, Unidade
+from core.forms import FornecedorForm, UnidadeForm, UsuarioERPForm
 from recrutamento.models import Vaga, Candidato
 from admissional.models import Admissao, Colaborador
 from administrativo.models import DemandaAdministrativa
@@ -251,6 +251,71 @@ def dashboard(request):
 def ajuda(request):
     """Guia leve e contextual, disponível a todos os perfis do ERP."""
     return render(request, 'core/ajuda.html')
+
+
+@login_required
+def cadastros_gerais(request):
+    busca = request.GET.get('q', '').strip()[:100]
+    fornecedores = Fornecedor.objects.all()
+    unidades = Unidade.objects.all()
+    if busca:
+        fornecedores = fornecedores.filter(
+            Q(codigo__icontains=busca) | Q(razao_social__icontains=busca)
+            | Q(nome_fantasia__icontains=busca) | Q(cnpj__icontains=busca)
+        )
+        unidades = unidades.filter(
+            Q(codigo__icontains=busca) | Q(nome__icontains=busca)
+            | Q(cidade__icontains=busca) | Q(estado__icontains=busca)
+        )
+    return render(request, 'core/cadastros_gerais.html', {
+        'fornecedores': fornecedores,
+        'unidades': unidades,
+        'busca': busca,
+    })
+
+
+def _salvar_cadastro(request, *, form_class, instance=None, titulo, retorno):
+    form = form_class(request.POST or None, instance=instance)
+    if request.method == 'POST' and form.is_valid():
+        registro = form.save(commit=False)
+        if not registro.pk:
+            registro.criado_por = request.user
+        registro.save()
+        from django.core.cache import cache
+        cache.delete('cadastros_gerais_opcoes_v1')
+        messages.success(request, f'{titulo} {registro.codigo} salvo com sucesso.')
+        return redirect(retorno)
+    return render(request, 'core/form_cadastro_geral.html', {'form': form, 'titulo': titulo})
+
+
+@login_required
+def novo_fornecedor(request):
+    return _salvar_cadastro(
+        request, form_class=FornecedorForm, titulo='Fornecedor', retorno='cadastros_gerais'
+    )
+
+
+@login_required
+def editar_fornecedor(request, pk):
+    return _salvar_cadastro(
+        request, form_class=FornecedorForm, instance=get_object_or_404(Fornecedor, pk=pk),
+        titulo='Fornecedor', retorno='cadastros_gerais',
+    )
+
+
+@login_required
+def nova_unidade(request):
+    return _salvar_cadastro(
+        request, form_class=UnidadeForm, titulo='Unidade', retorno='cadastros_gerais'
+    )
+
+
+@login_required
+def editar_unidade(request, pk):
+    return _salvar_cadastro(
+        request, form_class=UnidadeForm, instance=get_object_or_404(Unidade, pk=pk),
+        titulo='Unidade', retorno='cadastros_gerais',
+    )
 
 
 

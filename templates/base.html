@@ -59,6 +59,10 @@
         <span class="nav-icon">❓</span>
         Central de Ajuda
       </a>
+      <a href="{% url 'cadastros_gerais' %}" class="nav-item {% block nav_cadastros %}{% endblock %}">
+        <span class="nav-icon">🏬</span>
+        Fornecedores e Unidades
+      </a>
 
       <!-- Visível apenas para administradores e diretoria autorizada -->
       {% if request.user.is_superuser or perms.core.view_logatividade %}
@@ -474,6 +478,29 @@ document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(form =>
   });
 });
 </script>
+
+{% if user.is_authenticated %}
+<datalist id="unidadesCadastradas">
+  {% for unidade in unidades_cadastradas %}<option value="{{ unidade }}"></option>{% endfor %}
+</datalist>
+<datalist id="fornecedoresCadastrados">
+  {% for fornecedor in fornecedores_cadastrados %}<option value="{{ fornecedor.razao_social }}" data-cnpj="{{ fornecedor.cnpj|default:'' }}"></option>{% endfor %}
+</datalist>
+<script>
+(function () {
+  const unitFields = ['unidade', 'unidade_destino', 'unidade_atual', 'unidade_origem', 'unidade_retorno'];
+  const supplierFields = ['fornecedor', 'fornecedor_preferencial', 'fornecedor_servico'];
+  unitFields.forEach(name => document.querySelectorAll(`input[name="${name}"]`).forEach(input => input.setAttribute('list', 'unidadesCadastradas')));
+  supplierFields.forEach(name => document.querySelectorAll(`input[name="${name}"]`).forEach(input => input.setAttribute('list', 'fornecedoresCadastrados')));
+
+  document.querySelectorAll('input[name="fornecedor"]').forEach(input => input.addEventListener('change', () => {
+    const option = Array.from(document.querySelectorAll('#fornecedoresCadastrados option')).find(item => item.value === input.value);
+    const cnpjInput = input.form && input.form.querySelector('input[name="cnpj_fornecedor"]');
+    if (option && option.dataset.cnpj && cnpjInput && !cnpjInput.value) cnpjInput.value = option.dataset.cnpj;
+  }));
+})();
+</script>
+{% endif %}
 
 {% block extra_js %}{% endblock %}
 </body>

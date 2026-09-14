@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PerfilUsuario, Notificacao, AprovacaoRegistro
+from .models import AprovacaoRegistro, Fornecedor, Notificacao, PerfilUsuario, Unidade
 
 @admin.register(PerfilUsuario)
 class PerfilUsuarioAdmin(admin.ModelAdmin):
@@ -19,3 +19,17 @@ class AprovacaoRegistroAdmin(admin.ModelAdmin):
     readonly_fields = ['criado_em', 'decidido_em', 'content_type', 'object_id']
     date_hierarchy = 'criado_em'
     ordering = ['-criado_em']
+
+
+@admin.register(Fornecedor)
+class FornecedorAdmin(admin.ModelAdmin):
+    list_display = ['codigo', 'razao_social', 'cnpj', 'telefone', 'ativo']
+    list_filter = ['ativo']
+    search_fields = ['codigo', 'razao_social', 'nome_fantasia', 'cnpj']
+
+
+@admin.register(Unidade)
+class UnidadeAdmin(admin.ModelAdmin):
+    list_display = ['codigo', 'nome', 'cidade', 'estado', 'ativo']
+    list_filter = ['ativo', 'estado']
+    search_fields = ['codigo', 'nome', 'cidade']
