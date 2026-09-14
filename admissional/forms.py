@@ -24,6 +24,7 @@ class ColaboradorForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        self.require_document = kwargs.pop('require_document', False)
         super().__init__(*args, **kwargs)
         # Mantem a referencia do arquivo que ja chegou ao Supabase quando
         # outro campo do formulario precisa ser corrigido.
@@ -33,14 +34,27 @@ class ColaboradorForm(forms.ModelForm):
                 max_length=2048,
                 widget=forms.HiddenInput(),
             )
-        self.fields['email'].required = False
         for name, field in self.fields.items():
+            # Os dados cadastrais podem ser completados depois. No cadastro,
+            # a unica exigencia e existir ao menos um documento anexado.
+            if not name.startswith('anexo_') and not name.startswith('direct_upload_'):
+                field.required = False
             field.widget.attrs['class'] = 'form-control'
             if name.startswith('anexo_'):
                 field.widget.attrs['accept'] = '.pdf,.png,.jpg,.jpeg'
 
     def clean(self):
         cleaned_data = super().clean()
+        cleaned_data['cpf'] = cleaned_data.get('cpf') or None
+        for name, default in (
+            ('tipo_contrato', 'clt'),
+            ('marca', 'eco_premium'),
+            ('status', 'ativo'),
+        ):
+            cleaned_data[name] = (
+                cleaned_data.get(name) or getattr(self.instance, name, None) or default
+            )
+
         uploads = [
             upload
             for name, upload in self.files.items()
@@ -54,4 +68,20 @@ class ColaboradorForm(forms.ModelForm):
         for name, upload in cleaned_data.items():
             if name.startswith('anexo_') and upload and hasattr(upload, 'content_type'):
                 validate_document_upload(upload)
+        has_local_upload = bool(uploads)
+        has_direct_upload = any(
+            str(self.data.get(f'direct_upload_{name}', '')).strip()
+            for name in self.DIRECT_UPLOAD_FIELDS
+        )
+        has_existing_document = bool(
+            self.instance.pk
+            and any(getattr(self.instance, name, None) for name in self.DIRECT_UPLOAD_FIELDS)
+        )
+        if self.require_document and not (
+            has_local_upload or has_direct_upload or has_existing_document
+        ):
+            self.add_error(
+                None,
+                'Envie pelo menos um documento para cadastrar o colaborador.'
+            )
         return cleaned_data

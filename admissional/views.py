@@ -261,7 +261,7 @@ def lista_colaboradores(request):
 @transaction.atomic
 def novo_colaborador(request):
     if request.method == 'POST':
-        form = ColaboradorForm(request.POST, request.FILES)
+        form = ColaboradorForm(request.POST, request.FILES, require_document=True)
         if form.is_valid():
             try:
                 for field_name in form.fields:
@@ -271,16 +271,23 @@ def novo_colaborador(request):
             except ValidationError as exc:
                 transaction.set_rollback(True)
                 form.add_error(None, exc.messages[0])
-                return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Novo'})
+                return render(request, 'admissional/form_colaborador.html', {
+                    'form': form, 'acao': 'Novo', 'exige_documento': True,
+                })
             except OSError:
                 transaction.set_rollback(True)
                 form.add_error(None, 'Nao foi possivel armazenar os anexos. Tente novamente.')
-                return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Novo'})
-            messages.success(request, f'Colaborador {colaborador.nome} cadastrado com sucesso!')
+                return render(request, 'admissional/form_colaborador.html', {
+                    'form': form, 'acao': 'Novo', 'exige_documento': True,
+                })
+            identificacao = colaborador.nome or f'#{colaborador.pk}'
+            messages.success(request, f'Colaborador {identificacao} cadastrado com sucesso!')
             return redirect('documentos_colaborador', pk=colaborador.pk)
     else:
-        form = ColaboradorForm()
-    return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Novo'})
+        form = ColaboradorForm(require_document=True)
+    return render(request, 'admissional/form_colaborador.html', {
+        'form': form, 'acao': 'Novo', 'exige_documento': True,
+    })
 
 @login_required
 @access_required(permission='admissional.change_colaborador', profiles=('rh', 'sesmet'))

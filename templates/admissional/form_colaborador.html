@@ -6,7 +6,7 @@
 {% block content %}
 <div class="module-banner mod-banner-2" style="margin-bottom:20px;">
   <div class="mod-title">🏢 {{ acao }} Colaborador</div>
-  <div class="mod-desc">Preencha os dados do colaborador no sistema.</div>
+  <div class="mod-desc">Envie um documento agora e complete os demais dados quando estiverem disponíveis.</div>
 </div>
 
 <div class="card collaborator-form-card">
@@ -15,7 +15,7 @@
     {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
     <div class="alert alert-error" role="alert" data-upload-size-error data-persistent-alert hidden></div>
     {% if form.non_field_errors %}
-      <div class="alert alert-error" role="alert">
+      <div class="alert alert-error" role="alert" data-persistent-alert>
         {{ form.non_field_errors.0 }}
       </div>
     {% endif %}
@@ -24,7 +24,7 @@
         <span class="form-section-icon" aria-hidden="true">01</span>
         <div>
           <h2 id="dados-colaborador-title">Dados do colaborador</h2>
-          <p>Informações pessoais e profissionais. O e-mail é opcional.</p>
+          <p>Todos os dados pessoais e profissionais são opcionais e podem ser preenchidos depois.</p>
         </div>
       </div>
       <div class="collaborator-fields-grid">
@@ -47,7 +47,7 @@
         <span class="form-section-icon" aria-hidden="true">02</span>
         <div>
           <h2 id="documentos-title">Documentos e anexos</h2>
-          <p>PDF, PNG ou JPG. Cada arquivo pode ter até 50 MB.</p>
+          <p>PDF, PNG ou JPG. Cada arquivo pode ter até 50 MB.{% if exige_documento %} Envie pelo menos um documento.{% endif %}</p>
         </div>
         <span class="direct-upload-badge">Upload direto e seguro</span>
       </div>

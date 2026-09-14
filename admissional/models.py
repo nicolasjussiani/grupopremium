@@ -24,8 +24,8 @@ class Colaborador(models.Model):
         ('eco_premium', 'Eco Premium'),
     ]
 
-    nome = models.CharField(max_length=200, verbose_name='Nome Completo')
-    cpf = models.CharField(max_length=18, unique=True, verbose_name='CPF/CNPJ')
+    nome = models.CharField(max_length=200, blank=True, verbose_name='Nome Completo')
+    cpf = models.CharField(max_length=18, unique=True, null=True, blank=True, verbose_name='CPF/CNPJ')
     rg = models.CharField(max_length=20, blank=True, verbose_name='RG')
     data_nascimento = models.DateField(null=True, blank=True, verbose_name='Data de Nascimento')
     email = models.EmailField(blank=True, verbose_name='E-mail')
@@ -38,12 +38,12 @@ class Colaborador(models.Model):
     ]
     tipo_contrato = models.CharField(max_length=10, choices=TIPO_CONTRATO, default='clt', verbose_name='Tipo de Contrato')
 
-    cargo = models.CharField(max_length=200, verbose_name='Cargo')
+    cargo = models.CharField(max_length=200, blank=True, verbose_name='Cargo')
     setor = models.CharField(max_length=100, blank=True, verbose_name='Setor')
-    unidade = models.CharField(max_length=100, verbose_name='Unidade')
+    unidade = models.CharField(max_length=100, blank=True, verbose_name='Unidade')
     contrato = models.CharField(max_length=200, blank=True, verbose_name='Contrato/Cliente')
     marca = models.CharField(max_length=20, choices=MARCAS, default='eco_premium', verbose_name='Marca')
-    data_admissao = models.DateField(verbose_name='Data de Admissão')
+    data_admissao = models.DateField(null=True, blank=True, verbose_name='Data de Admissão')
     status = models.CharField(max_length=20, choices=STATUS, default='ativo')
     pis_pasep = models.CharField(max_length=20, blank=True, verbose_name='PIS/PASEP')
     ctps = models.CharField(max_length=30, blank=True, verbose_name='CTPS')
@@ -87,7 +87,7 @@ class Colaborador(models.Model):
         ordering = ['nome']
 
     def __str__(self):
-        return f"{self.nome} — {self.cargo} ({self.unidade})"
+        return self.nome or f'Colaborador #{self.pk or "novo"}'
 
 
 class DocumentoColaborador(models.Model):

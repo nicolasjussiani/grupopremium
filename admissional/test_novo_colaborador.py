@@ -55,6 +55,10 @@ def _colaborador_data(**overrides):
     return base
 
 
+def _documento(nome='documento.pdf'):
+    return SimpleUploadedFile(nome, b'%PDF-1.4\nconteudo', content_type='application/pdf')
+
+
 # ─── 1. Testes de URL e Roteamento ───────────────────────────────────────────
 
 class TestNovoColaboradorURL(TestCase):
@@ -155,7 +159,9 @@ class TestNovoColaboradorHTTP(TestCase):
 
     def test_POST_valido_cria_colaborador(self):
         """POST com dados validos deve criar colaborador e redirecionar."""
-        response = self.client.post(self.url, data=_colaborador_data())
+        data = _colaborador_data()
+        data['anexo_cpf'] = _documento()
+        response = self.client.post(self.url, data=data)
         self.assertEqual(
             response.status_code, 302,
             'ERRO %d: POST valido deveria redirecionar (302).' % response.status_code
@@ -164,7 +170,9 @@ class TestNovoColaboradorHTTP(TestCase):
 
     def test_POST_valido_redireciona_para_documentos(self):
         """Apos criar, deve abrir a guia de documentos do colaborador."""
-        response = self.client.post(self.url, data=_colaborador_data())
+        data = _colaborador_data()
+        data['anexo_cpf'] = _documento()
+        response = self.client.post(self.url, data=data)
         colaborador = Colaborador.objects.get(cpf='111.222.333-44')
         self.assertRedirects(response, reverse('documentos_colaborador', args=[colaborador.pk]))
 
@@ -210,7 +218,7 @@ class TestNovoColaboradorHTTP(TestCase):
     def test_POST_invalido_preserva_token_do_upload_direto(self):
         key = '_temporarios/admissional/colaboradores/teste-preservado.pdf'
         token = self._direct_upload_token(key)
-        data = _colaborador_data(nome='')
+        data = _colaborador_data(email='email-invalido')
         data['direct_upload_anexo_cpf'] = token
 
         response = self.client.post(self.url, data=data)
@@ -255,26 +263,26 @@ class TestNovoColaboradorHTTP(TestCase):
             'ERRO %d: POST vazio nao deve retornar 5xx.' % response.status_code
         )
 
-    def test_POST_sem_nome_exibe_erro_validacao(self):
-        """POST sem nome deve exibir erro no campo nome."""
+    def test_POST_sem_nome_e_com_documento_cria_colaborador(self):
         data = _colaborador_data(nome='')
+        data['anexo_cpf'] = _documento()
         response = self.client.post(self.url, data=data)
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context['form'].errors.get('nome'))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Colaborador.objects.filter(cpf='111.222.333-44', nome='').exists())
 
-    def test_POST_sem_cpf_exibe_erro_validacao(self):
-        """POST sem CPF deve exibir erro no campo cpf."""
+    def test_POST_sem_cpf_e_com_documento_cria_colaborador(self):
         data = _colaborador_data(cpf='')
+        data['anexo_cpf'] = _documento()
         response = self.client.post(self.url, data=data)
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context['form'].errors.get('cpf'))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Colaborador.objects.filter(cpf__isnull=True).exists())
 
-    def test_POST_sem_data_admissao_exibe_erro_validacao(self):
-        """POST sem data_admissao deve exibir erro no campo."""
+    def test_POST_sem_data_admissao_e_com_documento_cria_colaborador(self):
         data = _colaborador_data(data_admissao='')
+        data['anexo_cpf'] = _documento()
         response = self.client.post(self.url, data=data)
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context['form'].errors.get('data_admissao'))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Colaborador.objects.filter(data_admissao__isnull=True).exists())
 
     def test_POST_cpf_duplicado_nao_causa_5xx(self):
         """CPF duplicado deve retornar 200 com erro de form, nao 5xx."""
@@ -289,6 +297,7 @@ class TestNovoColaboradorHTTP(TestCase):
             status='ativo',
         )
         data = _colaborador_data(cpf='999.888.777-66', nome='Segundo Colaborador')
+        data['anexo_cpf'] = _documento()
         response = self.client.post(self.url, data=data)
         self.assertEqual(
             response.status_code, 200,
@@ -354,6 +363,11 @@ class TestColaboradorModel(TestCase):
         )
         self.assertEqual(c.status, 'ativo')
 
+    def test_varios_colaboradores_podem_ficar_sem_cpf(self):
+        primeiro = Colaborador.objects.create(cpf=None)
+        segundo = Colaborador.objects.create(cpf=None)
+        self.assertNotEqual(primeiro.pk, segundo.pk)
+
 
 # ─── 5. Testes de Formulario ─────────────────────────────────────────────────
 
@@ -365,15 +379,14 @@ class TestColaboradorForm(TestCase):
         form = ColaboradorForm(data=_colaborador_data())
         self.assertTrue(form.is_valid(), 'Form invalido: %s' % form.errors)
 
-    def test_form_invalido_sem_nome(self):
+    def test_form_valido_sem_nome(self):
         form = ColaboradorForm(data=_colaborador_data(nome=''))
-        self.assertFalse(form.is_valid())
-        self.assertIn('nome', form.errors)
+        self.assertTrue(form.is_valid(), form.errors)
 
-    def test_form_invalido_sem_cpf(self):
+    def test_form_valido_sem_cpf(self):
         form = ColaboradorForm(data=_colaborador_data(cpf=''))
-        self.assertFalse(form.is_valid())
-        self.assertIn('cpf', form.errors)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data['cpf'])
 
     def test_form_valido_sem_email(self):
         form = ColaboradorForm(data=_colaborador_data(email=''))
@@ -384,20 +397,35 @@ class TestColaboradorForm(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('email', form.errors)
 
-    def test_form_invalido_sem_cargo(self):
+    def test_form_valido_sem_cargo(self):
         form = ColaboradorForm(data=_colaborador_data(cargo=''))
-        self.assertFalse(form.is_valid())
-        self.assertIn('cargo', form.errors)
+        self.assertTrue(form.is_valid(), form.errors)
 
-    def test_form_invalido_sem_unidade(self):
+    def test_form_valido_sem_unidade(self):
         form = ColaboradorForm(data=_colaborador_data(unidade=''))
-        self.assertFalse(form.is_valid())
-        self.assertIn('unidade', form.errors)
+        self.assertTrue(form.is_valid(), form.errors)
 
-    def test_form_invalido_sem_data_admissao(self):
+    def test_form_valido_sem_data_admissao(self):
         form = ColaboradorForm(data=_colaborador_data(data_admissao=''))
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_novo_cadastro_exige_pelo_menos_um_documento(self):
+        form = ColaboradorForm(data={}, require_document=True)
         self.assertFalse(form.is_valid())
-        self.assertIn('data_admissao', form.errors)
+        self.assertIn('pelo menos um documento', form.non_field_errors()[0])
+
+    def test_novo_cadastro_aceita_apenas_um_documento(self):
+        form = ColaboradorForm(
+            data={}, files={'anexo_cpf': _documento()}, require_document=True,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_novo_cadastro_reconhece_upload_direto(self):
+        form = ColaboradorForm(
+            data={'direct_upload_anexo_cpf': 'token-assinado'},
+            require_document=True,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
 
     def test_form_widgets_tem_classe_form_control(self):
         """Todos os campos devem ter a classe CSS form-control."""
