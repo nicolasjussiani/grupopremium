@@ -110,6 +110,10 @@
             <a href="{% url 'documentos_colaborador' c.pk %}" class="btn btn-sm btn-outline" title="Documentos">Arquivos</a>
             <a href="{% url 'editar_colaborador' c.pk %}" class="btn btn-sm btn-mod1" title="Editar">✏️</a>
           {% endif %}
+          {% if can_add_pagamento %}
+            <a href="{% url 'novo_pagamento_colaborador' %}?colaborador={{ c.pk }}&amp;tipo=salario" class="btn btn-sm btn-success" title="Cadastrar pagamento de salário">Salário</a>
+            <a href="{% url 'novo_pagamento_colaborador' %}?colaborador={{ c.pk }}&amp;tipo=vale_transporte" class="btn btn-sm btn-outline" title="Cadastrar pagamento de vale-transporte">VT</a>
+          {% endif %}
           {% if can_delete_colaborador and c.status != 'inativo' %}
             <a href="{% url 'excluir_colaborador' c.pk %}" class="btn btn-sm btn-danger" title="Desativar">Desativar</a>
           {% elif can_delete_colaborador and c.status == 'inativo' %}
@@ -117,7 +121,7 @@
               {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Reativar</button>
             </form>
           {% endif %}
-          {% if not can_edit_colaborador and not can_delete_colaborador %}
+          {% if not can_edit_colaborador and not can_delete_colaborador and not can_add_pagamento %}
             <span style="color:var(--text-muted);">—</span>
           {% endif %}
         </td>

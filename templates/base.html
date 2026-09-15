@@ -143,6 +143,13 @@
       </a>
       {% endif %}
 
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' or perms.admissional.view_pagamentocolaborador %}
+      <a href="{% url 'lista_pagamentos_colaboradores' %}" class="nav-item mod6 {% block nav_pagamentos_colaboradores %}{% endblock %}">
+        <span class="nav-icon">💵</span>
+        Folha de Pagamento
+      </a>
+      {% endif %}
+
       {% if not is_estoque_compras and request.user.is_superuser or not is_estoque_compras and request.user.perfil.perfil == 'sesmet' or not is_estoque_compras and request.user.perfil.perfil == 'rh' or not is_estoque_compras and request.user.perfil.perfil == 'gestor' or not is_estoque_compras and request.user.perfil.perfil == 'compras' %}
       <a href="{% url 'painel_manutencao' %}" class="nav-item mod3 {% block nav_manutencao %}{% endblock %}">
         <span class="nav-icon">🔧</span>

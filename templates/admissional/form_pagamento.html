@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}{{ acao }} — ERP Grupo PremiumBR{% endblock %}
+{% block nav_pagamentos_colaboradores %}active{% endblock %}
+{% block topbar_title %}Folha de Pagamento{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <h1 class="mod-title">💵 {{ acao }}</h1>
+  <div class="mod-desc">Registre a obrigação ou confirme um pagamento já realizado.</div>
+</div>
+
+<div class="card" style="max-width:900px;margin:0 auto;">
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="alert alert-error">{{ form.non_field_errors.0 }}</div>
+    {% endif %}
+    <div class="collaborator-fields-grid">
+      {% for field in form %}
+      <div class="form-group {% if field.name == 'observacao' %}field-span-2{% endif %}">
+        <label class="form-label" for="{{ field.id_for_label }}">
+          {{ field.label }}{% if field.field.required %} <span class="required">*</span>{% endif %}
+        </label>
+        {{ field }}
+        {% if field.name == 'competencia' %}<small class="form-help">Para vale-transporte, informe o início da semana; para salário, use o primeiro dia do mês.</small>{% endif %}
+        {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:15px;">
+      <a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn btn-outline">Cancelar</a>
+      <button type="submit" class="btn btn-mod6">Salvar pagamento</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

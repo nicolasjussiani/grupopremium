@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}Folha de Pagamento — ERP Grupo PremiumBR{% endblock %}
+{% block nav_pagamentos_colaboradores %}active{% endblock %}
+{% block topbar_title %}Folha de Pagamento{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <h1 class="mod-title">💵 Folha de Pagamento</h1>
+  <div class="mod-desc">Acompanhe salários, vale-transporte e a confirmação de cada pagamento.</div>
+</div>
+
+<div class="kpi-grid" style="margin-bottom:20px;">
+  <div class="kpi-card"><div class="kpi-label">Total pendente</div><div class="kpi-value">R$ {{ total_pendente|floatformat:2 }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Total pago</div><div class="kpi-value">R$ {{ total_pago|floatformat:2 }}</div></div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+    <div style="flex:1;min-width:220px;">
+      <label for="busca-pagamento">Colaborador</label>
+      <input id="busca-pagamento" class="form-control" type="search" name="q" value="{{ query }}" placeholder="Nome, CPF ou unidade">
+    </div>
+    <div style="min-width:170px;">
+      <label for="tipo-pagamento">Tipo</label>
+      <select id="tipo-pagamento" class="form-control" name="tipo">
+        <option value="">Todos</option>
+        {% for valor, descricao in tipo_choices %}<option value="{{ valor }}" {% if tipo_filter == valor %}selected{% endif %}>{{ descricao }}</option>{% endfor %}
+      </select>
+    </div>
+    <div style="min-width:170px;">
+      <label for="status-pagamento">Situação</label>
+      <select id="status-pagamento" class="form-control" name="status">
+        <option value="">Todas</option>
+        {% for valor, descricao in status_choices %}<option value="{{ valor }}" {% if status_filter == valor %}selected{% endif %}>{{ descricao }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-mod6" type="submit">Pesquisar</button>
+    {% if query or tipo_filter or status_filter %}<a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn">Limpar</a>{% endif %}
+  </form>
+</div>
+
+{% if can_add_pagamento %}
+<div style="margin-bottom:20px;"><a href="{% url 'novo_pagamento_colaborador' %}" class="btn btn-mod6">➕ Novo pagamento</a></div>
+{% endif %}
+
+{% if pagamentos %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Colaborador</th><th>Tipo</th><th>Competência</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Data do pagamento</th><th>Ações</th></tr></thead>
+    <tbody>
+      {% for pagamento in pagamentos %}
+      <tr>
+        <td><strong>{{ pagamento.colaborador.nome|default:"Não informado" }}</strong><div style="font-size:.74rem;color:var(--text-muted);">{{ pagamento.colaborador.unidade }}</div></td>
+        <td>{{ pagamento.get_tipo_display }}</td>
+        <td>{{ pagamento.competencia|date:"d/m/Y" }}</td>
+        <td>{{ pagamento.data_vencimento|date:"d/m/Y" }}</td>
+        <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
+        <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
+        <td>{{ pagamento.data_pagamento|date:"d/m/Y"|default:"—" }}</td>
+        <td>
+          {% if can_edit_pagamento %}
+            {% if pagamento.status == 'pendente' %}
+            <form method="post" action="{% url 'marcar_pagamento_como_pago' pagamento.pk %}" style="display:inline;" onsubmit="return confirm('Confirmar que este pagamento foi realizado hoje?');">
+              {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Marcar como pago</button>
+            </form>
+            {% endif %}
+            <a href="{% url 'editar_pagamento_colaborador' pagamento.pk %}" class="btn btn-sm btn-outline">Editar</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card"><div class="empty-state"><p>Nenhum pagamento encontrado.</p></div></div>
+{% endif %}
+{% endblock %}

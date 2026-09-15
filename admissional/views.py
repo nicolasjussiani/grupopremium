@@ -4,8 +4,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.utils.dateparse import parse_date
-from .models import Admissao, Colaborador, DocumentoAdmissional, DocumentoColaborador
-from .forms import ColaboradorForm
+from .models import (
+    Admissao, Colaborador, DocumentoAdmissional, DocumentoColaborador,
+    PagamentoColaborador,
+)
+from .forms import ColaboradorForm, PagamentoColaboradorForm
 from core.models import Notificacao
 from sesmet.models import IntegracaoSeguranca, RegistroEPI, OrdemServico
 from django.contrib.auth.models import User
@@ -14,7 +17,7 @@ from core.validators import validate_document_upload
 from core.direct_uploads import assign_direct_upload, verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils.text import get_valid_filename
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -267,7 +270,146 @@ def lista_colaboradores(request):
             permission='admissional.delete_colaborador',
             profiles=('rh',),
         ),
+        'can_add_pagamento': user_has_access(
+            request.user,
+            permission='admissional.add_pagamentocolaborador',
+            profiles=('rh', 'financeiro', 'gestor'),
+        ),
     })
+
+
+@login_required
+@access_required(
+    permission='admissional.view_pagamentocolaborador',
+    profiles=('rh', 'financeiro', 'gestor'),
+)
+def lista_pagamentos_colaboradores(request):
+    pagamentos = PagamentoColaborador.objects.select_related(
+        'colaborador', 'criado_por'
+    )
+    status_filter = request.GET.get('status', '').strip()
+    status_validos = {valor for valor, _ in PagamentoColaborador.STATUS}
+    if status_filter in status_validos:
+        pagamentos = pagamentos.filter(status=status_filter)
+    else:
+        status_filter = ''
+
+    tipo_filter = request.GET.get('tipo', '').strip()
+    tipos_validos = {valor for valor, _ in PagamentoColaborador.TIPOS}
+    if tipo_filter in tipos_validos:
+        pagamentos = pagamentos.filter(tipo=tipo_filter)
+    else:
+        tipo_filter = ''
+
+    query = request.GET.get('q', '').strip()[:100]
+    if query:
+        pagamentos = pagamentos.filter(
+            Q(colaborador__nome__icontains=query)
+            | Q(colaborador__cpf__icontains=query)
+            | Q(colaborador__unidade__icontains=query)
+        )
+
+    totais = pagamentos.values('status').annotate(total=Sum('valor'))
+    totais_status = {item['status']: item['total'] for item in totais}
+    return render(request, 'admissional/lista_pagamentos.html', {
+        'pagamentos': pagamentos,
+        'query': query,
+        'status_filter': status_filter,
+        'tipo_filter': tipo_filter,
+        'status_choices': PagamentoColaborador.STATUS,
+        'tipo_choices': PagamentoColaborador.TIPOS,
+        'total_pendente': totais_status.get('pendente', 0),
+        'total_pago': totais_status.get('pago', 0),
+        'can_add_pagamento': user_has_access(
+            request.user,
+            permission='admissional.add_pagamentocolaborador',
+            profiles=('rh', 'financeiro', 'gestor'),
+        ),
+        'can_edit_pagamento': user_has_access(
+            request.user,
+            permission='admissional.change_pagamentocolaborador',
+            profiles=('rh', 'financeiro', 'gestor'),
+        ),
+    })
+
+
+@login_required
+@access_required(
+    permission='admissional.add_pagamentocolaborador',
+    profiles=('rh', 'financeiro', 'gestor'),
+)
+def novo_pagamento_colaborador(request):
+    if request.method == 'POST':
+        form = PagamentoColaboradorForm(request.POST)
+        if form.is_valid():
+            pagamento = form.save(commit=False)
+            pagamento.criado_por = request.user
+            pagamento.save()
+            messages.success(request, 'Pagamento cadastrado com sucesso.')
+            return redirect('lista_pagamentos_colaboradores')
+    else:
+        initial = {
+            'colaborador': request.GET.get('colaborador', ''),
+            'tipo': request.GET.get('tipo', ''),
+            'status': 'pendente',
+        }
+        colaborador_id = str(initial['colaborador']).strip()
+        if colaborador_id.isdigit() and initial['tipo'] in {'salario', 'vale_transporte'}:
+            colaborador = Colaborador.objects.filter(pk=colaborador_id).first()
+            if colaborador:
+                campo_valor = (
+                    'salario' if initial['tipo'] == 'salario'
+                    else 'vale_transporte_semanal'
+                )
+                initial['valor'] = getattr(colaborador, campo_valor)
+        form = PagamentoColaboradorForm(initial=initial)
+    return render(request, 'admissional/form_pagamento.html', {
+        'form': form,
+        'acao': 'Novo pagamento',
+    })
+
+
+@login_required
+@access_required(
+    permission='admissional.change_pagamentocolaborador',
+    profiles=('rh', 'financeiro', 'gestor'),
+)
+def editar_pagamento_colaborador(request, pk):
+    pagamento = get_object_or_404(PagamentoColaborador, pk=pk)
+    if request.method == 'POST':
+        form = PagamentoColaboradorForm(request.POST, instance=pagamento)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Pagamento atualizado com sucesso.')
+            return redirect('lista_pagamentos_colaboradores')
+    else:
+        form = PagamentoColaboradorForm(instance=pagamento)
+    return render(request, 'admissional/form_pagamento.html', {
+        'form': form,
+        'acao': 'Editar pagamento',
+        'pagamento': pagamento,
+    })
+
+
+@login_required
+@require_POST
+@access_required(
+    permission='admissional.change_pagamentocolaborador',
+    profiles=('rh', 'financeiro', 'gestor'),
+)
+@transaction.atomic
+def marcar_pagamento_como_pago(request, pk):
+    pagamento = get_object_or_404(
+        PagamentoColaborador.objects.select_for_update(), pk=pk
+    )
+    if pagamento.status == 'pago':
+        messages.info(request, 'Este pagamento já estava marcado como pago.')
+    else:
+        pagamento.status = 'pago'
+        pagamento.data_pagamento = timezone.localdate()
+        pagamento.save(update_fields=['status', 'data_pagamento', 'atualizado_em'])
+        messages.success(request, 'Pagamento marcado como pago.')
+    return redirect('lista_pagamentos_colaboradores')
 
 @login_required
 @access_required(permission='admissional.add_colaborador', profiles=('rh', 'sesmet'))

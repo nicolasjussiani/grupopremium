@@ -1,4 +1,6 @@
 """ERP Grupo PremiumBR — Models do Módulo 2: Admissional"""
+from decimal import Decimal
+
 from django.db import models
 from django.db.models import BooleanField, Case, Exists, OuterRef, Q, Value, When
 from django.contrib.auth.models import User
@@ -169,6 +171,61 @@ class DocumentoColaborador(models.Model):
 
     def __str__(self):
         return f'{self.get_tipo_display()} - {self.colaborador.nome}'
+
+
+class PagamentoColaborador(models.Model):
+    TIPOS = [
+        ('salario', 'Salário'),
+        ('vale_transporte', 'Vale-transporte'),
+    ]
+    STATUS = [
+        ('pendente', 'Pendente'),
+        ('pago', 'Pago'),
+    ]
+
+    colaborador = models.ForeignKey(
+        Colaborador,
+        on_delete=models.PROTECT,
+        related_name='pagamentos',
+    )
+    tipo = models.CharField(max_length=30, choices=TIPOS)
+    competencia = models.DateField(verbose_name='Competência/período')
+    valor = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    data_vencimento = models.DateField(verbose_name='Vencimento')
+    status = models.CharField(max_length=10, choices=STATUS, default='pendente')
+    data_pagamento = models.DateField(null=True, blank=True, verbose_name='Data do pagamento')
+    observacao = models.TextField(blank=True, verbose_name='Observação')
+    criado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagamentos_colaboradores_criados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Pagamento de colaborador'
+        verbose_name_plural = 'Pagamentos de colaboradores'
+        ordering = ['-competencia', '-data_vencimento', '-pk']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['colaborador', 'tipo', 'competencia'],
+                name='pagamento_unico_colaborador_tipo_competencia',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['status', 'data_vencimento']),
+            models.Index(fields=['colaborador', 'competencia']),
+        ]
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} - {self.colaborador} - {self.competencia:%d/%m/%Y}'
 
 
 class Admissao(models.Model):

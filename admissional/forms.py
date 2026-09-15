@@ -1,5 +1,5 @@
 from django import forms
-from .models import Colaborador
+from .models import Colaborador, PagamentoColaborador
 from core.validators import MAX_REQUEST_UPLOAD_SIZE, validate_document_upload
 
 class ColaboradorForm(forms.ModelForm):
@@ -97,4 +97,45 @@ class ColaboradorForm(forms.ModelForm):
                 None,
                 'Envie pelo menos um documento para cadastrar o colaborador.'
             )
+        return cleaned_data
+
+
+class PagamentoColaboradorForm(forms.ModelForm):
+    class Meta:
+        model = PagamentoColaborador
+        fields = (
+            'colaborador', 'tipo', 'competencia', 'valor',
+            'data_vencimento', 'status', 'data_pagamento', 'observacao',
+        )
+        widgets = {
+            'competencia': forms.DateInput(attrs={'type': 'date'}),
+            'valor': forms.TextInput(attrs={
+                'inputmode': 'decimal', 'placeholder': 'Ex.: 2000,00',
+            }),
+            'data_vencimento': forms.DateInput(attrs={'type': 'date'}),
+            'data_pagamento': forms.DateInput(attrs={'type': 'date'}),
+            'observacao': forms.Textarea(attrs={'rows': 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['colaborador'].queryset = Colaborador.objects.exclude(
+            status__in=['inativo', 'desligado']
+        )
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'
+        self.fields['valor'].localize = True
+        self.fields['valor'].widget.is_localized = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get('status')
+        data_pagamento = cleaned_data.get('data_pagamento')
+        if status == 'pago' and not data_pagamento:
+            self.add_error(
+                'data_pagamento',
+                'Informe a data em que o pagamento foi realizado.',
+            )
+        if status == 'pendente':
+            cleaned_data['data_pagamento'] = None
         return cleaned_data
