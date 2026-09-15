@@ -21,6 +21,12 @@ class ColaboradorForm(forms.ModelForm):
         widgets = {
             'data_nascimento': forms.DateInput(attrs={'type': 'date'}),
             'data_admissao': forms.DateInput(attrs={'type': 'date'}),
+            'salario': forms.TextInput(attrs={
+                'inputmode': 'decimal', 'placeholder': 'Ex.: 2000,00',
+            }),
+            'vale_transporte_semanal': forms.TextInput(attrs={
+                'inputmode': 'decimal', 'placeholder': 'Ex.: 80,00',
+            }),
         }
 
     def __init__(self, *args, **kwargs):
@@ -42,6 +48,13 @@ class ColaboradorForm(forms.ModelForm):
             field.widget.attrs['class'] = 'form-control'
             if name.startswith('anexo_'):
                 field.widget.attrs['accept'] = '.pdf,.png,.jpg,.jpeg'
+        self.fields['salario'].help_text = 'Informe o salário mensal do colaborador.'
+        self.fields['vale_transporte_semanal'].help_text = (
+            'Informe o valor total pago por semana.'
+        )
+        for name in ('salario', 'vale_transporte_semanal'):
+            self.fields[name].localize = True
+            self.fields[name].widget.is_localized = True
 
     def clean(self):
         cleaned_data = super().clean()

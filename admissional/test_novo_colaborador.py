@@ -18,6 +18,7 @@ from admissional.forms import ColaboradorForm
 from core.validators import MAX_REQUEST_UPLOAD_SIZE
 from core.direct_uploads import TOKEN_SALT
 import datetime
+from decimal import Decimal
 
 
 # ─── Fixtures / helpers ───────────────────────────────────────────────────────
@@ -378,6 +379,27 @@ class TestColaboradorForm(TestCase):
         """Form deve ser valido com dados minimos corretos."""
         form = ColaboradorForm(data=_colaborador_data())
         self.assertTrue(form.is_valid(), 'Form invalido: %s' % form.errors)
+
+    def test_form_salva_salario_e_vale_transporte_semanal(self):
+        form = ColaboradorForm(data=_colaborador_data(
+            salario='2000,00',
+            vale_transporte_semanal='80,00',
+        ))
+
+        self.assertTrue(form.is_valid(), form.errors)
+        colaborador = form.save()
+        self.assertEqual(colaborador.salario, Decimal('2000.00'))
+        self.assertEqual(colaborador.vale_transporte_semanal, Decimal('80.00'))
+
+    def test_form_rejeita_valores_de_remuneracao_negativos(self):
+        form = ColaboradorForm(data=_colaborador_data(
+            salario='-1,00',
+            vale_transporte_semanal='-1,00',
+        ))
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('salario', form.errors)
+        self.assertIn('vale_transporte_semanal', form.errors)
 
     def test_form_valido_sem_nome(self):
         form = ColaboradorForm(data=_colaborador_data(nome=''))

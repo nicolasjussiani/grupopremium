@@ -29,7 +29,7 @@
       </div>
       <div class="collaborator-fields-grid">
         {% for field in form %}
-          {% if not field.is_hidden and field.name|slice:":6" != "anexo_" %}
+          {% if not field.is_hidden and field.name|slice:":6" != "anexo_" and field.name != "salario" and field.name != "vale_transporte_semanal" %}
             <div class="form-group {% if field.name == 'endereco' %}field-span-2{% endif %}">
               <label class="form-label" for="{{ field.id_for_label }}">
                 {{ field.label }} {% if field.field.required %}<span class="required">*</span>{% endif %}
@@ -42,9 +42,33 @@
       </div>
     </section>
 
+    <section class="form-section" aria-labelledby="remuneracao-title">
+      <div class="form-section-heading">
+        <span class="form-section-icon" aria-hidden="true">02</span>
+        <div>
+          <h2 id="remuneracao-title">Remuneração e benefícios</h2>
+          <p>Cadastre o salário mensal e o valor semanal de vale-transporte.</p>
+        </div>
+      </div>
+      <div class="collaborator-fields-grid">
+        <div class="form-group">
+          <label class="form-label" for="{{ form.salario.id_for_label }}">Salário mensal (R$)</label>
+          {{ form.salario }}
+          <small class="form-help">{{ form.salario.help_text }}</small>
+          {% if form.salario.errors %}<div class="field-error">{{ form.salario.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.vale_transporte_semanal.id_for_label }}">Vale-transporte por semana (R$)</label>
+          {{ form.vale_transporte_semanal }}
+          <small class="form-help">{{ form.vale_transporte_semanal.help_text }}</small>
+          {% if form.vale_transporte_semanal.errors %}<div class="field-error">{{ form.vale_transporte_semanal.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </section>
+
     <section class="form-section documents-section" aria-labelledby="documentos-title">
       <div class="form-section-heading documents-heading">
-        <span class="form-section-icon" aria-hidden="true">02</span>
+        <span class="form-section-icon" aria-hidden="true">03</span>
         <div>
           <h2 id="documentos-title">Documentos e anexos</h2>
           <p>PDF, PNG ou JPG. Cada arquivo pode ter até 50 MB.{% if exige_documento %} Envie pelo menos um documento.{% endif %}</p>

@@ -2,6 +2,7 @@
 from django.db import models
 from django.db.models import BooleanField, Case, Exists, OuterRef, Q, Value, When
 from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator
 
 
 class ColaboradorQuerySet(models.QuerySet):
@@ -76,7 +77,22 @@ class Colaborador(models.Model):
     status = models.CharField(max_length=20, choices=STATUS, default='ativo')
     pis_pasep = models.CharField(max_length=20, blank=True, verbose_name='PIS/PASEP')
     ctps = models.CharField(max_length=30, blank=True, verbose_name='CTPS')
-    salario = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name='Salário')
+    salario = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name='Salário',
+    )
+    vale_transporte_semanal = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name='Vale-transporte semanal',
+    )
     
     # Anexos de documentos
     anexo_cpf = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo CPF/CNPJ (Frente)')
