@@ -27,6 +27,9 @@ class ColaboradorForm(forms.ModelForm):
             'vale_transporte_semanal': forms.TextInput(attrs={
                 'inputmode': 'decimal', 'placeholder': 'Ex.: 80,00',
             }),
+            'ajuda_custo_semanal': forms.TextInput(attrs={
+                'inputmode': 'decimal', 'placeholder': 'Ex.: 80,00',
+            }),
         }
 
     def __init__(self, *args, **kwargs):
@@ -50,9 +53,12 @@ class ColaboradorForm(forms.ModelForm):
                 field.widget.attrs['accept'] = '.pdf,.png,.jpg,.jpeg'
         self.fields['salario'].help_text = 'Informe o salário mensal do colaborador.'
         self.fields['vale_transporte_semanal'].help_text = (
-            'Informe o valor total pago por semana.'
+            'Informe o valor total pago por semana (apenas CLT).'
         )
-        for name in ('salario', 'vale_transporte_semanal'):
+        self.fields['ajuda_custo_semanal'].help_text = (
+            'Informe o valor total pago por semana (apenas PJ).'
+        )
+        for name in ('salario', 'vale_transporte_semanal', 'ajuda_custo_semanal'):
             self.fields[name].localize = True
             self.fields[name].widget.is_localized = True
 

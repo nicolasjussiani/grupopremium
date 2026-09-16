@@ -95,6 +95,14 @@ class Colaborador(models.Model):
         validators=[MinValueValidator(0)],
         verbose_name='Vale-transporte semanal',
     )
+    ajuda_custo_semanal = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name='Ajuda de custo semanal',
+    )
     
     # Anexos de documentos
     anexo_cpf = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo CPF/CNPJ (Frente)')
@@ -177,6 +185,7 @@ class PagamentoColaborador(models.Model):
     TIPOS = [
         ('salario', 'Salário'),
         ('vale_transporte', 'Vale-transporte'),
+        ('ajuda_custo', 'Ajuda de custo'),
     ]
     STATUS = [
         ('pendente', 'Pendente'),

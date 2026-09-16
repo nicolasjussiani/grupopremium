@@ -47,7 +47,7 @@
         <span class="form-section-icon" aria-hidden="true">02</span>
         <div>
           <h2 id="remuneracao-title">Remuneração e benefícios</h2>
-          <p>Cadastre o salário mensal e o valor semanal de vale-transporte.</p>
+          <p>Cadastre o salário mensal, vale-transporte (CLT) e ajuda de custo (PJ).</p>
         </div>
       </div>
       <div class="collaborator-fields-grid">
@@ -62,6 +62,12 @@
           {{ form.vale_transporte_semanal }}
           <small class="form-help">{{ form.vale_transporte_semanal.help_text }}</small>
           {% if form.vale_transporte_semanal.errors %}<div class="field-error">{{ form.vale_transporte_semanal.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.ajuda_custo_semanal.id_for_label }}">Ajuda de custo por semana (R$)</label>
+          {{ form.ajuda_custo_semanal }}
+          <small class="form-help">{{ form.ajuda_custo_semanal.help_text }}</small>
+          {% if form.ajuda_custo_semanal.errors %}<div class="field-error">{{ form.ajuda_custo_semanal.errors.0 }}</div>{% endif %}
         </div>
       </div>
     </section>

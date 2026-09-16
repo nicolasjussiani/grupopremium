@@ -354,13 +354,15 @@ def novo_pagamento_colaborador(request):
             'status': 'pendente',
         }
         colaborador_id = str(initial['colaborador']).strip()
-        if colaborador_id.isdigit() and initial['tipo'] in {'salario', 'vale_transporte'}:
+        if colaborador_id.isdigit() and initial['tipo'] in {'salario', 'vale_transporte', 'ajuda_custo'}:
             colaborador = Colaborador.objects.filter(pk=colaborador_id).first()
             if colaborador:
-                campo_valor = (
-                    'salario' if initial['tipo'] == 'salario'
-                    else 'vale_transporte_semanal'
-                )
+                if initial['tipo'] == 'salario':
+                    campo_valor = 'salario'
+                elif initial['tipo'] == 'vale_transporte':
+                    campo_valor = 'vale_transporte_semanal'
+                else:
+                    campo_valor = 'ajuda_custo_semanal'
                 initial['valor'] = getattr(colaborador, campo_valor)
         form = PagamentoColaboradorForm(initial=initial)
     return render(request, 'admissional/form_pagamento.html', {

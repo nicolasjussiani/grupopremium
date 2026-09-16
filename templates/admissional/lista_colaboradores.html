@@ -112,7 +112,11 @@
           {% endif %}
           {% if can_add_pagamento %}
             <a href="{% url 'novo_pagamento_colaborador' %}?colaborador={{ c.pk }}&amp;tipo=salario" class="btn btn-sm btn-success" title="Cadastrar pagamento de salário">Salário</a>
-            <a href="{% url 'novo_pagamento_colaborador' %}?colaborador={{ c.pk }}&amp;tipo=vale_transporte" class="btn btn-sm btn-outline" title="Cadastrar pagamento de vale-transporte">VT</a>
+            {% if c.tipo_contrato == 'clt' %}
+              <a href="{% url 'novo_pagamento_colaborador' %}?colaborador={{ c.pk }}&amp;tipo=vale_transporte" class="btn btn-sm btn-outline" title="Cadastrar pagamento de vale-transporte">VT</a>
+            {% else %}
+              <a href="{% url 'novo_pagamento_colaborador' %}?colaborador={{ c.pk }}&amp;tipo=ajuda_custo" class="btn btn-sm btn-outline" title="Cadastrar pagamento de ajuda de custo">AC</a>
+            {% endif %}
           {% endif %}
           {% if can_delete_colaborador and c.status != 'inativo' %}
             <a href="{% url 'excluir_colaborador' c.pk %}" class="btn btn-sm btn-danger" title="Desativar">Desativar</a>
