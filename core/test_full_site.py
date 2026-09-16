@@ -7,8 +7,11 @@ from django.urls import URLResolver, get_resolver, reverse
 from django.utils import timezone
 
 from administrativo.models import DemandaAdministrativa
-from admissional.models import Admissao, Colaborador, DocumentoAdmissional, DocumentoColaborador
-from compras.models import Material, PedidoCompra, SolicitacaoMaterial
+from admissional.models import (
+    Admissao, Colaborador, DocumentoAdmissional, DocumentoColaborador,
+    PagamentoColaborador,
+)
+from compras.models import Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial
 from core.models import AprovacaoRegistro, Fornecedor, Notificacao, PerfilUsuario, Unidade
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
 from manutencao.models import Ativo, RegistroManutencao
@@ -118,6 +121,14 @@ class FullSiteRouteTests(TestCase):
             unidade_destino='Matriz',
             justificativa='Teste integral',
         )
+        cls.requisicao_compra = RequisicaoCompra.objects.create(
+            solicitante='Usuario Teste',
+            solicitante_usuario=cls.user,
+            unidade_destino='Matriz',
+            justificativa='Teste integral agrupado',
+        )
+        cls.solicitacao.requisicao = cls.requisicao_compra
+        cls.solicitacao.save()
         cls.pedido = PedidoCompra.objects.create(
             solicitacao=cls.solicitacao,
             fornecedor='Fornecedor Teste',
@@ -198,6 +209,14 @@ class FullSiteRouteTests(TestCase):
             nome='Unidade Cadastro Integral',
             cidade='Sao Paulo',
             estado='SP',
+            criado_por=cls.user,
+        )
+        cls.pagamento_colaborador = PagamentoColaborador.objects.create(
+            colaborador=cls.colaborador,
+            tipo='salario',
+            competencia=date.today().replace(day=1),
+            valor='2500.00',
+            data_vencimento=date.today(),
             criado_por=cls.user,
         )
 
@@ -281,6 +300,10 @@ class FullSiteRouteTests(TestCase):
             ('excluir_documento_colaborador', (self.colaborador.pk, self.documento_colaborador.pk), 405),
             ('excluir_colaborador', (self.colaborador.pk,), 200),
             ('reativar_colaborador', (self.colaborador.pk,), 405),
+            ('lista_pagamentos_colaboradores', (), 200),
+            ('novo_pagamento_colaborador', (), 200),
+            ('editar_pagamento_colaborador', (self.pagamento_colaborador.pk,), 200),
+            ('marcar_pagamento_como_pago', (self.pagamento_colaborador.pk,), 405),
             ('controle_presenca', (), 200),
             ('exportar_presenca_csv', (), 400),
             ('periodo_experiencia', (), 200),
@@ -293,6 +316,7 @@ class FullSiteRouteTests(TestCase):
             ('novo_material', (), 200),
             ('editar_material', (self.material.pk,), 200),
             ('nova_solicitacao', (), 200),
+            ('detalhe_requisicao', (self.requisicao_compra.pk,), 200),
             ('detalhe_solicitacao', (self.solicitacao.pk,), 200),
             ('criar_pedido', (self.solicitacao.pk,), 200),
             ('aprovar_pedido', (self.pedido.pk,), 200),
@@ -403,6 +427,9 @@ class FullSiteRouteTests(TestCase):
             ('editar_colaborador', (self.colaborador.pk,)),
             ('excluir_colaborador', (self.colaborador.pk,)),
             ('reativar_colaborador', (self.colaborador.pk,)),
+            ('novo_pagamento_colaborador', ()),
+            ('editar_pagamento_colaborador', (self.pagamento_colaborador.pk,)),
+            ('marcar_pagamento_como_pago', (self.pagamento_colaborador.pk,)),
             ('controle_presenca', ()),
             ('nova_demanda', ()),
             ('atualizar_status_demanda', (self.demanda.pk,)),

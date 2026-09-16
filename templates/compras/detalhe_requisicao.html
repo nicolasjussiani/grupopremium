@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}{{ requisicao.numero }} — Compras ERP{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}Detalhe da Requisição{% endblock %}
+
+{% block content %}
+<style>
+  .request-summary { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-bottom:20px; }
+  .request-summary-item { padding:16px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface); }
+  .request-summary-item small { display:block; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; }
+  .request-summary-item strong { display:block; margin-top:4px; font-size:1.15rem; }
+  .request-mobile-list { display:none; gap:12px; }
+  .request-mobile-item { padding:16px; border:1px solid var(--border); border-radius:var(--radius-md); }
+  @media (max-width: 720px) {
+    .request-summary { grid-template-columns:1fr; }
+    .request-desktop-table { display:none; }
+    .request-mobile-list { display:grid; }
+  }
+</style>
+
+<div class="module-banner mod-banner-5" style="margin-bottom:20px;">
+  <div class="mod-title">📋 {{ requisicao.numero }}</div>
+  <div class="mod-desc">{{ total_itens }} produto{{ total_itens|pluralize }} para {{ requisicao.unidade_destino }}</div>
+</div>
+
+<div class="request-summary">
+  <div class="request-summary-item">
+    <small>Unidade de destino</small>
+    <strong>{{ requisicao.unidade_destino }}</strong>
+  </div>
+  <div class="request-summary-item">
+    <small>Solicitante</small>
+    <strong>{{ requisicao.solicitante }}</strong>
+  </div>
+  <div class="request-summary-item">
+    <small>Data da requisição</small>
+    <strong>{{ requisicao.criado_em|date:"d/m/Y H:i" }}</strong>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header">
+    <div class="card-title">Justificativa</div>
+  </div>
+  <p style="margin:0;color:var(--text-secondary);">{{ requisicao.justificativa }}</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Produtos da requisição</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      {% if total_estoque %}<span class="badge badge-success">{{ total_estoque }} pelo estoque</span>{% endif %}
+      {% if total_compra %}<span class="badge badge-primary">{{ total_compra }} para compra</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="table-wrap request-desktop-table" style="border:none;">
+    <table>
+      <thead>
+        <tr>
+          <th>Produto</th>
+          <th>Quantidade</th>
+          <th>Estoque atual</th>
+          <th>Status</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in itens %}
+        <tr>
+          <td><strong>[{{ item.material.codigo }}] {{ item.material.nome }}</strong></td>
+          <td>{{ item.quantidade_solicitada }} {{ item.material.get_unidade_medida_display }}</td>
+          <td>{{ item.material.quantidade_estoque }} {{ item.material.get_unidade_medida_display }}</td>
+          <td>
+            <span class="badge {% if item.status == 'atendido_interno' %}badge-success{% elif item.status == 'compra_externa' %}badge-primary{% else %}badge-warning{% endif %}">
+              {{ item.get_status_display }}
+            </span>
+          </td>
+          <td style="white-space:nowrap;">
+            <a href="{% url 'detalhe_solicitacao' item.pk %}" class="btn btn-sm btn-outline">Detalhes</a>
+            {% if item.status == 'compra_externa' and not item.tem_pedido %}
+            <a href="{% url 'criar_pedido' item.pk %}" class="btn btn-sm btn-mod5">Criar pedido</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="request-mobile-list">
+    {% for item in itens %}
+    <div class="request-mobile-item">
+      <strong>[{{ item.material.codigo }}] {{ item.material.nome }}</strong>
+      <div style="margin:8px 0;color:var(--text-secondary);">
+        {{ item.quantidade_solicitada }} {{ item.material.get_unidade_medida_display }}
+      </div>
+      <span class="badge {% if item.status == 'atendido_interno' %}badge-success{% elif item.status == 'compra_externa' %}badge-primary{% else %}badge-warning{% endif %}">
+        {{ item.get_status_display }}
+      </span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        <a href="{% url 'detalhe_solicitacao' item.pk %}" class="btn btn-sm btn-outline">Detalhes</a>
+        {% if item.status == 'compra_externa' and not item.tem_pedido %}
+        <a href="{% url 'criar_pedido' item.pk %}" class="btn btn-sm btn-mod5">Criar pedido</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+  <a href="{% url 'nova_solicitacao' %}" class="btn btn-mod5">+ Nova requisição</a>
+  <a href="{% url 'painel_compras' %}" class="btn btn-outline">← Voltar ao painel</a>
+</div>
+{% endblock %}

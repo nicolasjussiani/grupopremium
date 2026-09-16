@@ -71,6 +71,35 @@ class Material(models.Model):
         return self.quantidade_estoque <= self.estoque_minimo
 
 
+class RequisicaoCompra(models.Model):
+    """Agrupa vários materiais destinados à mesma unidade."""
+
+    solicitante = models.CharField(max_length=200, verbose_name='Solicitante')
+    solicitante_usuario = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='requisicoes_compra',
+    )
+    unidade_destino = models.CharField(max_length=100, verbose_name='Unidade de Destino')
+    justificativa = models.TextField(verbose_name='Justificativa')
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Requisição de Compra'
+        verbose_name_plural = 'Requisições de Compra'
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        return f'{self.numero} - {self.unidade_destino}'
+
+    @property
+    def numero(self):
+        return f'REQ-{self.pk:06d}' if self.pk else 'REQ-NOVA'
+
+
 class SolicitacaoMaterial(models.Model):
     STATUS = [
         ('pendente', 'Pendente'),
@@ -84,6 +113,14 @@ class SolicitacaoMaterial(models.Model):
 
     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name='solicitacoes',
                                   verbose_name='Material')
+    requisicao = models.ForeignKey(
+        RequisicaoCompra,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='itens',
+        verbose_name='Requisição agrupada',
+    )
     quantidade_solicitada = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Quantidade')
     solicitante = models.CharField(max_length=200, verbose_name='Solicitante')
     solicitante_usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
@@ -107,6 +144,19 @@ class SolicitacaoMaterial(models.Model):
 
     def __str__(self):
         return f"Solicitação: {self.material.nome} x{self.quantidade_solicitada} — {self.get_status_display()}"
+
+    def save(self, *args, **kwargs):
+        if self.requisicao_id:
+            self.unidade_destino = self.requisicao.unidade_destino
+            self.justificativa = self.requisicao.justificativa
+            self.solicitante = self.requisicao.solicitante
+            self.solicitante_usuario = self.requisicao.solicitante_usuario
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = set(kwargs['update_fields']) | {
+                    'unidade_destino', 'justificativa', 'solicitante',
+                    'solicitante_usuario',
+                }
+        super().save(*args, **kwargs)
 
     @property
     def numero(self):

@@ -7,6 +7,11 @@
 <div class="module-banner mod-banner-5" style="margin-bottom:20px;">
   <div class="mod-title">📋 Solicitação {{ solicitacao.numero }}</div>
   <div class="mod-desc">{{ solicitacao.material.nome }} — Solicitado por: {{ solicitacao.solicitante }}</div>
+  {% if solicitacao.requisicao %}
+  <a href="{% url 'detalhe_requisicao' solicitacao.requisicao.pk %}" class="btn btn-sm btn-outline" style="margin-top:12px;">
+    Ver requisição completa {{ solicitacao.requisicao.numero }}
+  </a>
+  {% endif %}
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">

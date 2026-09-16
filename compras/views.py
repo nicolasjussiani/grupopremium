@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.db.models import F
 from django.db import transaction
 from decimal import Decimal, InvalidOperation
-from .models import Material, SolicitacaoMaterial, PedidoCompra
+from .models import Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial
 from .forms import MaterialForm
 from core.access import access_required, user_has_access
 from core.direct_uploads import assign_direct_upload
@@ -39,11 +39,13 @@ def painel_compras(request):
         status__in=['pendente', 'em_analise'])
     pedidos_abertos = PedidoCompra.objects.exclude(
         status__in=['concluido'])
+    requisicoes_recentes = RequisicaoCompra.objects.prefetch_related('itens').all()[:10]
 
     return render(request, 'compras/painel.html', {
         'materiais_criticos': materiais_criticos,
         'solicitacoes_pendentes': solicitacoes_pendentes,
         'pedidos_abertos': pedidos_abertos,
+        'requisicoes_recentes': requisicoes_recentes,
         'total_materiais': Material.objects.count(),
         'total_estoque_critico': materiais_criticos.count(),
     })
@@ -119,71 +121,143 @@ def editar_material(request, pk):
 @access_required(permission='compras.add_solicitacaomaterial', profiles=('compras', 'gestor', 'estoque_compras'))
 @transaction.atomic
 def nova_solicitacao(request):
+    def render_form(itens_form=None):
+        if itens_form is None:
+            itens_form = [{
+                'material_id': request.GET.get('material', '').strip(),
+                'quantidade': '1',
+            }]
+        return render(request, 'compras/nova_solicitacao.html', {
+            'materiais': Material.objects.all(),
+            'post_data': request.POST if request.method == 'POST' else {},
+            'itens_form': itens_form,
+        })
+
     if request.method == 'POST':
-        material_pk = request.POST.get('material')
-        quantidade = request.POST.get('quantidade_solicitada')
+        materiais_post = request.POST.getlist('material')
+        quantidades_post = request.POST.getlist('quantidade_solicitada')
         justificativa = request.POST.get('justificativa', '').strip()
         unidade_destino = request.POST.get('unidade_destino', '').strip()
+        total_linhas = max(len(materiais_post), len(quantidades_post))
+        itens_form = []
+        for indice in range(total_linhas):
+            material_id = materiais_post[indice].strip() if indice < len(materiais_post) else ''
+            quantidade = quantidades_post[indice].strip() if indice < len(quantidades_post) else ''
+            if material_id or quantidade:
+                itens_form.append({
+                    'material_id': material_id,
+                    'quantidade': quantidade,
+                })
 
-        if not all([material_pk, quantidade, justificativa, unidade_destino]):
-            messages.error(request, '⚠️ GATEWAY: Preencha todos os campos obrigatórios.')
-            return render(request, 'compras/nova_solicitacao.html', {
-                'materiais': Material.objects.all(),
-                'post_data': request.POST,
-            })
+        if not unidade_destino or not justificativa or not itens_form:
+            messages.error(request, 'Preencha a unidade, a justificativa e pelo menos um produto.')
+            return render_form(itens_form or [{'material_id': '', 'quantidade': '1'}])
+        if len(unidade_destino) > 100:
+            messages.error(request, 'A unidade de destino deve ter no máximo 100 caracteres.')
+            return render_form(itens_form)
+        if len(itens_form) > 30:
+            messages.error(request, 'Cada requisição pode conter no máximo 30 produtos.')
+            return render_form(itens_form[:30])
 
-        material = get_object_or_404(Material.objects.select_for_update(), pk=material_pk)
-        try:
-            qtd = Decimal(quantidade.replace(',', '.'))
-        except (InvalidOperation, AttributeError):
-            qtd = Decimal('0')
-        if qtd <= 0:
-            messages.error(request, 'A quantidade deve ser maior que zero.')
-            return render(request, 'compras/nova_solicitacao.html', {
-                'materiais': Material.objects.all(),
-                'post_data': request.POST,
-            })
+        itens_validados = []
+        materiais_ids = []
+        for numero_linha, item in enumerate(itens_form, start=1):
+            if not item['material_id'] or not item['quantidade']:
+                messages.error(request, f'Informe o produto e a quantidade no item {numero_linha}.')
+                return render_form(itens_form)
+            try:
+                material_id = int(item['material_id'])
+                quantidade = Decimal(item['quantidade'].replace(',', '.'))
+                SolicitacaoMaterial._meta.get_field('quantidade_solicitada').clean(
+                    quantidade, None
+                )
+            except (TypeError, ValueError, InvalidOperation, ValidationError):
+                messages.error(request, f'Informe uma quantidade válida no item {numero_linha}.')
+                return render_form(itens_form)
+            if quantidade <= 0:
+                messages.error(request, f'A quantidade do item {numero_linha} deve ser maior que zero.')
+                return render_form(itens_form)
+            if material_id in materiais_ids:
+                messages.error(request, 'O mesmo produto não pode ser repetido na requisição.')
+                return render_form(itens_form)
+            materiais_ids.append(material_id)
+            itens_validados.append((material_id, quantidade))
 
-        sol = SolicitacaoMaterial(
-            material=material,
-            quantidade_solicitada=qtd,
+        materiais = {
+            material.pk: material
+            for material in Material.objects.select_for_update().filter(pk__in=materiais_ids)
+        }
+        if len(materiais) != len(materiais_ids):
+            messages.error(request, 'Um dos produtos selecionados não está mais disponível.')
+            return render_form(itens_form)
+
+        requisicao = RequisicaoCompra(
             solicitante=request.user.get_full_name() or request.user.username,
             solicitante_usuario=request.user,
             unidade_destino=unidade_destino,
             justificativa=justificativa,
-            status='em_analise',
         )
         try:
-            sol.full_clean()
-            sol.save()
+            requisicao.full_clean()
+            requisicao.save()
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages))
-            return render(request, 'compras/nova_solicitacao.html', {
-                'materiais': Material.objects.all(),
-                'post_data': request.POST,
-            })
+            return render_form(itens_form)
 
-        # Gateway de Estoque: material disponível?
-        if material.quantidade_estoque >= qtd:
-            sol.status = 'atendido_interno'
-            material.quantidade_estoque -= qtd
-            material.save(update_fields=['quantidade_estoque', 'atualizado_em'])
-            sol.save(update_fields=['status', 'atualizado_em'])
-            messages.success(request,
-                f'✅ GATEWAY ESTOQUE: Material disponível! {material.nome} x{qtd} separado do estoque '
-                f'e encaminhado para entrega. Estoque atualizado: {material.quantidade_estoque} '
-                f'{material.get_unidade_medida_display()}.')
-        else:
-            sol.status = 'compra_externa'
-            sol.save()
-            messages.warning(request,
-                f'⚠️ GATEWAY ESTOQUE: Material "{material.nome}" insuficiente em estoque '
-                f'(disponível: {material.quantidade_estoque}). Encaminhado para COMPRA EXTERNA.')
+        atendidos = 0
+        compras_externas = 0
+        for material_id, quantidade in itens_validados:
+            material = materiais[material_id]
+            status = 'compra_externa'
+            if material.quantidade_estoque >= quantidade:
+                status = 'atendido_interno'
+                material.quantidade_estoque -= quantidade
+                material.save(update_fields=['quantidade_estoque', 'atualizado_em'])
+                atendidos += 1
+            else:
+                compras_externas += 1
 
-        return redirect('detalhe_solicitacao', pk=sol.pk)
+            solicitacao = SolicitacaoMaterial(
+                requisicao=requisicao,
+                material=material,
+                quantidade_solicitada=quantidade,
+                solicitante=requisicao.solicitante,
+                solicitante_usuario=request.user,
+                unidade_destino=unidade_destino,
+                justificativa=justificativa,
+                status=status,
+            )
+            solicitacao.full_clean()
+            solicitacao.save()
 
-    return render(request, 'compras/nova_solicitacao.html', {
-        'materiais': Material.objects.all(),
+        resumo = f'{len(itens_validados)} produto(s) incluído(s)'
+        if atendidos:
+            resumo += f', {atendidos} atendido(s) pelo estoque'
+        if compras_externas:
+            resumo += f', {compras_externas} encaminhado(s) para compra externa'
+        messages.success(request, f'Requisição {requisicao.numero} criada: {resumo}.')
+        return redirect('detalhe_requisicao', pk=requisicao.pk)
+
+    return render_form()
+
+
+@login_required
+def detalhe_requisicao(request, pk):
+    requisicao = get_object_or_404(
+        RequisicaoCompra.objects.select_related('solicitante_usuario').prefetch_related(
+            'itens__material', 'itens__pedidos'
+        ),
+        pk=pk,
+    )
+    itens = list(requisicao.itens.all())
+    for item in itens:
+        item.tem_pedido = bool(item.pedidos.all())
+    return render(request, 'compras/detalhe_requisicao.html', {
+        'requisicao': requisicao,
+        'itens': itens,
+        'total_itens': len(itens),
+        'total_estoque': sum(item.status == 'atendido_interno' for item in itens),
+        'total_compra': sum(item.status == 'compra_externa' for item in itens),
     })
 
 
