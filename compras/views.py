@@ -211,11 +211,24 @@ def nova_solicitacao(request):
             unidade_destino=unidade_destino,
             justificativa=justificativa,
         )
-        if 'documento' in request.FILES:
-            requisicao.documento = request.FILES['documento']
-        if 'comprovante_pagamento' in request.FILES:
-            requisicao.comprovante_pagamento = request.FILES['comprovante_pagamento']
-            requisicao.status = 'aprovada'
+        from core.direct_uploads import assign_direct_upload
+
+        try:
+            if 'documento' in request.FILES:
+                requisicao.documento = request.FILES['documento']
+            else:
+                assign_direct_upload(requisicao, request, 'documento')
+
+            if 'comprovante_pagamento' in request.FILES:
+                requisicao.comprovante_pagamento = request.FILES['comprovante_pagamento']
+            else:
+                assign_direct_upload(requisicao, request, 'comprovante_pagamento')
+
+            if requisicao.comprovante_pagamento:
+                requisicao.status = 'aprovada'
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc))
+            return render_form(itens_form)
 
         try:
             requisicao.full_clean()
@@ -582,11 +595,24 @@ def editar_requisicao(request, pk):
 
         requisicao.unidade_destino = unidade_destino
         requisicao.justificativa = justificativa
-        if 'documento' in request.FILES:
-            requisicao.documento = request.FILES['documento']
-        if 'comprovante_pagamento' in request.FILES:
-            requisicao.comprovante_pagamento = request.FILES['comprovante_pagamento']
-            requisicao.status = 'aprovada'
+        from core.direct_uploads import assign_direct_upload
+        
+        try:
+            if 'documento' in request.FILES:
+                requisicao.documento = request.FILES['documento']
+            else:
+                assign_direct_upload(requisicao, request, 'documento')
+
+            if 'comprovante_pagamento' in request.FILES:
+                requisicao.comprovante_pagamento = request.FILES['comprovante_pagamento']
+            else:
+                assign_direct_upload(requisicao, request, 'comprovante_pagamento')
+
+            if requisicao.comprovante_pagamento:
+                requisicao.status = 'aprovada'
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc))
+            return render_form(itens_form)
 
         try:
             requisicao.full_clean()
