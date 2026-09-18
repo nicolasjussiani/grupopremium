@@ -384,11 +384,14 @@ class ImportadorArquivoCentral:
 
         nome_seguro = get_valid_filename(caminho.name)[:180] or f'arquivo{caminho.suffix.lower()}'
         chave = f'arquivo_central/{digest[:2]}/{digest}-{nome_seguro}'
-        if default_storage.exists(chave):
-            nome_armazenado = chave
-        else:
-            with caminho.open('rb') as stream:
-                nome_armazenado = default_storage.save(chave, File(stream, name=nome_seguro))
+        # A chave ja e unica pelo SHA-256 e a tabela impede o mesmo conteudo
+        # de ser cadastrado duas vezes. Salvar diretamente evita uma chamada
+        # HEAD adicional por arquivo, que e instavel no endpoint S3 do
+        # Supabase durante importacoes em lote.
+        with caminho.open('rb') as stream:
+            nome_armazenado = default_storage._save(
+                chave, File(stream, name=nome_seguro)
+            )
 
         with transaction.atomic():
             status = 'revisar' if analise['motivos'] else 'arquivado'
