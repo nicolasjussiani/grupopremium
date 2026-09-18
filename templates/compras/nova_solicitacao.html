@@ -14,7 +14,7 @@
   .request-rule strong { color:var(--mod5-purple); display:block; margin-bottom:2px; }
   .request-items { display:grid; gap:12px; margin-top:12px; }
   .request-item {
-    display:grid; grid-template-columns:minmax(260px, 1fr) 170px 42px; gap:12px;
+    display:grid; grid-template-columns:minmax(200px, 1fr) 100px 140px 42px; gap:12px;
     align-items:start; padding:16px; background:var(--bg-secondary);
     border:1px solid var(--border); border-radius:var(--radius-md);
   }
@@ -114,9 +114,16 @@
             <div class="stock-note"></div>
           </div>
           <div class="form-group" style="margin:0;">
-            <label class="form-label">Quantidade</label>
-            <input type="number" name="quantidade_solicitada" class="form-control" required
+            <label class="form-label">Quantidade <span class="required">*</span></label>
+            <input type="number" name="quantidade_solicitada" class="form-control quantity-input" required
                    min="0.01" step="0.01" value="{{ item.quantidade|default:'1' }}">
+            <div class="stock-note"></div>
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Valor Unit. (Opcional)</label>
+            <input type="text" name="valor_unitario" class="form-control money-mask value-input" placeholder="R$ 0,00"
+                   value="{{ item.valor_unitario|default:item.valor|default:'' }}">
+            <div class="stock-note total-label" style="color:var(--success);font-weight:600;margin-top:6px;"></div>
           </div>
           <button type="button" class="btn btn-outline remove-item" aria-label="Remover produto" title="Remover produto">×</button>
         </div>
@@ -149,8 +156,14 @@
       <div class="stock-note"></div>
     </div>
     <div class="form-group" style="margin:0;">
-      <label class="form-label">Quantidade</label>
-      <input type="number" name="quantidade_solicitada" class="form-control" required min="0.01" step="0.01" value="1">
+      <label class="form-label">Quantidade <span class="required">*</span></label>
+      <input type="number" name="quantidade_solicitada" class="form-control quantity-input" required min="0.01" step="0.01" value="1">
+      <div class="stock-note"></div>
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label class="form-label">Valor Unit. (Opcional)</label>
+      <input type="text" name="valor_unitario" class="form-control money-mask value-input" placeholder="R$ 0,00" value="">
+      <div class="stock-note total-label" style="color:var(--success);font-weight:600;margin-top:6px;"></div>
     </div>
     <button type="button" class="btn btn-outline remove-item" aria-label="Remover produto" title="Remover produto">×</button>
   </div>
@@ -164,12 +177,24 @@
   const form = document.getElementById('requestForm');
 
   function updateRows() {
-    const rows = [...container.querySelectorAll('.request-item')];
-    rows.forEach((row, index) => {
-      row.querySelector('.request-item-number span').textContent = index + 1;
-      row.querySelector('.remove-item').disabled = rows.length === 1;
+    const items = container.querySelectorAll('.request-item');
+    items.forEach((item, index) => {
+      const numSpan = item.querySelector('.request-item-number span');
+      if (numSpan) {
+        numSpan.textContent = index + 1;
+      } else {
+        item.querySelector('.request-item-number').textContent = `Item ${index + 1}`;
+      }
+      const removeBtn = item.querySelector('.remove-item');
+      if (items.length === 1) {
+        removeBtn.style.display = 'none';
+        removeBtn.disabled = true;
+      } else {
+        removeBtn.style.display = 'inline-flex';
+        removeBtn.disabled = false;
+      }
     });
-    addButton.disabled = rows.length >= 30;
+    if (addButton) addButton.disabled = items.length >= 30;
   }
 
   function updateStock(select) {
@@ -181,6 +206,32 @@
     }
     note.textContent = `Disponível: ${option.dataset.estoque} ${option.dataset.unidade}${option.dataset.critico === 'true' ? ' • estoque crítico' : ''}`;
     note.style.color = option.dataset.critico === 'true' ? 'var(--danger)' : 'var(--text-muted)';
+  }
+
+  function formatMoney(value) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  }
+
+  function parseMoney(valueStr) {
+    if (!valueStr) return 0;
+    const cleanStr = valueStr.replace(/[R$\s.]/g, '').replace(',', '.');
+    return parseFloat(cleanStr) || 0;
+  }
+
+  function calcTotal(row) {
+    const qtyInput = row.querySelector('.quantity-input');
+    const valInput = row.querySelector('.value-input');
+    const totalLabel = row.querySelector('.total-label');
+    if (!qtyInput || !valInput || !totalLabel) return;
+    
+    const qty = parseFloat(qtyInput.value) || 0;
+    const val = parseMoney(valInput.value);
+    
+    if (qty > 0 && val > 0) {
+      totalLabel.textContent = `Total: ${formatMoney(qty * val)}`;
+    } else {
+      totalLabel.textContent = '';
+    }
   }
 
   function bindRow(row) {
@@ -195,7 +246,22 @@
         updateRows();
       }
     });
+    
+    const qtyInput = row.querySelector('.quantity-input');
+    const valInput = row.querySelector('.value-input');
+    if (qtyInput) qtyInput.addEventListener('input', () => calcTotal(row));
+    if (valInput) {
+      valInput.addEventListener('input', () => calcTotal(row));
+      valInput.addEventListener('focusout', (event) => {
+        const val = parseMoney(event.target.value);
+        if (val > 0) {
+          event.target.value = formatMoney(val).replace('R$', '').trim();
+        }
+      });
+    }
+    
     updateStock(select);
+    calcTotal(row);
   }
 
   container.querySelectorAll('.request-item').forEach(bindRow);

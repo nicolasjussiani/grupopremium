@@ -135,6 +135,7 @@ def nova_solicitacao(request):
     if request.method == 'POST':
         materiais_post = request.POST.getlist('material')
         quantidades_post = request.POST.getlist('quantidade_solicitada')
+        valores_post = request.POST.getlist('valor_unitario')
         justificativa = request.POST.get('justificativa', '').strip()
         unidade_destino = request.POST.get('unidade_destino', '').strip()
         total_linhas = max(len(materiais_post), len(quantidades_post))
@@ -142,10 +143,12 @@ def nova_solicitacao(request):
         for indice in range(total_linhas):
             material_id = materiais_post[indice].strip() if indice < len(materiais_post) else ''
             quantidade = quantidades_post[indice].strip() if indice < len(quantidades_post) else ''
+            valor = valores_post[indice].strip() if indice < len(valores_post) else ''
             if material_id or quantidade:
                 itens_form.append({
                     'material_id': material_id,
                     'quantidade': quantidade,
+                    'valor': valor,
                 })
 
         if not unidade_destino or not justificativa or not itens_form:
@@ -179,8 +182,20 @@ def nova_solicitacao(request):
             if material_id in materiais_ids:
                 messages.error(request, 'O mesmo produto não pode ser repetido na requisição.')
                 return render_form(itens_form)
+            
+            valor_dec = None
+            if item.get('valor'):
+                try:
+                    v_str = item['valor'].replace('R$', '').replace('.', '').replace(',', '.').strip()
+                    valor_dec = Decimal(v_str)
+                    if valor_dec < 0:
+                        raise ValueError
+                except:
+                    messages.error(request, f'Informe um valor unitário válido no item {numero_linha}.')
+                    return render_form(itens_form)
+
             materiais_ids.append(material_id)
-            itens_validados.append((material_id, quantidade))
+            itens_validados.append((material_id, quantidade, valor_dec))
 
         materiais = {
             material.pk: material
@@ -211,7 +226,7 @@ def nova_solicitacao(request):
 
         medida_provisoria = bool(requisicao.comprovante_pagamento)
 
-        for material_id, quantidade in itens_validados:
+        for material_id, quantidade, valor_dec in itens_validados:
             material = materiais[material_id]
             solicitacao = SolicitacaoMaterial(
                 requisicao=requisicao,
@@ -229,11 +244,12 @@ def nova_solicitacao(request):
             solicitacao.save()
 
             if medida_provisoria:
+                v_unit = valor_dec if valor_dec and valor_dec > 0 else Decimal('0.01')
                 PedidoCompra.objects.create(
                     solicitacao=solicitacao,
                     fornecedor='Fornecedor Não Informado (Provisório)',
-                    valor_unitario=Decimal('0.01'),
-                    valor_total=(Decimal('0.01') * quantidade).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                    valor_unitario=v_unit,
+                    valor_total=(v_unit * quantidade).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
                     status='concluido',
                     aprovado_por=request.user,
                     obs='Criado automaticamente via anexo de comprovante de pagamento na requisição (Medida Provisória).'
@@ -465,9 +481,17 @@ def editar_requisicao(request, pk):
         if itens_form is None:
             itens_form = []
             for sol in requisicao.itens.all():
+                # Tentar achar o pedido concluído caso haja medida provisória para preencher o valor
+                valor = ''
+                if requisicao.comprovante_pagamento:
+                    pedido = sol.pedidos.filter(status='concluido').first()
+                    if pedido and pedido.valor_unitario:
+                        valor = str(pedido.valor_unitario).replace('.', ',')
+                        
                 itens_form.append({
                     'material_id': str(sol.material_id),
-                    'quantidade': str(sol.quantidade_solicitada).replace('.', ',')
+                    'quantidade': str(sol.quantidade_solicitada).replace('.', ','),
+                    'valor': valor,
                 })
             post_data = {
                 'unidade_destino': requisicao.unidade_destino,
@@ -487,6 +511,7 @@ def editar_requisicao(request, pk):
     if request.method == 'POST':
         materiais_post = request.POST.getlist('material')
         quantidades_post = request.POST.getlist('quantidade_solicitada')
+        valores_post = request.POST.getlist('valor_unitario')
         justificativa = request.POST.get('justificativa', '').strip()
         unidade_destino = request.POST.get('unidade_destino', '').strip()
         
@@ -495,10 +520,12 @@ def editar_requisicao(request, pk):
         for indice in range(total_linhas):
             material_id = materiais_post[indice].strip() if indice < len(materiais_post) else ''
             quantidade = quantidades_post[indice].strip() if indice < len(quantidades_post) else ''
+            valor = valores_post[indice].strip() if indice < len(valores_post) else ''
             if material_id or quantidade:
                 itens_form.append({
                     'material_id': material_id,
                     'quantidade': quantidade,
+                    'valor': valor,
                 })
 
         if not unidade_destino or not justificativa or not itens_form:
@@ -530,8 +557,20 @@ def editar_requisicao(request, pk):
             if material_id in materiais_ids:
                 messages.error(request, 'O mesmo produto não pode ser repetido na requisição.')
                 return render_form(itens_form)
+                
+            valor_dec = None
+            if item.get('valor'):
+                try:
+                    v_str = item['valor'].replace('R$', '').replace('.', '').replace(',', '.').strip()
+                    valor_dec = Decimal(v_str)
+                    if valor_dec < 0:
+                        raise ValueError
+                except:
+                    messages.error(request, f'Informe um valor unitário válido no item {numero_linha}.')
+                    return render_form(itens_form)
+                    
             materiais_ids.append(material_id)
-            itens_validados.append((material_id, quantidade))
+            itens_validados.append((material_id, quantidade, valor_dec))
 
         materiais = {
             material.pk: material
@@ -561,7 +600,7 @@ def editar_requisicao(request, pk):
 
         medida_provisoria = bool(requisicao.comprovante_pagamento)
 
-        for material_id, quantidade in itens_validados:
+        for material_id, quantidade, valor_dec in itens_validados:
             material = materiais[material_id]
             solicitacao = SolicitacaoMaterial(
                 requisicao=requisicao,
@@ -579,11 +618,12 @@ def editar_requisicao(request, pk):
             solicitacao.save()
 
             if medida_provisoria:
+                v_unit = valor_dec if valor_dec and valor_dec > 0 else Decimal('0.01')
                 PedidoCompra.objects.create(
                     solicitacao=solicitacao,
                     fornecedor='Fornecedor Não Informado (Provisório)',
-                    valor_unitario=Decimal('0.01'),
-                    valor_total=(Decimal('0.01') * quantidade).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                    valor_unitario=v_unit,
+                    valor_total=(v_unit * quantidade).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
                     status='concluido',
                     aprovado_por=request.user,
                     obs='Criado automaticamente via anexo de comprovante de pagamento na requisição (Medida Provisória).'
