@@ -119,7 +119,7 @@ def editar_material(request, pk):
 @login_required
 @access_required(permission='compras.add_solicitacaomaterial', profiles=('compras', 'gestor', 'estoque_compras'))
 @transaction.atomic
-def nova_solicitacao(request):
+def _nova_solicitacao_impl(request):
     def render_form(itens_form=None):
         if itens_form is None:
             itens_form = [{
@@ -715,3 +715,20 @@ def excluir_requisicao(request, pk):
     requisicao.delete()
     messages.success(request, 'Requisição excluída com sucesso.')
     return redirect('painel_compras')
+
+
+@login_required
+def nova_solicitacao(request):
+    try:
+        return _nova_solicitacao_impl(request)
+    except Exception as exc:
+        import traceback
+        from django.contrib import messages
+        from django.shortcuts import render
+        messages.error(request, f'ERRO 500 VERCEL: {type(exc).__name__}: {exc}')
+        messages.error(request, traceback.format_exc())
+        return render(request, 'compras/nova_solicitacao.html', {
+            'materiais': [],
+            'post_data': request.POST if request.method == 'POST' else {},
+            'itens_form': [{'material_id': '', 'quantidade': '1'}],
+        })
