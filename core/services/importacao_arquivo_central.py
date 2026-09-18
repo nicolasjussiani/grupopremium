@@ -362,12 +362,12 @@ class ImportadorArquivoCentral:
     def _importar(self, caminho):
         relativo = caminho.relative_to(self.raiz)
         digest = sha256_arquivo(caminho)
-        analise = analisar_arquivo(caminho, relativo, self.colaboradores)
         if self.dry_run:
             if digest in self._hashes_dry_run:
                 self.contadores['duplicados'] += 1
                 return
             self._hashes_dry_run.add(digest)
+            analise = analisar_arquivo(caminho, relativo, self.colaboradores)
             self._contabilizar_analise(analise)
             self.contadores['novos'] += 1
             if analise['motivos']:
@@ -392,6 +392,7 @@ class ImportadorArquivoCentral:
                 self.contadores['origens_novas'] += int(criada)
             return
 
+        analise = analisar_arquivo(caminho, relativo, self.colaboradores)
         self._contabilizar_analise(analise)
 
         nome_seguro = nome_seguro_storage(caminho.name) or f'arquivo{caminho.suffix.lower()}'
