@@ -53,7 +53,7 @@
       </div>
     </div>
 
-    <form method="post" id="requestForm">
+    <form method="post" id="requestForm" enctype="multipart/form-data">
       {% csrf_token %}
 
       <div class="form-grid">
@@ -68,6 +68,11 @@
           <label class="form-label">Justificativa <span class="required">*</span></label>
           <textarea name="justificativa" class="form-control" rows="3" required
                     placeholder="Descreva o motivo da compra e a urgência...">{{ post_data.justificativa|default:'' }}</textarea>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Documento Anexo</label>
+          <input type="file" name="documento" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+          <small style="color:var(--text-muted);">Opcional. Anexe orçamentos, fotos ou documentos adicionais.</small>
         </div>
       </div>
 

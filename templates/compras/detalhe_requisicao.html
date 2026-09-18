@@ -44,9 +44,17 @@
 
 <div class="card" style="margin-bottom:20px;">
   <div class="card-header">
-    <div class="card-title">Justificativa</div>
+    <div class="card-title">Justificativa e Anexos</div>
   </div>
   <p style="margin:0;color:var(--text-secondary);">{{ requisicao.justificativa }}</p>
+  {% if requisicao.documento %}
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+    <strong>Documento Anexo:</strong>
+    <a href="{{ requisicao.documento.url }}" target="_blank" class="btn btn-sm btn-outline" style="margin-left:8px;">
+      📄 Ver/Baixar Anexo
+    </a>
+  </div>
+  {% endif %}
 </div>
 
 <div class="card">

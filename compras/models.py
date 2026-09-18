@@ -94,6 +94,12 @@ class RequisicaoCompra(models.Model):
     )
     unidade_destino = models.CharField(max_length=100, verbose_name='Unidade de Destino')
     justificativa = models.TextField(verbose_name='Justificativa')
+    documento = models.FileField(
+        upload_to='compras/requisicoes/documentos/',
+        null=True,
+        blank=True,
+        verbose_name='Documento Anexo'
+    )
     status = models.CharField(
         max_length=30, choices=STATUS, default='aguardando_adriana'
     )

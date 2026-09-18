@@ -196,6 +196,9 @@ def nova_solicitacao(request):
             unidade_destino=unidade_destino,
             justificativa=justificativa,
         )
+        if 'documento' in request.FILES:
+            requisicao.documento = request.FILES['documento']
+
         try:
             requisicao.full_clean()
             requisicao.save()

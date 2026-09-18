@@ -23,6 +23,7 @@ FILE_FIELDS = {
     'recrutamento.Talento': ('arquivo',),
     'financeiro.DocumentoFinanceiro': ('arquivo',),
     'compras.Material': ('foto',),
+    'compras.RequisicaoCompra': ('documento',),
     'sesmet.EquipamentoProtecao': ('foto',),
     'manutencao.Ativo': ('foto',),
     'manutencao.RegistroManutencao': ('foto_equipamento',),
@@ -74,6 +75,8 @@ def canonical_prefix(instance, field_name):
         )
     if label == 'compras.Material':
         return f'compras/materiais/{instance.pk}/foto/'
+    if label == 'compras.RequisicaoCompra':
+        return f'compras/requisicoes/{instance.pk}/documentos/'
     if label == 'sesmet.EquipamentoProtecao':
         return f'sesmet/epis/{instance.pk}/foto/'
     if label == 'manutencao.Ativo':
