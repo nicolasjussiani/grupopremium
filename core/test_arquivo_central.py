@@ -12,6 +12,7 @@ from admissional.models import Colaborador, PagamentoColaborador
 from core.models import ArquivoImportado, OrigemArquivoImportado
 from core.services.importacao_arquivo_central import (
     classificar, extrair_beneficiario, extrair_data, extrair_valor,
+    nome_seguro_storage,
 )
 
 
@@ -29,6 +30,12 @@ E31872495202608031737ABCDEF
 
 
 class ExtracaoArquivoCentralTest(TestCase):
+    def test_nome_do_storage_remove_acentos_sem_perder_extensao(self):
+        self.assertEqual(
+            nome_seguro_storage('NFS RIBEIRÃO - LOCAÇÃO MARÇO.pdf'),
+            'NFS_RIBEIRAO_-_LOCACAO_MARCO.pdf',
+        )
+
     def test_extrai_dados_do_comprovante_pix(self):
         self.assertEqual(extrair_beneficiario(TEXTO_PIX), 'LUCAS HENRIQUE BORGES DE OLIVEIRA')
         self.assertEqual(str(extrair_valor(TEXTO_PIX)), '87.50')
