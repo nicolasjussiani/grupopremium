@@ -319,6 +319,17 @@ class ImportadorArquivoCentral:
         self.progresso = progresso or (lambda mensagem: None)
         self.colaboradores = list(Colaborador.objects.all())
         self._hashes_dry_run = set()
+        self._arquivos_por_hash = {}
+        self._caminhos_origem = set()
+        if not dry_run:
+            self._arquivos_por_hash = dict(
+                ArquivoImportado.objects.values_list('sha256', 'pk')
+            )
+            self._caminhos_origem = set(
+                OrigemArquivoImportado.objects.values_list(
+                    'caminho_relativo', flat=True
+                )
+            )
         self.contadores = {
             'encontrados': 0,
             'novos': 0,
@@ -375,14 +386,15 @@ class ImportadorArquivoCentral:
             elif analise['categoria'] in {'pagamento_colaborador', 'reembolso'}:
                 self.contadores['pagamentos_criados'] += 1
             return
-        existente = ArquivoImportado.objects.filter(sha256=digest).first()
-        if existente:
+        existente_id = self._arquivos_por_hash.get(digest)
+        if existente_id:
             self.contadores['duplicados'] += 1
-            if not self.dry_run:
+            caminho_relativo = str(relativo)
+            if caminho_relativo not in self._caminhos_origem:
                 _, criada = OrigemArquivoImportado.objects.get_or_create(
-                    caminho_relativo=str(relativo),
+                    caminho_relativo=caminho_relativo,
                     defaults={
-                        'arquivo_importado': existente,
+                        'arquivo_importado_id': existente_id,
                         'pasta_raiz': self.raiz.name,
                         'modificado_em': datetime.fromtimestamp(
                             caminho.stat().st_mtime, tz=timezone.get_current_timezone()
@@ -390,6 +402,7 @@ class ImportadorArquivoCentral:
                     },
                 )
                 self.contadores['origens_novas'] += int(criada)
+                self._caminhos_origem.add(caminho_relativo)
             return
 
         analise = analisar_arquivo(caminho, relativo, self.colaboradores)
@@ -431,6 +444,8 @@ class ImportadorArquivoCentral:
             )
             self.contadores['origens_novas'] += 1
             self._vincular_pagamento(arquivo, analise)
+        self._arquivos_por_hash[digest] = arquivo.pk
+        self._caminhos_origem.add(str(relativo))
         self.contadores['novos'] += 1
         if arquivo.status == 'revisar':
             self.contadores['revisar'] += 1
