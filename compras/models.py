@@ -1,4 +1,7 @@
 """ERP Grupo PremiumBR — Models do Módulo 5: Compras"""
+from decimal import Decimal, ROUND_HALF_UP
+
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.contrib.auth.models import User
 from uuid import uuid4
@@ -139,7 +142,7 @@ class SolicitacaoMaterial(models.Model):
         verbose_name_plural = 'Solicitações de Material'
         ordering = ['-criado_em']
         constraints = [
-            models.CheckConstraint(condition=models.Q(quantidade_solicitada__gte=0), name='compras_quantidade_solicitada_nao_negativa'),
+            models.CheckConstraint(condition=models.Q(quantidade_solicitada__gt=0), name='compras_quantidade_solicitada_positiva'),
         ]
 
     def __str__(self):
@@ -164,6 +167,7 @@ class SolicitacaoMaterial(models.Model):
 
 
 class PedidoCompra(models.Model):
+    CENTAVOS = Decimal('0.01')
     STATUS = [
         ('em_cotacao', 'Em Cotação'),
         ('aguardando_aprovacao', 'Aguardando Aprovação'),
@@ -197,15 +201,64 @@ class PedidoCompra(models.Model):
         verbose_name_plural = 'Pedidos de Compra'
         ordering = ['-criado_em']
         constraints = [
-            models.CheckConstraint(condition=models.Q(valor_unitario__gte=0), name='compras_valor_unitario_nao_negativo'),
-            models.CheckConstraint(condition=models.Q(valor_total__gte=0), name='compras_valor_total_nao_negativo'),
+            models.CheckConstraint(condition=models.Q(valor_unitario__gt=0), name='compras_valor_unitario_positivo'),
+            models.CheckConstraint(condition=models.Q(valor_total__gt=0), name='compras_valor_total_positivo'),
+            models.UniqueConstraint(
+                fields=('solicitacao',),
+                condition=~models.Q(status='reprovado'),
+                name='compras_um_pedido_ativo_por_solicitacao',
+            ),
         ]
 
     def __str__(self):
         return f"{self.numero_pedido or 'PC-NOVO'} | {self.solicitacao.material.nome} — {self.fornecedor}"
 
+    def calcular_valor_total(self):
+        """Calcula o total em centavos, mesmo para quantidades fracionadas."""
+        if self.valor_unitario is None or not self.solicitacao_id:
+            return None
+        quantidade = Decimal(str(self.solicitacao.quantidade_solicitada))
+        return (Decimal(str(self.valor_unitario)) * quantidade).quantize(
+            self.CENTAVOS, rounding=ROUND_HALF_UP
+        )
+
+    def clean(self):
+        super().clean()
+        if self.valor_unitario is not None and self.valor_unitario <= 0:
+            raise ValidationError({'valor_unitario': 'O valor unitário deve ser maior que zero.'})
+        total = self.calcular_valor_total()
+        if total is not None:
+            self.valor_total = total
+
+    def aprovar(self, usuario):
+        """Emite o pedido e mantém a solicitação sincronizada."""
+        if self.status != 'aguardando_aprovacao':
+            raise ValidationError('Este pedido não está aguardando aprovação.')
+        self.status = 'pedido_emitido'
+        self.aprovado_por = usuario
+        self.save(update_fields=['status', 'aprovado_por', 'atualizado_em'])
+        SolicitacaoMaterial.objects.filter(pk=self.solicitacao_id).update(
+            status='aguardando_entrega'
+        )
+
+    def reprovar(self, motivo=''):
+        """Reabre a solicitação para permitir uma nova cotação."""
+        if self.status != 'aguardando_aprovacao':
+            raise ValidationError('Este pedido não está aguardando aprovação.')
+        self.status = 'reprovado'
+        self.obs = motivo or 'Reprovado — nova cotação necessária.'
+        self.save(update_fields=['status', 'obs', 'atualizado_em'])
+        SolicitacaoMaterial.objects.filter(pk=self.solicitacao_id).update(
+            status='compra_externa'
+        )
+
     def save(self, *args, **kwargs):
         gerar_numero = self.pk is None and not self.numero_pedido
+        total = self.calcular_valor_total()
+        if total is not None:
+            self.valor_total = total
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = set(kwargs['update_fields']) | {'valor_total'}
         super().save(*args, **kwargs)
         if gerar_numero:
             self.numero_pedido = f'PC-{self.pk:06d}'

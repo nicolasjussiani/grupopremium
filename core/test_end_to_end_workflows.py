@@ -1,7 +1,7 @@
 import base64
 import json
 from datetime import date, timedelta
-from unittest import expectedFailure
+from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -185,7 +185,6 @@ class OperationalEndToEndTests(TestCase):
         self.assertEqual(pedido.status, 'pedido_emitido')
         self.assertEqual(pedido.aprovado_por, self.user)
 
-    @expectedFailure
     def test_pedido_aceita_valor_unitario_com_duas_casas_decimais(self):
         material = Material.objects.create(
             nome='Material Decimal QA', quantidade_estoque=0
@@ -207,6 +206,10 @@ class OperationalEndToEndTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(PedidoCompra.objects.filter(solicitacao=solicitacao).exists())
+        self.assertEqual(
+            PedidoCompra.objects.get(solicitacao=solicitacao).valor_total,
+            Decimal('150.00'),
+        )
 
     def test_epi_assinatura_ativo_e_manutencao(self):
         colaborador = self._create_colaborador('02')

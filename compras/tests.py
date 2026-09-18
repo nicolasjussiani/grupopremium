@@ -28,9 +28,9 @@ class CnpjFornecedorPosteriorTests(TestCase):
             status='compra_externa',
         )
 
-    def _pedido(self, status='pedido_emitido', cnpj=''):
+    def _pedido(self, status='pedido_emitido', cnpj='', solicitacao=None):
         return PedidoCompra.objects.create(
-            solicitacao=self.solicitacao,
+            solicitacao=solicitacao or self.solicitacao,
             fornecedor='Marketplace',
             cnpj_fornecedor=cnpj,
             valor_unitario='25.00',
@@ -87,7 +87,18 @@ class CnpjFornecedorPosteriorTests(TestCase):
 
     def test_detalhe_mostra_campo_de_cnpj_apenas_apos_compra(self):
         emitido = self._pedido(status='pedido_emitido')
-        aguardando = self._pedido(status='aguardando_aprovacao')
+        outra_solicitacao = SolicitacaoMaterial.objects.create(
+            material=self.material,
+            quantidade_solicitada=1,
+            solicitante='Comprador',
+            solicitante_usuario=self.user,
+            unidade_destino='Matriz',
+            justificativa='Outra compra em marketplace',
+            status='compra_externa',
+        )
+        aguardando = self._pedido(
+            status='aguardando_aprovacao', solicitacao=outra_solicitacao
+        )
 
         response = self.client.get(
             reverse('detalhe_solicitacao', args=[self.solicitacao.pk])
@@ -95,4 +106,7 @@ class CnpjFornecedorPosteriorTests(TestCase):
 
         self.assertContains(response, reverse('atualizar_cnpj_pedido', args=[emitido.pk]))
         self.assertNotContains(response, reverse('atualizar_cnpj_pedido', args=[aguardando.pk]))
-        self.assertContains(response, 'Opcional após a compra')
+        response_aguardando = self.client.get(
+            reverse('detalhe_solicitacao', args=[outra_solicitacao.pk])
+        )
+        self.assertContains(response_aguardando, 'Opcional após a compra')

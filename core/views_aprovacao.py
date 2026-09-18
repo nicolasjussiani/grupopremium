@@ -414,12 +414,9 @@ def _callback_compras(obj, decisao, usuario, aprovacao):
     from compras.models import PedidoCompra
     if isinstance(obj, PedidoCompra):
         if decisao == 'aprovado':
-            obj.status = 'aprovado'
-            obj.aprovado_por = usuario
+            obj.aprovar(usuario)
         elif decisao == 'rejeitado':
-            obj.status = 'reprovado'
-            obj.obs = aprovacao.motivo_rejeicao
-        obj.save(update_fields=['status', 'aprovado_por', 'obs'] if decisao == 'aprovado' else ['status', 'obs'])
+            obj.reprovar(aprovacao.motivo_rejeicao)
 
 
 def _callback_financeiro(obj, decisao, usuario, aprovacao):

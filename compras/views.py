@@ -6,8 +6,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.db.models import F
-from django.db import transaction
-from decimal import Decimal, InvalidOperation
+from django.db import IntegrityError, transaction
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from .models import Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial
 from .forms import MaterialForm
 from core.access import access_required, user_has_access
@@ -38,7 +38,7 @@ def painel_compras(request):
     solicitacoes_pendentes = SolicitacaoMaterial.objects.filter(
         status__in=['pendente', 'em_analise'])
     pedidos_abertos = PedidoCompra.objects.exclude(
-        status__in=['concluido'])
+        status__in=['concluido', 'reprovado'])
     requisicoes_recentes = RequisicaoCompra.objects.prefetch_related('itens').all()[:10]
 
     return render(request, 'compras/painel.html', {
@@ -251,7 +251,9 @@ def detalhe_requisicao(request, pk):
     )
     itens = list(requisicao.itens.all())
     for item in itens:
-        item.tem_pedido = bool(item.pedidos.all())
+        item.tem_pedido_ativo = any(
+            pedido.status != 'reprovado' for pedido in item.pedidos.all()
+        )
     return render(request, 'compras/detalhe_requisicao.html', {
         'requisicao': requisicao,
         'itens': itens,
@@ -264,9 +266,11 @@ def detalhe_requisicao(request, pk):
 @login_required
 def detalhe_solicitacao(request, pk):
     sol = get_object_or_404(SolicitacaoMaterial, pk=pk)
+    pedidos = sol.pedidos.all()
     return render(request, 'compras/detalhe_solicitacao.html', {
         'solicitacao': sol,
-        'pedidos': sol.pedidos.all(),
+        'pedidos': pedidos,
+        'tem_pedido_ativo': pedidos.exclude(status='reprovado').exists(),
     })
 
 
@@ -279,12 +283,17 @@ def criar_pedido_compra(request, solicitacao_pk):
         if sol.status != 'compra_externa':
             messages.error(request, 'A solicitacao nao esta disponivel para compra externa.')
             return redirect('detalhe_solicitacao', pk=sol.pk)
+        if sol.pedidos.exclude(status='reprovado').exists():
+            messages.error(request, 'Esta solicitação já possui um pedido de compra ativo.')
+            return redirect('detalhe_solicitacao', pk=sol.pk)
         fornecedor = request.POST.get('fornecedor', '').strip()
         if not fornecedor:
             messages.error(request, 'Informe o fornecedor.')
             return render(request, 'compras/criar_pedido.html', {'solicitacao': sol})
         try:
-            valor_unit = Decimal(request.POST['valor_unitario'].replace(',', '.'))
+            valor_unit = Decimal(request.POST['valor_unitario'].replace(',', '.')).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP
+            )
         except (InvalidOperation, KeyError):
             valor_unit = Decimal('0')
         if valor_unit <= 0:
@@ -295,15 +304,22 @@ def criar_pedido_compra(request, solicitacao_pk):
             fornecedor=fornecedor,
             cnpj_fornecedor=request.POST.get('cnpj_fornecedor', ''),
             valor_unitario=valor_unit,
-            valor_total=valor_unit * sol.quantidade_solicitada,
+            valor_total=(valor_unit * sol.quantidade_solicitada).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP
+            ),
             prazo_entrega=request.POST.get('prazo_entrega') or None,
             status='aguardando_aprovacao',
         )
         try:
-            pedido.full_clean()
-            pedido.save()
-        except ValidationError as exc:
-            messages.error(request, '; '.join(exc.messages))
+            with transaction.atomic():
+                pedido.full_clean()
+                pedido.save()
+        except (ValidationError, IntegrityError) as exc:
+            if isinstance(exc, IntegrityError):
+                mensagem = 'Esta solicitação já possui um pedido de compra ativo.'
+            else:
+                mensagem = '; '.join(exc.messages)
+            messages.error(request, mensagem)
             return render(request, 'compras/criar_pedido.html', {'solicitacao': sol})
 
         # ─── Dispara o fluxo de aprovação central ───────────────────────────
@@ -348,15 +364,33 @@ def aprovar_pedido(request, pk):
             return redirect('detalhe_solicitacao', pk=pedido.solicitacao.pk)
         acao = request.POST.get('acao')
         if acao == 'aprovar':
-            pedido.status = 'pedido_emitido'
-            pedido.aprovado_por = request.user
-            pedido.save()
+            pedido.aprovar(request.user)
+            from core.models import AprovacaoRegistro
+            AprovacaoRegistro.objects.filter(
+                content_type__app_label='compras',
+                content_type__model='pedidocompra',
+                object_id=pedido.pk,
+                status='pendente',
+            ).update(
+                status='aprovado', aprovado_por=request.user,
+                decidido_em=timezone.now(),
+                comentario='Aprovado pela área de Compras.',
+            )
             messages.success(request,
                 f'✅ GATEWAY: Compra aprovada! Pedido emitido ao fornecedor {pedido.fornecedor}.')
         elif acao == 'reprovar':
-            pedido.status = 'reprovado'
-            pedido.obs = request.POST.get('obs', 'Reprovado — nova cotação necessária.')
-            pedido.save()
+            motivo = request.POST.get('obs', '').strip() or 'Reprovado — nova cotação necessária.'
+            pedido.reprovar(motivo)
+            from core.models import AprovacaoRegistro
+            AprovacaoRegistro.objects.filter(
+                content_type__app_label='compras',
+                content_type__model='pedidocompra',
+                object_id=pedido.pk,
+                status='pendente',
+            ).update(
+                status='rejeitado', aprovado_por=request.user,
+                decidido_em=timezone.now(), motivo_rejeicao=motivo,
+            )
             messages.warning(request,
                 f'⚠️ GATEWAY: Compra reprovada. Processo retorna para nova cotação.')
         else:

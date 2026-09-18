@@ -78,7 +78,7 @@
           </td>
           <td style="white-space:nowrap;">
             <a href="{% url 'detalhe_solicitacao' item.pk %}" class="btn btn-sm btn-outline">Detalhes</a>
-            {% if item.status == 'compra_externa' and not item.tem_pedido %}
+            {% if item.status == 'compra_externa' and not item.tem_pedido_ativo %}
             <a href="{% url 'criar_pedido' item.pk %}" class="btn btn-sm btn-mod5">Criar pedido</a>
             {% endif %}
           </td>
@@ -100,7 +100,7 @@
       </span>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
         <a href="{% url 'detalhe_solicitacao' item.pk %}" class="btn btn-sm btn-outline">Detalhes</a>
-        {% if item.status == 'compra_externa' and not item.tem_pedido %}
+        {% if item.status == 'compra_externa' and not item.tem_pedido_ativo %}
         <a href="{% url 'criar_pedido' item.pk %}" class="btn btn-sm btn-mod5">Criar pedido</a>
         {% endif %}
       </div>

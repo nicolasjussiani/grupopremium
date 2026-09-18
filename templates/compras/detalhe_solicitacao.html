@@ -71,7 +71,7 @@
       {% endif %}
     </div>
 
-    {% if solicitacao.status == 'compra_externa' and not pedidos %}
+    {% if solicitacao.status == 'compra_externa' and not tem_pedido_ativo %}
     <div class="gateway-box" style="margin-top:0;">
       <div class="gateway-question">⚠️ Material insuficiente — Encaminhado para compra externa</div>
     </div>
@@ -94,7 +94,9 @@
 <div class="card">
   <div class="card-header">
     <div class="card-title">🛒 Pedidos de Compra Vinculados</div>
-    <a href="{% url 'criar_pedido' solicitacao.pk %}" class="btn btn-sm btn-mod5">+ Novo Pedido</a>
+    {% if solicitacao.status == 'compra_externa' and not tem_pedido_ativo %}
+    <a href="{% url 'criar_pedido' solicitacao.pk %}" class="btn btn-sm btn-mod5">+ Nova cotação</a>
+    {% endif %}
   </div>
   <div class="table-wrap" style="border:none;">
     <table>
