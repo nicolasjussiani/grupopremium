@@ -119,12 +119,13 @@ def editar_material(request, pk):
 @login_required
 @access_required(permission='compras.add_solicitacaomaterial', profiles=('compras', 'gestor', 'estoque_compras'))
 @transaction.atomic
-def _nova_solicitacao_impl(request):
+def nova_solicitacao(request):
     def render_form(itens_form=None):
         if itens_form is None:
             itens_form = [{
                 'material_id': request.GET.get('material', '').strip(),
                 'quantidade': '1',
+                'valor': '',
             }]
         return render(request, 'compras/nova_solicitacao.html', {
             'materiais': Material.objects.all(),
@@ -153,7 +154,9 @@ def _nova_solicitacao_impl(request):
 
         if not unidade_destino or not justificativa or not itens_form:
             messages.error(request, 'Preencha a unidade, a justificativa e pelo menos um produto.')
-            return render_form(itens_form or [{'material_id': '', 'quantidade': '1'}])
+            return render_form(itens_form or [{
+                'material_id': '', 'quantidade': '1', 'valor': '',
+            }])
         if len(unidade_destino) > 100:
             messages.error(request, 'A unidade de destino deve ter no máximo 100 caracteres.')
             return render_form(itens_form)
@@ -715,21 +718,3 @@ def excluir_requisicao(request, pk):
     requisicao.delete()
     messages.success(request, 'Requisição excluída com sucesso.')
     return redirect('painel_compras')
-
-
-@login_required
-def nova_solicitacao(request):
-    try:
-        return _nova_solicitacao_impl(request)
-    except Exception as exc:
-        import traceback
-        from django.contrib import messages
-        from django.shortcuts import render
-        messages.error(request, f'ERRO 500 VERCEL: {type(exc).__name__}: {exc}')
-        return render(request, 'compras/nova_solicitacao.html', {
-            'materiais': [],
-            'post_data': request.POST if request.method == 'POST' else {},
-            'itens_form': [{'material_id': '', 'quantidade': '1'}],
-            'debug_error': f'{type(exc).__name__}: {exc}',
-            'debug_traceback': traceback.format_exc(),
-        })

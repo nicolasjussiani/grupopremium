@@ -46,6 +46,13 @@ class RequisicaoComVariosProdutosTests(TestCase):
         self.client.post(reverse('aprovar_registro', args=[nivel_ceo.pk]))
         self.client.force_login(self.user)
 
+    def test_abre_formulario_de_nova_requisicao(self):
+        response = self.client.get(reverse('nova_solicitacao'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="valor_unitario"')
+        self.assertNotContains(response, 'debug_traceback')
+
     def test_cria_uma_requisicao_com_varios_produtos_na_mesma_unidade(self):
         response = self.client.post(reverse('nova_solicitacao'), {
             'material': [str(self.disponivel.pk), str(self.insuficiente.pk)],
