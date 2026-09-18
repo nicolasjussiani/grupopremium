@@ -100,6 +100,12 @@ class RequisicaoCompra(models.Model):
         blank=True,
         verbose_name='Documento Anexo'
     )
+    comprovante_pagamento = models.FileField(
+        upload_to='compras/requisicoes/comprovantes/',
+        null=True,
+        blank=True,
+        verbose_name='Comprovante de Pagamento'
+    )
     status = models.CharField(
         max_length=30, choices=STATUS, default='aguardando_adriana'
     )

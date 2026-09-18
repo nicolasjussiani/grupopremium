@@ -55,6 +55,15 @@
     </a>
   </div>
   {% endif %}
+  {% if requisicao.comprovante_pagamento %}
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+    <strong>Comprovante de Pagamento:</strong>
+    <a href="{{ requisicao.comprovante_pagamento.url }}" target="_blank" class="btn btn-sm btn-mod5" style="margin-left:8px;">
+      💲 Ver Comprovante
+    </a>
+    <span class="badge badge-warning" style="margin-left:8px;">Medida Provisória</span>
+  </div>
+  {% endif %}
 </div>
 
 <div class="card">

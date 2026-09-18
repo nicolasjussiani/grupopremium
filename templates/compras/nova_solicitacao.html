@@ -74,6 +74,16 @@
           <input type="file" name="documento" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
           <small style="color:var(--text-muted);">Opcional. Anexe orçamentos, fotos ou documentos adicionais.</small>
         </div>
+        <div class="form-group form-full">
+          <label class="form-label" style="color:var(--warning);">Comprovante de Pagamento (Medida Provisória)</label>
+          <input type="file" name="comprovante_pagamento" id="comprovantePagamento" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+          <small style="color:var(--text-muted);">Apenas para casos de compras já realizadas. Ao anexar, o pedido será tratado como <strong>concluído automaticamente</strong>.</small>
+          
+          <div id="medidaProvisoriaAviso" style="display:none; margin-top:12px; padding:12px; background:rgba(234, 179, 8, 0.1); border:1px solid rgba(234, 179, 8, 0.4); border-radius:var(--radius-md); color:var(--warning);">
+            <strong>⚠️ Atenção: Medida Provisória</strong><br>
+            Você anexou um comprovante de pagamento. Esta requisição não passará pela etapa de cotação e será lançada como um pedido já pago e entregue no valor simbólico de R$ 0,01.
+          </div>
+        </div>
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
@@ -212,6 +222,18 @@
       duplicate.reportValidity();
     }
   });
+
+  const comprovanteInput = document.getElementById('comprovantePagamento');
+  const avisoDiv = document.getElementById('medidaProvisoriaAviso');
+  if (comprovanteInput && avisoDiv) {
+    comprovanteInput.addEventListener('change', () => {
+      if (comprovanteInput.files.length > 0) {
+        avisoDiv.style.display = 'block';
+      } else {
+        avisoDiv.style.display = 'none';
+      }
+    });
+  }
 
   updateRows();
 })();

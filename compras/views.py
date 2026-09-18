@@ -198,6 +198,9 @@ def nova_solicitacao(request):
         )
         if 'documento' in request.FILES:
             requisicao.documento = request.FILES['documento']
+        if 'comprovante_pagamento' in request.FILES:
+            requisicao.comprovante_pagamento = request.FILES['comprovante_pagamento']
+            requisicao.status = 'aprovada'
 
         try:
             requisicao.full_clean()
@@ -205,6 +208,8 @@ def nova_solicitacao(request):
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages))
             return render_form(itens_form)
+
+        medida_provisoria = bool(requisicao.comprovante_pagamento)
 
         for material_id, quantidade in itens_validados:
             material = materiais[material_id]
@@ -216,32 +221,51 @@ def nova_solicitacao(request):
                 solicitante_usuario=request.user,
                 unidade_destino=unidade_destino,
                 justificativa=justificativa,
-                status='pendente',
+                status='entregue' if medida_provisoria else 'pendente',
             )
+            if medida_provisoria:
+                solicitacao.atendida_por = request.user
             solicitacao.full_clean()
             solicitacao.save()
 
-        from core.approval_workflow import criar_fluxo_compras
-        descricao = (
-            f'Unidade: {requisicao.unidade_destino}\n'
-            f'Quantidade de produtos: {len(itens_validados)}\n'
-            f'Justificativa: {requisicao.justificativa}'
-        )
-        try:
-            criar_fluxo_compras(
-                objeto=requisicao,
-                titulo=f'RC {requisicao.numero} — {requisicao.unidade_destino}',
-                descricao=descricao,
-                solicitado_por=request.user,
+            if medida_provisoria:
+                PedidoCompra.objects.create(
+                    solicitacao=solicitacao,
+                    fornecedor='Fornecedor Não Informado (Provisório)',
+                    valor_unitario=Decimal('0.01'),
+                    valor_total=(Decimal('0.01') * quantidade).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                    status='concluido',
+                    aprovado_por=request.user,
+                    obs='Criado automaticamente via anexo de comprovante de pagamento na requisição (Medida Provisória).'
+                )
+
+        if not medida_provisoria:
+            from core.approval_workflow import criar_fluxo_compras
+            descricao = (
+                f'Unidade: {requisicao.unidade_destino}\n'
+                f'Quantidade de produtos: {len(itens_validados)}\n'
+                f'Justificativa: {requisicao.justificativa}'
             )
-        except ValidationError as exc:
-            transaction.set_rollback(True)
-            messages.error(request, '; '.join(exc.messages))
-            return render_form(itens_form)
-        messages.success(
-            request,
-            f'Requisição {requisicao.numero} criada e enviada para aprovação da Adriana.',
-        )
+            try:
+                criar_fluxo_compras(
+                    objeto=requisicao,
+                    titulo=f'RC {requisicao.numero} — {requisicao.unidade_destino}',
+                    descricao=descricao,
+                    solicitado_por=request.user,
+                )
+            except ValidationError as exc:
+                transaction.set_rollback(True)
+                messages.error(request, '; '.join(exc.messages))
+                return render_form(itens_form)
+            messages.success(
+                request,
+                f'Requisição {requisicao.numero} criada e enviada para aprovação da Adriana.',
+            )
+        else:
+            messages.warning(
+                request,
+                f'Aviso: A requisição {requisicao.numero} foi processada como Medida Provisória e os pedidos foram gerados como concluídos.'
+            )
         return redirect('detalhe_requisicao', pk=requisicao.pk)
 
     return render_form()
