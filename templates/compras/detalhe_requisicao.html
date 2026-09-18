@@ -132,6 +132,15 @@
 
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
   <a href="{% url 'nova_solicitacao' %}" class="btn btn-mod5">+ Nova requisição</a>
+  
+  {% if requisicao.status != 'aprovada' %}
+  <a href="{% url 'editar_requisicao' requisicao.pk %}" class="btn btn-outline" style="border-color:var(--mod5-purple); color:var(--mod5-purple);">✏️ Editar</a>
+  <form method="post" action="{% url 'excluir_requisicao' requisicao.pk %}" style="display:inline;" onsubmit="return confirm('Tem certeza que deseja excluir esta requisição? Esta ação não pode ser desfeita.');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline" style="border-color:var(--danger); color:var(--danger);">🗑️ Excluir</button>
+  </form>
+  {% endif %}
+  
   <a href="{% url 'painel_compras' %}" class="btn btn-outline">← Voltar ao painel</a>
 </div>
 {% endblock %}

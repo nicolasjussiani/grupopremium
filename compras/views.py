@@ -449,3 +449,203 @@ def atualizar_cnpj_pedido(request, pk):
         else:
             messages.success(request, 'CNPJ removido. Ele continua sendo um dado opcional.')
     return redirect('detalhe_solicitacao', pk=pedido.solicitacao_id)
+
+
+@login_required
+@access_required(permission='compras.change_requisicaocompra', profiles=('compras', 'gestor', 'estoque_compras'))
+@transaction.atomic
+def editar_requisicao(request, pk):
+    requisicao = get_object_or_404(RequisicaoCompra, pk=pk)
+    
+    if requisicao.status == 'aprovada':
+        messages.error(request, 'Requisições aprovadas não podem ser editadas.')
+        return redirect('detalhe_requisicao', pk=requisicao.pk)
+        
+    def render_form(itens_form=None):
+        if itens_form is None:
+            itens_form = []
+            for sol in requisicao.itens.all():
+                itens_form.append({
+                    'material_id': str(sol.material_id),
+                    'quantidade': str(sol.quantidade_solicitada).replace('.', ',')
+                })
+            post_data = {
+                'unidade_destino': requisicao.unidade_destino,
+                'justificativa': requisicao.justificativa,
+            }
+        else:
+            post_data = request.POST if request.method == 'POST' else {}
+            
+        return render(request, 'compras/nova_solicitacao.html', {
+            'materiais': Material.objects.all(),
+            'post_data': post_data,
+            'itens_form': itens_form,
+            'is_edit': True,
+            'requisicao': requisicao,
+        })
+
+    if request.method == 'POST':
+        materiais_post = request.POST.getlist('material')
+        quantidades_post = request.POST.getlist('quantidade_solicitada')
+        justificativa = request.POST.get('justificativa', '').strip()
+        unidade_destino = request.POST.get('unidade_destino', '').strip()
+        
+        total_linhas = max(len(materiais_post), len(quantidades_post))
+        itens_form = []
+        for indice in range(total_linhas):
+            material_id = materiais_post[indice].strip() if indice < len(materiais_post) else ''
+            quantidade = quantidades_post[indice].strip() if indice < len(quantidades_post) else ''
+            if material_id or quantidade:
+                itens_form.append({
+                    'material_id': material_id,
+                    'quantidade': quantidade,
+                })
+
+        if not unidade_destino or not justificativa or not itens_form:
+            messages.error(request, 'Preencha a unidade, a justificativa e pelo menos um produto.')
+            return render_form(itens_form or [{'material_id': '', 'quantidade': '1'}])
+        if len(unidade_destino) > 100:
+            messages.error(request, 'A unidade de destino deve ter no máximo 100 caracteres.')
+            return render_form(itens_form)
+        if len(itens_form) > 30:
+            messages.error(request, 'Cada requisição pode conter no máximo 30 produtos.')
+            return render_form(itens_form[:30])
+
+        itens_validados = []
+        materiais_ids = []
+        for numero_linha, item in enumerate(itens_form, start=1):
+            if not item['material_id'] or not item['quantidade']:
+                messages.error(request, f'Informe o produto e a quantidade no item {numero_linha}.')
+                return render_form(itens_form)
+            try:
+                material_id = int(item['material_id'])
+                quantidade = Decimal(item['quantidade'].replace(',', '.'))
+                SolicitacaoMaterial._meta.get_field('quantidade_solicitada').clean(quantidade, None)
+            except (TypeError, ValueError, InvalidOperation, ValidationError):
+                messages.error(request, f'Informe uma quantidade válida no item {numero_linha}.')
+                return render_form(itens_form)
+            if quantidade <= 0:
+                messages.error(request, f'A quantidade do item {numero_linha} deve ser maior que zero.')
+                return render_form(itens_form)
+            if material_id in materiais_ids:
+                messages.error(request, 'O mesmo produto não pode ser repetido na requisição.')
+                return render_form(itens_form)
+            materiais_ids.append(material_id)
+            itens_validados.append((material_id, quantidade))
+
+        materiais = {
+            material.pk: material
+            for material in Material.objects.select_for_update().filter(pk__in=materiais_ids)
+        }
+        if len(materiais) != len(materiais_ids):
+            messages.error(request, 'Um dos produtos selecionados não está mais disponível.')
+            return render_form(itens_form)
+
+        requisicao.unidade_destino = unidade_destino
+        requisicao.justificativa = justificativa
+        if 'documento' in request.FILES:
+            requisicao.documento = request.FILES['documento']
+        if 'comprovante_pagamento' in request.FILES:
+            requisicao.comprovante_pagamento = request.FILES['comprovante_pagamento']
+            requisicao.status = 'aprovada'
+
+        try:
+            requisicao.full_clean()
+            requisicao.save()
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages))
+            return render_form(itens_form)
+
+        # Deleta os itens anteriores (que ainda não viraram pedido ou estão pendentes)
+        requisicao.itens.all().delete()
+
+        medida_provisoria = bool(requisicao.comprovante_pagamento)
+
+        for material_id, quantidade in itens_validados:
+            material = materiais[material_id]
+            solicitacao = SolicitacaoMaterial(
+                requisicao=requisicao,
+                material=material,
+                quantidade_solicitada=quantidade,
+                solicitante=requisicao.solicitante,
+                solicitante_usuario=request.user,
+                unidade_destino=unidade_destino,
+                justificativa=justificativa,
+                status='entregue' if medida_provisoria else 'pendente',
+            )
+            if medida_provisoria:
+                solicitacao.atendida_por = request.user
+            solicitacao.full_clean()
+            solicitacao.save()
+
+            if medida_provisoria:
+                PedidoCompra.objects.create(
+                    solicitacao=solicitacao,
+                    fornecedor='Fornecedor Não Informado (Provisório)',
+                    valor_unitario=Decimal('0.01'),
+                    valor_total=(Decimal('0.01') * quantidade).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                    status='concluido',
+                    aprovado_por=request.user,
+                    obs='Criado automaticamente via anexo de comprovante de pagamento na requisição (Medida Provisória).'
+                )
+
+        if not medida_provisoria:
+            from core.models import AprovacaoRegistro
+            from core.approval_workflow import criar_fluxo_compras
+            # Remove aprovacao antiga e cria nova
+            AprovacaoRegistro.objects.filter(
+                content_type__app_label='compras',
+                content_type__model='requisicaocompra',
+                object_id=requisicao.pk
+            ).delete()
+            
+            descricao = (
+                f'Unidade: {requisicao.unidade_destino}\n'
+                f'Quantidade de produtos: {len(itens_validados)}\n'
+                f'Justificativa: {requisicao.justificativa}'
+            )
+            try:
+                criar_fluxo_compras(
+                    objeto=requisicao,
+                    titulo=f'RC {requisicao.numero} — {requisicao.unidade_destino}',
+                    descricao=descricao,
+                    solicitado_por=request.user,
+                )
+            except ValidationError as exc:
+                transaction.set_rollback(True)
+                messages.error(request, '; '.join(exc.messages))
+                return render_form(itens_form)
+            messages.success(
+                request,
+                f'Requisição {requisicao.numero} atualizada e reenviada para aprovação.'
+            )
+        else:
+            messages.warning(
+                request,
+                f'Aviso: A requisição {requisicao.numero} foi processada como Medida Provisória e os pedidos foram gerados como concluídos.'
+            )
+        return redirect('detalhe_requisicao', pk=requisicao.pk)
+
+    return render_form()
+
+
+@login_required
+@access_required(permission='compras.delete_requisicaocompra', profiles=('compras', 'gestor', 'estoque_compras'))
+@require_POST
+@transaction.atomic
+def excluir_requisicao(request, pk):
+    requisicao = get_object_or_404(RequisicaoCompra, pk=pk)
+    if requisicao.status == 'aprovada':
+        messages.error(request, 'Requisições aprovadas não podem ser excluídas.')
+        return redirect('detalhe_requisicao', pk=requisicao.pk)
+    
+    from core.models import AprovacaoRegistro
+    AprovacaoRegistro.objects.filter(
+        content_type__app_label='compras',
+        content_type__model='requisicaocompra',
+        object_id=requisicao.pk
+    ).delete()
+    
+    requisicao.delete()
+    messages.success(request, 'Requisição excluída com sucesso.')
+    return redirect('painel_compras')

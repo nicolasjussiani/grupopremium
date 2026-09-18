@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
-{% block title %}Nova Requisição de Compra — ERP Grupo PremiumBR{% endblock %}
+{% block title %}{% if is_edit %}Editar{% else %}Nova{% endif %} Requisição de Compra — ERP Grupo PremiumBR{% endblock %}
 {% block nav_compras %}active{% endblock %}
-{% block topbar_title %}Nova Requisição de Compra{% endblock %}
+{% block topbar_title %}{% if is_edit %}Editar{% else %}Nova{% endif %} Requisição de Compra{% endblock %}
 
 {% block content %}
 <style>
@@ -35,8 +35,8 @@
 </style>
 
 <div class="module-banner mod-banner-5" style="margin-bottom:20px;">
-  <div class="mod-title">📋 Nova Requisição de Compra</div>
-  <div class="mod-desc">Inclua vários produtos em uma única requisição para a mesma unidade.</div>
+  <div class="mod-title">📋 {% if is_edit %}Editar{% else %}Nova{% endif %} Requisição de Compra</div>
+  <div class="mod-desc">{% if is_edit %}Altere os dados ou produtos desta requisição.{% else %}Inclua vários produtos em uma única requisição para a mesma unidade.{% endif %}</div>
 </div>
 
 <div class="request-shell">
