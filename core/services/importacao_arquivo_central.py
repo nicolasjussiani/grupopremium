@@ -12,7 +12,7 @@ from xml.etree import ElementTree
 from django.contrib.contenttypes.models import ContentType
 from django.core.files import File
 from django.core.files.storage import default_storage
-from django.db import close_old_connections, transaction
+from django.db import IntegrityError, close_old_connections, transaction
 from django.utils import timezone
 from django.utils.text import get_valid_filename
 
@@ -419,31 +419,55 @@ class ImportadorArquivoCentral:
                 chave, File(stream, name=nome_seguro)
             )
 
-        with transaction.atomic():
-            status = 'revisar' if analise['motivos'] else 'arquivado'
-            arquivo = ArquivoImportado.objects.create(
-                categoria=analise['categoria'],
-                subcategoria=analise['subcategoria'],
-                nome_original=caminho.name[:255],
-                arquivo=nome_armazenado,
-                sha256=digest,
-                tamanho=caminho.stat().st_size,
-                mime_type=mimetypes.guess_type(caminho.name)[0] or 'application/octet-stream',
-                status=status,
-                motivo_revisao=' '.join(analise['motivos']),
-                metadados=analise['metadados'],
-                importado_por=self.usuario,
+        try:
+            with transaction.atomic():
+                status = 'revisar' if analise['motivos'] else 'arquivado'
+                arquivo = ArquivoImportado.objects.create(
+                    categoria=analise['categoria'],
+                    subcategoria=analise['subcategoria'],
+                    nome_original=caminho.name[:255],
+                    arquivo=nome_armazenado,
+                    sha256=digest,
+                    tamanho=caminho.stat().st_size,
+                    mime_type=mimetypes.guess_type(caminho.name)[0] or 'application/octet-stream',
+                    status=status,
+                    motivo_revisao=' '.join(analise['motivos']),
+                    metadados=analise['metadados'],
+                    importado_por=self.usuario,
+                )
+                OrigemArquivoImportado.objects.create(
+                    arquivo_importado=arquivo,
+                    caminho_relativo=str(relativo),
+                    pasta_raiz=self.raiz.name,
+                    modificado_em=datetime.fromtimestamp(
+                        caminho.stat().st_mtime, tz=timezone.get_current_timezone()
+                    ),
+                )
+                self.contadores['origens_novas'] += 1
+                self._vincular_pagamento(arquivo, analise)
+        except IntegrityError:
+            # O pool pode entregar uma leitura ligeiramente atrasada enquanto
+            # outra retomada acabou de inserir o mesmo hash. A restricao unica
+            # e a autoridade final: reutilize o registro vencedor e prossiga.
+            close_old_connections()
+            arquivo = ArquivoImportado.objects.get(sha256=digest)
+            caminho_relativo = str(relativo)
+            _, criada = OrigemArquivoImportado.objects.get_or_create(
+                caminho_relativo=caminho_relativo,
+                defaults={
+                    'arquivo_importado': arquivo,
+                    'pasta_raiz': self.raiz.name,
+                    'modificado_em': datetime.fromtimestamp(
+                        caminho.stat().st_mtime,
+                        tz=timezone.get_current_timezone(),
+                    ),
+                },
             )
-            OrigemArquivoImportado.objects.create(
-                arquivo_importado=arquivo,
-                caminho_relativo=str(relativo),
-                pasta_raiz=self.raiz.name,
-                modificado_em=datetime.fromtimestamp(
-                    caminho.stat().st_mtime, tz=timezone.get_current_timezone()
-                ),
-            )
-            self.contadores['origens_novas'] += 1
-            self._vincular_pagamento(arquivo, analise)
+            self._arquivos_por_hash[digest] = arquivo.pk
+            self._caminhos_origem.add(caminho_relativo)
+            self.contadores['duplicados'] += 1
+            self.contadores['origens_novas'] += int(criada)
+            return
         self._arquivos_por_hash[digest] = arquivo.pk
         self._caminhos_origem.add(str(relativo))
         self.contadores['novos'] += 1

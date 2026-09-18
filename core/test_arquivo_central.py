@@ -11,8 +11,10 @@ from django.urls import reverse
 from admissional.models import Colaborador, PagamentoColaborador
 from core.models import ArquivoImportado, OrigemArquivoImportado
 from core.services.importacao_arquivo_central import (
-    classificar, extrair_beneficiario, extrair_data, extrair_valor,
+    ImportadorArquivoCentral, classificar, extrair_beneficiario, extrair_data,
+    extrair_valor,
     nome_seguro_storage,
+    sha256_arquivo,
 )
 
 
@@ -89,6 +91,29 @@ class ImportacaoArquivoCentralTest(TestCase):
 
         self.assertEqual(ArquivoImportado.objects.count(), 1)
         self.assertEqual(OrigemArquivoImportado.objects.count(), 2)
+
+    def test_retomada_trata_hash_inserido_depois_de_montar_o_indice(self):
+        with TemporaryDirectory() as pasta:
+            raiz = Path(pasta)
+            destino = raiz / 'NOTAS FISCAIS' / 'NFS LOCAÇÃO.pdf'
+            destino.parent.mkdir(parents=True)
+            destino.write_bytes(b'%PDF-conteudo-concorrente')
+            importador = ImportadorArquivoCentral(raiz)
+            digest = sha256_arquivo(destino)
+            ArquivoImportado.objects.create(
+                categoria='nota_fiscal',
+                subcategoria='nota_fiscal',
+                nome_original=destino.name,
+                arquivo='arquivo_central/existente.pdf',
+                sha256=digest,
+                tamanho=destino.stat().st_size,
+            )
+
+            importador._importar(destino.resolve())
+
+        self.assertEqual(ArquivoImportado.objects.filter(sha256=digest).count(), 1)
+        self.assertEqual(OrigemArquivoImportado.objects.count(), 1)
+        self.assertEqual(importador.contadores['duplicados'], 1)
 
     def test_tela_do_arquivo_central_exige_login(self):
         response = Client().get(reverse('arquivo_central'))
