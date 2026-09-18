@@ -22,6 +22,8 @@ def _can_upload(user, field_name):
         'foto': {'profiles': ('sesmet', 'compras', 'gestor', 'estoque_compras')},
         'foto_equipamento': {'profiles': ('sesmet', 'compras', 'gestor')},
         'arquivo_colaborador': {'profiles': ('rh', 'sesmet', 'gestor')},
+        'documento': {'profiles': ('compras', 'gestor', 'estoque_compras', 'operacional')},
+        'comprovante_pagamento': {'profiles': ('compras', 'gestor', 'estoque_compras', 'operacional')},
     }
     access = rules.get(field_name)
     return bool(access and user_has_access(user, **access))
