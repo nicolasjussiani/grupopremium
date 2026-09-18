@@ -1,4 +1,5 @@
 import json
+import unicodedata
 from pathlib import Path
 
 from django.contrib.auth.models import User
@@ -25,11 +26,18 @@ class Command(BaseCommand):
             usuario = User.objects.filter(username=options['usuario']).first()
             if not usuario:
                 raise CommandError(f'Usuário não encontrado: {options["usuario"]}')
+        def escrever_progresso(mensagem):
+            mensagem = unicodedata.normalize('NFC', mensagem)
+            try:
+                self.stdout.write(mensagem)
+            except UnicodeEncodeError:
+                self.stdout.write(mensagem.encode('ascii', 'replace').decode('ascii'))
+
         importador = ImportadorArquivoCentral(
             pasta,
             usuario=usuario,
             dry_run=options['dry_run'],
-            progresso=self.stdout.write,
+            progresso=escrever_progresso,
         )
         resultado = importador.executar(limite=options['limite'])
         self.stdout.write(json.dumps(resultado, ensure_ascii=False, indent=2))

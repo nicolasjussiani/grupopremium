@@ -12,7 +12,7 @@ from xml.etree import ElementTree
 from django.contrib.contenttypes.models import ContentType
 from django.core.files import File
 from django.core.files.storage import default_storage
-from django.db import transaction
+from django.db import close_old_connections, transaction
 from django.utils import timezone
 from django.utils.text import get_valid_filename
 
@@ -36,6 +36,13 @@ def sha256_arquivo(caminho):
         for bloco in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(bloco)
     return digest.hexdigest()
+
+
+def nome_seguro_storage(nome):
+    """Gera uma chave ASCII compatível com o endpoint S3 do Supabase."""
+    sem_acentos = unicodedata.normalize('NFKD', str(nome or ''))
+    sem_acentos = sem_acentos.encode('ascii', 'ignore').decode('ascii')
+    return get_valid_filename(sem_acentos)[:180]
 
 
 def classificar(caminho_relativo):
@@ -338,9 +345,14 @@ class ImportadorArquivoCentral:
             arquivos = arquivos[:limite]
         self.contadores['encontrados'] = len(arquivos)
         for indice, caminho in enumerate(arquivos, 1):
+            close_old_connections()
             try:
                 self._importar(caminho)
             except Exception as exc:
+                # Uma conexao derrubada pelo pool nao deve inutilizar todo o
+                # restante do lote. O arquivo com falha fica para a proxima
+                # execucao idempotente e o proximo usa uma nova conexao.
+                close_old_connections()
                 self.contadores['erros'] += 1
                 self.progresso(f'ERRO {caminho}: {exc}')
             if indice % 50 == 0:
@@ -382,7 +394,7 @@ class ImportadorArquivoCentral:
 
         self._contabilizar_analise(analise)
 
-        nome_seguro = get_valid_filename(caminho.name)[:180] or f'arquivo{caminho.suffix.lower()}'
+        nome_seguro = nome_seguro_storage(caminho.name) or f'arquivo{caminho.suffix.lower()}'
         chave = f'arquivo_central/{digest[:2]}/{digest}-{nome_seguro}'
         # A chave ja e unica pelo SHA-256 e a tabela impede o mesmo conteudo
         # de ser cadastrado duas vezes. Salvar diretamente evita uma chamada
