@@ -5,7 +5,7 @@
 
 {% block content %}
 <style>
-  .request-summary { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-bottom:20px; }
+  .request-summary { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; margin-bottom:20px; }
   .request-summary-item { padding:16px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface); }
   .request-summary-item small { display:block; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; }
   .request-summary-item strong { display:block; margin-top:4px; font-size:1.15rem; }
@@ -20,10 +20,14 @@
 
 <div class="module-banner mod-banner-5" style="margin-bottom:20px;">
   <div class="mod-title">📋 {{ requisicao.numero }}</div>
-  <div class="mod-desc">{{ total_itens }} produto{{ total_itens|pluralize }} para {{ requisicao.unidade_destino }}</div>
+  <div class="mod-desc">{{ total_itens }} produto{{ total_itens|pluralize }} para {{ requisicao.unidade_destino }} · {{ requisicao.get_status_display }}</div>
 </div>
 
 <div class="request-summary">
+  <div class="request-summary-item">
+    <small>Status da aprovação</small>
+    <strong>{{ requisicao.get_status_display }}</strong>
+  </div>
   <div class="request-summary-item">
     <small>Unidade de destino</small>
     <strong>{{ requisicao.unidade_destino }}</strong>

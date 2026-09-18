@@ -69,18 +69,26 @@ def _modulos_do_usuario(user):
     return list(modulos)
 
 
+def _aprovacoes_do_usuario(user):
+    """Respeita atribuição nominal sem quebrar aprovações legadas por módulo."""
+    return AprovacaoRegistro.objects.filter(
+        Q(destinatario=user)
+        | Q(destinatario__isnull=True, modulo__in=_modulos_do_usuario(user))
+    )
+
+
 @login_required
 def painel_mobile(request):
     """PWA para todos; decisoes aparecem apenas a quem pode aprovar."""
     modulos = _modulos_do_usuario(request.user)
-    aprovacoes = AprovacaoRegistro.objects.filter(
-        status='pendente', modulo__in=modulos
+    aprovacoes = _aprovacoes_do_usuario(request.user).filter(
+        status='pendente'
     ).select_related('solicitado_por').order_by('-criado_em')
     notificacoes = Notificacao.objects.filter(
         destinatario=request.user
     ).order_by('-criado_em')[:20]
-    historico = AprovacaoRegistro.objects.filter(
-        modulo__in=modulos, status__in=('aprovado', 'rejeitado')
+    historico = _aprovacoes_do_usuario(request.user).filter(
+        status__in=('aprovado', 'rejeitado')
     ).select_related('aprovado_por').order_by('-decidido_em')[:10]
     is_visao_executiva = user_is_executive(request.user)
     pode_ver_documentos_pendentes = user_has_access(
@@ -133,19 +141,13 @@ def painel_mobile(request):
 
 @login_required
 def detalhe_aprovacao_mobile(request, pk):
-    aprovacao = get_object_or_404(
-        AprovacaoRegistro,
-        pk=pk,
-        modulo__in=_modulos_do_usuario(request.user),
-    )
+    aprovacao = get_object_or_404(_aprovacoes_do_usuario(request.user), pk=pk)
     return render(request, 'mobile/detalhe_aprovacao.html', {'aprovacao': aprovacao})
 
 
 @login_required
 def status_mobile(request):
-    pendentes = AprovacaoRegistro.objects.filter(
-        status='pendente', modulo__in=_modulos_do_usuario(request.user)
-    ).count()
+    pendentes = _aprovacoes_do_usuario(request.user).filter(status='pendente').count()
     notificacoes_nao_lidas = Notificacao.objects.filter(
         destinatario=request.user, lida=False
     ).order_by('-criado_em')
@@ -251,9 +253,8 @@ def aprovacoes_pendentes(request):
     """Lista todas as aprova├º├Áes pendentes para o usu├írio logado."""
     modulos = _modulos_do_usuario(request.user)
 
-    aprovacoes = AprovacaoRegistro.objects.filter(
+    aprovacoes = _aprovacoes_do_usuario(request.user).filter(
         status='pendente',
-        modulo__in=modulos,
     ).select_related('content_type', 'solicitado_por').order_by('-criado_em')
 
     # Filtros opcionais via GET
@@ -266,13 +267,12 @@ def aprovacoes_pendentes(request):
         aprovacoes = aprovacoes.filter(nivel=nivel_filtro)
 
     # Hist├│rico recente (├║ltimas 20 decididas)
-    historico = AprovacaoRegistro.objects.filter(
-        modulo__in=modulos,
+    historico = _aprovacoes_do_usuario(request.user).filter(
         status__in=['aprovado', 'rejeitado'],
     ).select_related('aprovado_por').order_by('-decidido_em')[:20]
 
-    total_pendentes = AprovacaoRegistro.objects.filter(
-        status='pendente', modulo__in=modulos
+    total_pendentes = _aprovacoes_do_usuario(request.user).filter(
+        status='pendente'
     ).count()
 
     context = {
@@ -293,12 +293,10 @@ def aprovacoes_pendentes(request):
 @transaction.atomic
 def aprovar_registro(request, pk):
     """Aprova um registro pendente."""
-    modulos = _modulos_do_usuario(request.user)
     aprovacao = get_object_or_404(
-        AprovacaoRegistro.objects.select_for_update(),
+        _aprovacoes_do_usuario(request.user).select_for_update(),
         pk=pk,
         status='pendente',
-        modulo__in=modulos,
     )
 
     comentario = request.POST.get('comentario', '').strip()
@@ -309,7 +307,9 @@ def aprovar_registro(request, pk):
     aprovacao.save()
 
     # Callback: atualiza status do objeto vinculado se ele tiver m├®todo
-    _executar_callback_aprovacao(aprovacao, 'aprovado', request.user)
+    from core.approval_workflow import avancar_para_ceo
+    if avancar_para_ceo(aprovacao) is None:
+        _executar_callback_aprovacao(aprovacao, 'aprovado', request.user)
 
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'status': 'ok', 'mensagem': 'Registro aprovado com sucesso!'})
@@ -323,12 +323,10 @@ def aprovar_registro(request, pk):
 @transaction.atomic
 def rejeitar_registro(request, pk):
     """Rejeita um registro pendente."""
-    modulos = _modulos_do_usuario(request.user)
     aprovacao = get_object_or_404(
-        AprovacaoRegistro.objects.select_for_update(),
+        _aprovacoes_do_usuario(request.user).select_for_update(),
         pk=pk,
         status='pendente',
-        modulo__in=modulos,
     )
 
     motivo = request.POST.get('motivo_rejeicao', '').strip()
@@ -356,16 +354,14 @@ def rejeitar_registro(request, pk):
 @login_required
 def detalhe_aprovacao(request, pk):
     """Exibe detalhes de uma aprova├º├úo (para modal ou p├ígina)."""
-    modulos = _modulos_do_usuario(request.user)
-    aprovacao = get_object_or_404(AprovacaoRegistro, pk=pk, modulo__in=modulos)
+    aprovacao = get_object_or_404(_aprovacoes_do_usuario(request.user), pk=pk)
     return render(request, 'core/detalhe_aprovacao.html', {'aprovacao': aprovacao})
 
 
 @login_required
 def api_aprovacoes_pendentes_count(request):
     """API JSON: conta aprova├º├Áes pendentes do usu├írio (para badge no menu)."""
-    modulos = _modulos_do_usuario(request.user)
-    total = AprovacaoRegistro.objects.filter(status='pendente', modulo__in=modulos).count()
+    total = _aprovacoes_do_usuario(request.user).filter(status='pendente').count()
     return JsonResponse({'total': total})
 
 
@@ -411,12 +407,17 @@ def _callback_recrutamento(obj, decisao, usuario):
 
 
 def _callback_compras(obj, decisao, usuario, aprovacao):
-    from compras.models import PedidoCompra
+    from compras.models import PedidoCompra, RequisicaoCompra
     if isinstance(obj, PedidoCompra):
         if decisao == 'aprovado':
             obj.aprovar(usuario)
         elif decisao == 'rejeitado':
             obj.reprovar(aprovacao.motivo_rejeicao)
+    elif isinstance(obj, RequisicaoCompra):
+        if decisao == 'aprovado':
+            obj.aprovar(usuario)
+        elif decisao == 'rejeitado':
+            obj.rejeitar()
 
 
 def _callback_financeiro(obj, decisao, usuario, aprovacao):

@@ -279,6 +279,10 @@ class AprovacaoRegistro(models.Model):
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='aprovacoes_decididas', verbose_name='Decidido por'
     )
+    destinatario = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='aprovacoes_atribuidas', verbose_name='Responsável pela decisão'
+    )
 
     # Timestamps
     criado_em = models.DateTimeField(auto_now_add=True)

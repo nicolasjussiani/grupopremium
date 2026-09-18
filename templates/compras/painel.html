@@ -53,6 +53,7 @@
           <th>Requisição</th>
           <th>Unidade</th>
           <th>Produtos</th>
+          <th>Status</th>
           <th>Solicitante</th>
           <th>Data</th>
           <th></th>
@@ -64,6 +65,7 @@
           <td style="font-family:monospace;font-weight:700;">{{ requisicao.numero }}</td>
           <td>{{ requisicao.unidade_destino }}</td>
           <td>{{ requisicao.itens.count }}</td>
+          <td><span class="badge {% if requisicao.status == 'aprovada' %}badge-success{% elif requisicao.status == 'rejeitada' %}badge-danger{% else %}badge-warning{% endif %}">{{ requisicao.get_status_display }}</span></td>
           <td>{{ requisicao.solicitante }}</td>
           <td>{{ requisicao.criado_em|date:"d/m/Y H:i" }}</td>
           <td><a href="{% url 'detalhe_requisicao' requisicao.pk %}" class="btn btn-sm btn-outline">Ver</a></td>

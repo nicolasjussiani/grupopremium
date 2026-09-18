@@ -13,7 +13,7 @@ class NotificacaoAdmin(admin.ModelAdmin):
 
 @admin.register(AprovacaoRegistro)
 class AprovacaoRegistroAdmin(admin.ModelAdmin):
-    list_display = ['titulo', 'modulo', 'nivel', 'status', 'solicitado_por', 'aprovado_por', 'criado_em', 'decidido_em']
+    list_display = ['titulo', 'modulo', 'nivel', 'status', 'destinatario', 'solicitado_por', 'aprovado_por', 'criado_em', 'decidido_em']
     list_filter = ['modulo', 'nivel', 'status']
     search_fields = ['titulo', 'descricao', 'solicitado_por__username', 'aprovado_por__username']
     readonly_fields = ['criado_em', 'decidido_em', 'content_type', 'object_id']

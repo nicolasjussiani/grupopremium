@@ -40,6 +40,12 @@
           {% else %}—{% endif %}
         </td>
       </tr>
+      {% if aprovacao.destinatario %}
+      <tr>
+        <td style="color:var(--text-muted);padding:0.5rem 0;">Responsável desta etapa</td>
+        <td style="color:var(--text-primary);font-weight:600;">{{ aprovacao.destinatario.get_full_name|default:aprovacao.destinatario.username }}</td>
+      </tr>
+      {% endif %}
       <tr>
         <td style="color:var(--text-muted);padding:0.5rem 0;">Criado em</td>
         <td style="color:var(--text-primary);">{{ aprovacao.criado_em|date:"d/m/Y \à\s H:i" }}</td>

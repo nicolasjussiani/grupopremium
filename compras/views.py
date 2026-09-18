@@ -4,7 +4,6 @@ import re
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.utils import timezone
 from django.db.models import F
 from django.db import IntegrityError, transaction
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -204,19 +203,8 @@ def nova_solicitacao(request):
             messages.error(request, '; '.join(exc.messages))
             return render_form(itens_form)
 
-        atendidos = 0
-        compras_externas = 0
         for material_id, quantidade in itens_validados:
             material = materiais[material_id]
-            status = 'compra_externa'
-            if material.quantidade_estoque >= quantidade:
-                status = 'atendido_interno'
-                material.quantidade_estoque -= quantidade
-                material.save(update_fields=['quantidade_estoque', 'atualizado_em'])
-                atendidos += 1
-            else:
-                compras_externas += 1
-
             solicitacao = SolicitacaoMaterial(
                 requisicao=requisicao,
                 material=material,
@@ -225,17 +213,32 @@ def nova_solicitacao(request):
                 solicitante_usuario=request.user,
                 unidade_destino=unidade_destino,
                 justificativa=justificativa,
-                status=status,
+                status='pendente',
             )
             solicitacao.full_clean()
             solicitacao.save()
 
-        resumo = f'{len(itens_validados)} produto(s) incluído(s)'
-        if atendidos:
-            resumo += f', {atendidos} atendido(s) pelo estoque'
-        if compras_externas:
-            resumo += f', {compras_externas} encaminhado(s) para compra externa'
-        messages.success(request, f'Requisição {requisicao.numero} criada: {resumo}.')
+        from core.approval_workflow import criar_fluxo_compras
+        descricao = (
+            f'Unidade: {requisicao.unidade_destino}\n'
+            f'Quantidade de produtos: {len(itens_validados)}\n'
+            f'Justificativa: {requisicao.justificativa}'
+        )
+        try:
+            criar_fluxo_compras(
+                objeto=requisicao,
+                titulo=f'RC {requisicao.numero} — {requisicao.unidade_destino}',
+                descricao=descricao,
+                solicitado_por=request.user,
+            )
+        except ValidationError as exc:
+            transaction.set_rollback(True)
+            messages.error(request, '; '.join(exc.messages))
+            return render_form(itens_form)
+        messages.success(
+            request,
+            f'Requisição {requisicao.numero} criada e enviada para aprovação da Adriana.',
+        )
         return redirect('detalhe_requisicao', pk=requisicao.pk)
 
     return render_form()
@@ -323,27 +326,30 @@ def criar_pedido_compra(request, solicitacao_pk):
             return render(request, 'compras/criar_pedido.html', {'solicitacao': sol})
 
         # ─── Dispara o fluxo de aprovação central ───────────────────────────
-        from core.models import AprovacaoRegistro
-        AprovacaoRegistro.criar_para(
-            objeto=pedido,
-            titulo=f'Pedido de Compra: {sol.material.nome} — {pedido.fornecedor}',
-            descricao=(
-                f'Material: {sol.material.nome}\n'
-                f'Unidade destino: {sol.unidade_destino}\n'
-                f'Quantidade: {sol.quantidade_solicitada} {sol.material.get_unidade_medida_display()}\n'
-                f'Fornecedor: {pedido.fornecedor}\n'
-                f'Valor unitário: R$ {pedido.valor_unitario}\n'
-                f'Valor total: R$ {pedido.valor_total}\n'
-                f'Justificativa: {sol.justificativa}'
-            ),
-            modulo='compras',
-            nivel=1,
-            solicitado_por=request.user,
-        )
+        from core.approval_workflow import criar_fluxo_compras
+        try:
+            criar_fluxo_compras(
+                objeto=pedido,
+                titulo=f'Pedido de Compra: {sol.material.nome} — {pedido.fornecedor}',
+                descricao=(
+                    f'Material: {sol.material.nome}\n'
+                    f'Unidade destino: {sol.unidade_destino}\n'
+                    f'Quantidade: {sol.quantidade_solicitada} {sol.material.get_unidade_medida_display()}\n'
+                    f'Fornecedor: {pedido.fornecedor}\n'
+                    f'Valor unitário: R$ {pedido.valor_unitario}\n'
+                    f'Valor total: R$ {pedido.valor_total}\n'
+                    f'Justificativa: {sol.justificativa}'
+                ),
+                solicitado_por=request.user,
+            )
+        except ValidationError as exc:
+            transaction.set_rollback(True)
+            messages.error(request, '; '.join(exc.messages))
+            return render(request, 'compras/criar_pedido.html', {'solicitacao': sol})
         # ────────────────────────────────────────────────────────────────────
 
         messages.info(request,
-            f'📋 Pedido de compra criado. Aguardando aprovação.')
+            f'📋 Pedido de compra criado. Aguardando aprovação da Adriana.')
         return redirect('detalhe_solicitacao', pk=solicitacao_pk)
     return render(request, 'compras/criar_pedido.html', {'solicitacao': sol})
 
@@ -356,47 +362,37 @@ def criar_pedido_compra(request, solicitacao_pk):
 )
 @transaction.atomic
 def aprovar_pedido(request, pk):
-    """Gateway de Aprovação de Compra"""
+    """Compatibilidade: toda decisão passa pela fila nominal central."""
     pedido = get_object_or_404(PedidoCompra.objects.select_for_update(), pk=pk)
     if request.method == 'POST':
         if pedido.status != 'aguardando_aprovacao':
             messages.error(request, 'Este pedido nao esta aguardando aprovacao.')
             return redirect('detalhe_solicitacao', pk=pedido.solicitacao.pk)
+        from core.models import AprovacaoRegistro
+        aprovacao = AprovacaoRegistro.objects.filter(
+            content_type__app_label='compras',
+            content_type__model='pedidocompra',
+            object_id=pedido.pk,
+            destinatario=request.user,
+            status='pendente',
+        ).first()
+        if not aprovacao:
+            messages.error(request, 'Este pedido não está atribuído a você para aprovação.')
+            return redirect('detalhe_solicitacao', pk=pedido.solicitacao.pk)
         acao = request.POST.get('acao')
         if acao == 'aprovar':
-            pedido.aprovar(request.user)
-            from core.models import AprovacaoRegistro
-            AprovacaoRegistro.objects.filter(
-                content_type__app_label='compras',
-                content_type__model='pedidocompra',
-                object_id=pedido.pk,
-                status='pendente',
-            ).update(
-                status='aprovado', aprovado_por=request.user,
-                decidido_em=timezone.now(),
-                comentario='Aprovado pela área de Compras.',
-            )
-            messages.success(request,
-                f'✅ GATEWAY: Compra aprovada! Pedido emitido ao fornecedor {pedido.fornecedor}.')
+            from core.views_aprovacao import aprovar_registro
+            return aprovar_registro(request, aprovacao.pk)
         elif acao == 'reprovar':
             motivo = request.POST.get('obs', '').strip() or 'Reprovado — nova cotação necessária.'
-            pedido.reprovar(motivo)
-            from core.models import AprovacaoRegistro
-            AprovacaoRegistro.objects.filter(
-                content_type__app_label='compras',
-                content_type__model='pedidocompra',
-                object_id=pedido.pk,
-                status='pendente',
-            ).update(
-                status='rejeitado', aprovado_por=request.user,
-                decidido_em=timezone.now(), motivo_rejeicao=motivo,
-            )
-            messages.warning(request,
-                f'⚠️ GATEWAY: Compra reprovada. Processo retorna para nova cotação.')
+            dados = request.POST.copy()
+            dados['motivo_rejeicao'] = motivo
+            request.POST = dados
+            from core.views_aprovacao import rejeitar_registro
+            return rejeitar_registro(request, aprovacao.pk)
         else:
             messages.error(request, 'Acao de aprovacao invalida.')
             return redirect('detalhe_solicitacao', pk=pedido.solicitacao.pk)
-        return redirect('detalhe_solicitacao', pk=pedido.solicitacao.pk)
     return render(request, 'compras/aprovar_pedido.html', {'pedido': pedido})
 
 

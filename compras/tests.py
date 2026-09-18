@@ -14,6 +14,10 @@ class CnpjFornecedorPosteriorTests(TestCase):
             username='comprador-cnpj', password='senha-forte-123'
         )
         PerfilUsuario.objects.create(usuario=self.user, perfil='compras')
+        adriana = User.objects.create_user('adriana', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=adriana, perfil='gestor')
+        ceo = User.objects.create_superuser('ceo_premium', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=ceo, perfil='gestor')
         self.client.force_login(self.user)
         self.material = Material.objects.create(
             nome='Material Marketplace', quantidade_estoque=0, estoque_minimo=1

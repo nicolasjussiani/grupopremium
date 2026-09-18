@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from core.models import PerfilUsuario
+from core.models import AprovacaoRegistro, Notificacao, PerfilUsuario
 from compras.models import Material, RequisicaoCompra, SolicitacaoMaterial
 
 
@@ -17,6 +17,10 @@ class RequisicaoComVariosProdutosTests(TestCase):
             last_name='Premium',
         )
         PerfilUsuario.objects.create(usuario=self.user, perfil='compras')
+        self.adriana = User.objects.create_user('adriana', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=self.adriana, perfil='gestor')
+        self.ceo = User.objects.create_superuser('ceo_premium', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=self.ceo, perfil='gestor')
         self.client.force_login(self.user)
         self.disponivel = Material.objects.create(
             nome='Produto disponível',
@@ -28,6 +32,19 @@ class RequisicaoComVariosProdutosTests(TestCase):
             quantidade_estoque='1.00',
             estoque_minimo='2.00',
         )
+
+    def aprovar_requisicao(self, requisicao):
+        nivel_adriana = AprovacaoRegistro.objects.get(
+            object_id=requisicao.pk, nivel=1, destinatario=self.adriana
+        )
+        self.client.force_login(self.adriana)
+        self.client.post(reverse('aprovar_registro', args=[nivel_adriana.pk]))
+        nivel_ceo = AprovacaoRegistro.objects.get(
+            object_id=requisicao.pk, nivel=2, destinatario=self.ceo
+        )
+        self.client.force_login(self.ceo)
+        self.client.post(reverse('aprovar_registro', args=[nivel_ceo.pk]))
+        self.client.force_login(self.user)
 
     def test_cria_uma_requisicao_com_varios_produtos_na_mesma_unidade(self):
         response = self.client.post(reverse('nova_solicitacao'), {
@@ -43,6 +60,20 @@ class RequisicaoComVariosProdutosTests(TestCase):
             reverse('detalhe_requisicao', args=[requisicao.pk]),
         )
         self.assertEqual(requisicao.itens.count(), 2)
+        self.assertEqual(requisicao.status, 'aguardando_adriana')
+        self.assertTrue(AprovacaoRegistro.objects.filter(
+            object_id=requisicao.pk, nivel=1, destinatario=self.adriana,
+            status='pendente',
+        ).exists())
+        self.assertTrue(Notificacao.objects.filter(
+            destinatario=self.adriana, modulo='compras'
+        ).exists())
+        self.disponivel.refresh_from_db()
+        self.assertEqual(self.disponivel.quantidade_estoque, Decimal('10.00'))
+
+        self.aprovar_requisicao(requisicao)
+        requisicao.refresh_from_db()
+        self.assertEqual(requisicao.status, 'aprovada')
         self.assertEqual(
             set(requisicao.itens.values_list('unidade_destino', flat=True)),
             {'Unidade Santos'},
@@ -86,6 +117,8 @@ class RequisicaoComVariosProdutosTests(TestCase):
         self.assertEqual(response.status_code, 302)
         requisicao = RequisicaoCompra.objects.get()
         self.assertEqual(requisicao.itens.count(), 1)
+        self.assertEqual(requisicao.itens.get().status, 'pendente')
+        self.aprovar_requisicao(requisicao)
         self.assertEqual(requisicao.itens.get().status, 'compra_externa')
 
     def test_item_agrupado_sempre_herda_a_unidade_da_requisicao(self):

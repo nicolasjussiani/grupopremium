@@ -48,6 +48,24 @@ class OperationalEndToEndTests(TestCase):
             last_name='Admin',
         )
         PerfilUsuario.objects.create(usuario=self.user, perfil='admin')
+        self.adriana = User.objects.create_user('adriana', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=self.adriana, perfil='gestor')
+        self.ceo = User.objects.create_superuser('ceo_premium', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=self.ceo, perfil='gestor')
+        self.client.force_login(self.user)
+
+    def _aprovar_compras_em_dois_niveis(self, objeto):
+        modelo = objeto._meta.model_name
+        nivel_um = AprovacaoRegistro.objects.get(
+            content_type__model=modelo, object_id=objeto.pk, nivel=1
+        )
+        self.client.force_login(self.adriana)
+        self.client.post(reverse('aprovar_registro', args=[nivel_um.pk]))
+        nivel_dois = AprovacaoRegistro.objects.get(
+            content_type__model=modelo, object_id=objeto.pk, nivel=2
+        )
+        self.client.force_login(self.ceo)
+        self.client.post(reverse('aprovar_registro', args=[nivel_dois.pk]))
         self.client.force_login(self.user)
 
     def _create_colaborador(self, suffix='01'):
@@ -161,6 +179,9 @@ class OperationalEndToEndTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         solicitacao = SolicitacaoMaterial.objects.get(material=material)
+        self.assertEqual(solicitacao.status, 'pendente')
+        self._aprovar_compras_em_dois_niveis(solicitacao.requisicao)
+        solicitacao.refresh_from_db()
         self.assertEqual(solicitacao.status, 'compra_externa')
 
         response = self.client.post(
@@ -177,13 +198,10 @@ class OperationalEndToEndTests(TestCase):
         self.assertEqual(str(pedido.valor_total), '150.00')
         self.assertRegex(pedido.numero_pedido, r'^PC-\d{6}$')
 
-        response = self.client.post(
-            reverse('aprovar_pedido', args=[pedido.pk]), {'acao': 'aprovar'}
-        )
-        self.assertEqual(response.status_code, 302)
+        self._aprovar_compras_em_dois_niveis(pedido)
         pedido.refresh_from_db()
         self.assertEqual(pedido.status, 'pedido_emitido')
-        self.assertEqual(pedido.aprovado_por, self.user)
+        self.assertEqual(pedido.aprovado_por, self.ceo)
 
     def test_pedido_aceita_valor_unitario_com_duas_casas_decimais(self):
         material = Material.objects.create(

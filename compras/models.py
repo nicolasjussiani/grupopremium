@@ -2,7 +2,7 @@
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import User
 from uuid import uuid4
 
@@ -77,6 +77,13 @@ class Material(models.Model):
 class RequisicaoCompra(models.Model):
     """Agrupa vários materiais destinados à mesma unidade."""
 
+    STATUS = [
+        ('aguardando_adriana', 'Aguardando aprovação da Adriana'),
+        ('aguardando_ceo', 'Aguardando aprovação do CEO'),
+        ('aprovada', 'Aprovada'),
+        ('rejeitada', 'Rejeitada'),
+    ]
+
     solicitante = models.CharField(max_length=200, verbose_name='Solicitante')
     solicitante_usuario = models.ForeignKey(
         User,
@@ -87,6 +94,9 @@ class RequisicaoCompra(models.Model):
     )
     unidade_destino = models.CharField(max_length=100, verbose_name='Unidade de Destino')
     justificativa = models.TextField(verbose_name='Justificativa')
+    status = models.CharField(
+        max_length=30, choices=STATUS, default='aguardando_adriana'
+    )
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
@@ -101,6 +111,38 @@ class RequisicaoCompra(models.Model):
     @property
     def numero(self):
         return f'REQ-{self.pk:06d}' if self.pk else 'REQ-NOVA'
+
+    @transaction.atomic
+    def aprovar(self, usuario):
+        """Após a decisão final, atende do estoque ou encaminha para compra."""
+        if self.status != 'aguardando_ceo':
+            raise ValidationError('A requisição não está aguardando a aprovação final.')
+        itens = list(self.itens.select_related('material').select_for_update())
+        materiais = {
+            material.pk: material
+            for material in Material.objects.select_for_update().filter(
+                pk__in=[item.material_id for item in itens]
+            )
+        }
+        for item in itens:
+            material = materiais[item.material_id]
+            if material.quantidade_estoque >= item.quantidade_solicitada:
+                material.quantidade_estoque -= item.quantidade_solicitada
+                material.save(update_fields=['quantidade_estoque', 'atualizado_em'])
+                item.status = 'atendido_interno'
+                item.atendida_por = usuario
+            else:
+                item.status = 'compra_externa'
+            item.save(update_fields=['status', 'atendida_por', 'atualizado_em'])
+        self.status = 'aprovada'
+        self.save(update_fields=['status', 'atualizado_em'])
+
+    def rejeitar(self):
+        if self.status not in {'aguardando_adriana', 'aguardando_ceo'}:
+            raise ValidationError('A requisição não está aguardando aprovação.')
+        self.itens.filter(status='pendente').update(status='cancelado')
+        self.status = 'rejeitada'
+        self.save(update_fields=['status', 'atualizado_em'])
 
 
 class SolicitacaoMaterial(models.Model):
