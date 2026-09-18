@@ -74,6 +74,20 @@ class ColaboradorForm(forms.ModelForm):
                 cleaned_data.get(name) or getattr(self.instance, name, None) or default
             )
 
+        tipo_contrato = cleaned_data['tipo_contrato']
+        vale_transporte = cleaned_data.get('vale_transporte_semanal') or 0
+        ajuda_custo = cleaned_data.get('ajuda_custo_semanal') or 0
+        if tipo_contrato == 'pj' and vale_transporte > 0:
+            self.add_error(
+                'vale_transporte_semanal',
+                'Vale-transporte deve ser usado somente para colaboradores CLT.',
+            )
+        if tipo_contrato == 'clt' and ajuda_custo > 0:
+            self.add_error(
+                'ajuda_custo_semanal',
+                'Ajuda de custo deve ser usada somente para colaboradores PJ.',
+            )
+
         uploads = [
             upload
             for name, upload in self.files.items()
@@ -135,6 +149,18 @@ class PagamentoColaboradorForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        colaborador = cleaned_data.get('colaborador')
+        tipo = cleaned_data.get('tipo')
+        if colaborador and tipo == 'vale_transporte' and colaborador.tipo_contrato != 'clt':
+            self.add_error(
+                'tipo',
+                'Vale-transporte deve ser cadastrado somente para colaboradores CLT.',
+            )
+        if colaborador and tipo == 'ajuda_custo' and colaborador.tipo_contrato != 'pj':
+            self.add_error(
+                'tipo',
+                'Ajuda de custo deve ser cadastrada somente para colaboradores PJ.',
+            )
         status = cleaned_data.get('status')
         data_pagamento = cleaned_data.get('data_pagamento')
         if status == 'pago' and not data_pagamento:

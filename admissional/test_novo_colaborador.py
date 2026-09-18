@@ -156,6 +156,14 @@ class TestNovoColaboradorHTTP(TestCase):
         self.assertContains(response, 'diretamente ao Supabase Storage')
         self.assertContains(response, 'directUploadEndpoint')
 
+    def test_GET_nao_duplica_campo_ajuda_de_custo(self):
+        response = self.client.get(self.url)
+        self.assertContains(
+            response,
+            'name="ajuda_custo_semanal"',
+            count=1,
+        )
+
     # POST valido
 
     def test_POST_valido_cria_colaborador(self):
@@ -390,6 +398,32 @@ class TestColaboradorForm(TestCase):
         colaborador = form.save()
         self.assertEqual(colaborador.salario, Decimal('2000.00'))
         self.assertEqual(colaborador.vale_transporte_semanal, Decimal('80.00'))
+
+    def test_form_rejeita_vale_transporte_para_pj(self):
+        form = ColaboradorForm(data=_colaborador_data(
+            tipo_contrato='pj',
+            vale_transporte_semanal='80,00',
+        ))
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('vale_transporte_semanal', form.errors)
+
+    def test_form_rejeita_ajuda_de_custo_para_clt(self):
+        form = ColaboradorForm(data=_colaborador_data(
+            tipo_contrato='clt',
+            ajuda_custo_semanal='80,00',
+        ))
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('ajuda_custo_semanal', form.errors)
+
+    def test_form_aceita_ajuda_de_custo_para_pj(self):
+        form = ColaboradorForm(data=_colaborador_data(
+            tipo_contrato='pj',
+            ajuda_custo_semanal='80,00',
+        ))
+
+        self.assertTrue(form.is_valid(), form.errors)
 
     def test_form_rejeita_valores_de_remuneracao_negativos(self):
         form = ColaboradorForm(data=_colaborador_data(

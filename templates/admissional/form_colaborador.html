@@ -29,7 +29,7 @@
       </div>
       <div class="collaborator-fields-grid">
         {% for field in form %}
-          {% if not field.is_hidden and field.name|slice:":6" != "anexo_" and field.name != "salario" and field.name != "vale_transporte_semanal" %}
+          {% if not field.is_hidden and field.name|slice:":6" != "anexo_" and field.name != "salario" and field.name != "vale_transporte_semanal" and field.name != "ajuda_custo_semanal" %}
             <div class="form-group {% if field.name == 'endereco' %}field-span-2{% endif %}">
               <label class="form-label" for="{{ field.id_for_label }}">
                 {{ field.label }} {% if field.field.required %}<span class="required">*</span>{% endif %}

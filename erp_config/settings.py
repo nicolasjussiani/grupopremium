@@ -12,6 +12,10 @@ from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNNING_TESTS = 'test' in sys.argv
+IS_SERVERLESS = (
+    os.environ.get('VERCEL') == '1'
+    or os.environ.get('AWS_EXECUTION_ENV') is not None
+)
 
 # Carrega .env explicitamente do diretório raiz do projeto
 env_path = BASE_DIR / '.env'
@@ -22,6 +26,10 @@ if not RUNNING_TESTS:
 
 # ── Segurança ─────────────────────────────────────────────────────────────────
 DEBUG = os.environ.get('DEBUG', 'False').lower() in {'1', 'true', 'yes'}
+# Serverless e sempre um ambiente publicado. Impede que uma variavel copiada
+# do desenvolvimento exponha paginas de erro e configuracoes sensiveis.
+if IS_SERVERLESS:
+    DEBUG = False
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if RUNNING_TESTS:
     DEBUG = True
@@ -130,7 +138,7 @@ WSGI_APPLICATION = 'erp_config.wsgi.application'
 # Em produção (Vercel), usa DATABASE_URL → Supabase PostgreSQL
 # Em desenvolvimento local, usa SQLite como fallback
 db_url = None if RUNNING_TESTS else os.environ.get('DATABASE_URL')
-is_serverless = os.environ.get('VERCEL') == '1' or os.environ.get('AWS_EXECUTION_ENV') is not None
+is_serverless = IS_SERVERLESS
 
 if not db_url and not DEBUG:
     raise ImproperlyConfigured('DATABASE_URL e obrigatoria quando DEBUG=False.')
@@ -254,7 +262,10 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SAMESITE = 'Lax'
-SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', str(not DEBUG)).lower() in {'1', 'true', 'yes'}
+SECURE_SSL_REDIRECT = is_serverless or (
+    os.environ.get('SECURE_SSL_REDIRECT', str(not DEBUG)).lower()
+    in {'1', 'true', 'yes'}
+)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = 'same-origin'
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0

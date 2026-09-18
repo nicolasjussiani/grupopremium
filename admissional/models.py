@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.db import models
 from django.db.models import BooleanField, Case, Exists, OuterRef, Q, Value, When
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.contrib.contenttypes.fields import GenericRelation
 
@@ -145,6 +146,19 @@ class Colaborador(models.Model):
     def __str__(self):
         return self.nome or f'Colaborador #{self.pk or "novo"}'
 
+    def clean(self):
+        super().clean()
+        if self.tipo_contrato == 'pj' and (self.vale_transporte_semanal or 0) > 0:
+            raise ValidationError({
+                'vale_transporte_semanal':
+                    'Vale-transporte deve ser usado somente para colaboradores CLT.'
+            })
+        if self.tipo_contrato == 'clt' and (self.ajuda_custo_semanal or 0) > 0:
+            raise ValidationError({
+                'ajuda_custo_semanal':
+                    'Ajuda de custo deve ser usada somente para colaboradores PJ.'
+            })
+
 
 class DocumentoColaborador(models.Model):
     TIPOS = [
@@ -246,6 +260,20 @@ class PagamentoColaborador(models.Model):
 
     def __str__(self):
         return f'{self.get_tipo_display()} - {self.colaborador} - {self.competencia:%d/%m/%Y}'
+
+    def clean(self):
+        super().clean()
+        if not self.colaborador_id:
+            return
+        tipo_contrato = self.colaborador.tipo_contrato
+        if self.tipo == 'vale_transporte' and tipo_contrato != 'clt':
+            raise ValidationError({
+                'tipo': 'Vale-transporte deve ser cadastrado somente para colaboradores CLT.'
+            })
+        if self.tipo == 'ajuda_custo' and tipo_contrato != 'pj':
+            raise ValidationError({
+                'tipo': 'Ajuda de custo deve ser cadastrada somente para colaboradores PJ.'
+            })
 
 
 class Admissao(models.Model):

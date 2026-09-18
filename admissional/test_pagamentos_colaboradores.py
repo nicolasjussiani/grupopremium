@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -68,6 +69,47 @@ class PagamentosColaboradoresTest(TestCase):
 
         self.assertFalse(form.is_valid())
         self.assertIn('valor', form.errors)
+
+    def test_pagamento_rejeita_ajuda_de_custo_para_clt(self):
+        form = PagamentoColaboradorForm(data=self.dados_pagamento(
+            tipo='ajuda_custo',
+        ))
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('tipo', form.errors)
+
+    def test_pagamento_rejeita_vale_transporte_para_pj(self):
+        self.colaborador.tipo_contrato = 'pj'
+        self.colaborador.save(update_fields=['tipo_contrato'])
+        form = PagamentoColaboradorForm(data=self.dados_pagamento(
+            tipo='vale_transporte',
+        ))
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('tipo', form.errors)
+
+    def test_pagamento_aceita_ajuda_de_custo_para_pj(self):
+        self.colaborador.tipo_contrato = 'pj'
+        self.colaborador.save(update_fields=['tipo_contrato'])
+        form = PagamentoColaboradorForm(data=self.dados_pagamento(
+            tipo='ajuda_custo',
+        ))
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_modelo_rejeita_vale_transporte_para_pj_fora_do_formulario(self):
+        self.colaborador.tipo_contrato = 'pj'
+        self.colaborador.save(update_fields=['tipo_contrato'])
+        pagamento = PagamentoColaborador(
+            colaborador=self.colaborador,
+            tipo='vale_transporte',
+            competencia=date(2026, 9, 1),
+            valor=Decimal('80.00'),
+            data_vencimento=date(2026, 9, 5),
+        )
+
+        with self.assertRaises(ValidationError):
+            pagamento.full_clean()
 
     def test_atalho_do_colaborador_preenche_tipo_e_valor_de_referencia(self):
         response = self.client.get(reverse('novo_pagamento_colaborador'), {
