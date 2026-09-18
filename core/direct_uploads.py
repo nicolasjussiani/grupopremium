@@ -22,6 +22,8 @@ UPLOAD_RULES = {
     'foto': ('_temporarios/imagens/foto', 'image'),
     'foto_equipamento': ('_temporarios/manutencao/registros', 'image'),
     'arquivo_colaborador': ('_temporarios/admissional/documentos-colaboradores', 'document'),
+    'documento': ('_temporarios/compras/requisicoes/documentos', 'document'),
+    'comprovante_pagamento': ('_temporarios/compras/requisicoes/comprovantes', 'document'),
 }
 
 DOCUMENT_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
