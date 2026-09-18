@@ -5,6 +5,28 @@ from django.core.validators import RegexValidator
 from django.db import transaction
 
 from core.models import Fornecedor, PerfilUsuario, Unidade
+from admissional.models import Colaborador, PagamentoColaborador
+
+
+class RevisaoPagamentoImportadoForm(forms.Form):
+    colaborador = forms.ModelChoiceField(queryset=Colaborador.objects.none())
+    tipo = forms.ChoiceField(choices=PagamentoColaborador.TIPOS)
+    competencia = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}))
+    valor = forms.DecimalField(
+        min_value=0.01,
+        max_digits=10,
+        decimal_places=2,
+        localize=True,
+        widget=forms.TextInput(attrs={'inputmode': 'decimal'}),
+    )
+    data_pagamento = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}))
+    observacao = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 3}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['colaborador'].queryset = Colaborador.objects.all().order_by('nome')
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'
 
 
 class FornecedorForm(forms.ModelForm):

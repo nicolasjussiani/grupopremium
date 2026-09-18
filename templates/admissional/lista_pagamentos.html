@@ -46,7 +46,7 @@
 {% if pagamentos %}
 <div class="table-wrap">
   <table>
-    <thead><tr><th>Colaborador</th><th>Tipo</th><th>Competência</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Data do pagamento</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Colaborador</th><th>Tipo</th><th>Competência</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Data do pagamento</th><th>Comprovante</th><th>Ações</th></tr></thead>
     <tbody>
       {% for pagamento in pagamentos %}
       <tr>
@@ -57,6 +57,11 @@
         <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
         <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
         <td>{{ pagamento.data_pagamento|date:"d/m/Y"|default:"—" }}</td>
+        <td>
+          {% with comprovante=pagamento.arquivos_importados.first %}
+            {% if comprovante %}<a href="{% url 'baixar_arquivo_importado' comprovante.pk %}" class="btn btn-sm btn-outline" target="_blank">Abrir</a>{% else %}—{% endif %}
+          {% endwith %}
+        </td>
         <td>
           {% if can_edit_pagamento %}
             {% if pagamento.status == 'pendente' %}

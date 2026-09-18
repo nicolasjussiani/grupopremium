@@ -12,7 +12,10 @@ from admissional.models import (
     PagamentoColaborador,
 )
 from compras.models import Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial
-from core.models import AprovacaoRegistro, Fornecedor, Notificacao, PerfilUsuario, Unidade
+from core.models import (
+    AprovacaoRegistro, ArquivoImportado, Fornecedor, Notificacao,
+    PerfilUsuario, Unidade,
+)
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
 from manutencao.models import Ativo, RegistroManutencao
 from recrutamento.models import Candidato, Talento, Vaga
@@ -219,6 +222,18 @@ class FullSiteRouteTests(TestCase):
             data_vencimento=date.today(),
             criado_por=cls.user,
         )
+        cls.arquivo_importado = ArquivoImportado.objects.create(
+            categoria='pagamento_colaborador',
+            subcategoria='salario',
+            nome_original='comprovante-teste.pdf',
+            arquivo='testes/comprovante-teste.pdf',
+            sha256='a' * 64,
+            tamanho=100,
+            mime_type='application/pdf',
+            status='revisar',
+            motivo_revisao='Teste integral do site',
+            importado_por=cls.user,
+        )
 
     def setUp(self):
         self.client.force_login(self.user)
@@ -263,6 +278,9 @@ class FullSiteRouteTests(TestCase):
             ('service_worker', (), 200),
             ('auditoria_sistema', (), 200),
             ('painel_sla', (), 200),
+            ('arquivo_central', (), 200),
+            ('baixar_arquivo_importado', (self.arquivo_importado.pk,), 302),
+            ('revisar_arquivo_importado', (self.arquivo_importado.pk,), 200),
             ('lista_vagas', (), 200),
             ('nova_vaga', (), 200),
             ('detalhe_vaga', (self.vaga.pk,), 200),

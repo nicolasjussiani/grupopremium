@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Revisar arquivo — ERP Grupo PremiumBR{% endblock %}
+{% block nav_arquivo_central %}active{% endblock %}
+{% block topbar_title %}Revisar arquivo importado{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <h1 class="mod-title">Revisar pagamento</h1>
+  <div class="mod-desc">Confira o comprovante antes de criar ou vincular o lançamento.</div>
+</div>
+
+<div class="card" style="max-width:920px;margin:0 auto;">
+  <div class="alert alert-warning" style="margin-bottom:20px;">
+    <strong>{{ arquivo.nome_original }}</strong><br>
+    {{ arquivo.motivo_revisao|default:'Confira os dados identificados automaticamente.' }}
+    <div style="margin-top:8px;"><a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank">Abrir comprovante</a></div>
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+    <div class="collaborator-fields-grid">
+      {% for field in form %}
+      <div class="form-group {% if field.name == 'observacao' %}field-span-2{% endif %}">
+        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="required">*</span>{% endif %}</label>
+        {{ field }}
+        {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <a href="{% url 'arquivo_central' %}" class="btn btn-outline">Cancelar</a>
+      <button type="submit" class="btn btn-mod6">Salvar e vincular</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

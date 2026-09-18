@@ -148,6 +148,10 @@
         <span class="nav-icon">💵</span>
         Folha de Pagamento
       </a>
+      <a href="{% url 'arquivo_central' %}" class="nav-item mod6 {% block nav_arquivo_central %}{% endblock %}">
+        <span class="nav-icon">🗂️</span>
+        Arquivo Central
+      </a>
       {% endif %}
 
       {% if not is_estoque_compras and request.user.is_superuser or not is_estoque_compras and request.user.perfil.perfil == 'sesmet' or not is_estoque_compras and request.user.perfil.perfil == 'rh' or not is_estoque_compras and request.user.perfil.perfil == 'gestor' or not is_estoque_compras and request.user.perfil.perfil == 'compras' %}

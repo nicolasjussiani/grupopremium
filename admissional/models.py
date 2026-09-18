@@ -5,6 +5,7 @@ from django.db import models
 from django.db.models import BooleanField, Case, Exists, OuterRef, Q, Value, When
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
+from django.contrib.contenttypes.fields import GenericRelation
 
 
 class ColaboradorQuerySet(models.QuerySet):
@@ -186,6 +187,12 @@ class PagamentoColaborador(models.Model):
         ('salario', 'Salário'),
         ('vale_transporte', 'Vale-transporte'),
         ('ajuda_custo', 'Ajuda de custo'),
+        ('adiantamento', 'Adiantamento'),
+        ('salario_beneficios', 'Salário e benefícios'),
+        ('prestacao_servico', 'Prestação de serviços'),
+        ('freelancer', 'Freelancer'),
+        ('distrato', 'Distrato'),
+        ('reembolso', 'Reembolso'),
     ]
     STATUS = [
         ('pendente', 'Pendente'),
@@ -208,6 +215,13 @@ class PagamentoColaborador(models.Model):
     status = models.CharField(max_length=10, choices=STATUS, default='pendente')
     data_pagamento = models.DateField(null=True, blank=True, verbose_name='Data do pagamento')
     observacao = models.TextField(blank=True, verbose_name='Observação')
+    identificador_transacao = models.CharField(
+        max_length=160,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name='Identificador da transação',
+    )
     criado_por = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -217,17 +231,14 @@ class PagamentoColaborador(models.Model):
     )
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
+    arquivos_importados = GenericRelation(
+        'core.ArquivoImportado', related_query_name='pagamento_colaborador'
+    )
 
     class Meta:
         verbose_name = 'Pagamento de colaborador'
         verbose_name_plural = 'Pagamentos de colaboradores'
         ordering = ['-competencia', '-data_vencimento', '-pk']
-        constraints = [
-            models.UniqueConstraint(
-                fields=['colaborador', 'tipo', 'competencia'],
-                name='pagamento_unico_colaborador_tipo_competencia',
-            ),
-        ]
         indexes = [
             models.Index(fields=['status', 'data_vencimento']),
             models.Index(fields=['colaborador', 'competencia']),

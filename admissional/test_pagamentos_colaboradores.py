@@ -90,7 +90,7 @@ class PagamentosColaboradoresTest(TestCase):
         pagamento = form.save()
         self.assertIsNone(pagamento.data_pagamento)
 
-    def test_nao_permite_pagamento_duplicado_na_mesma_competencia(self):
+    def test_permite_parcelas_na_mesma_competencia(self):
         PagamentoColaborador.objects.create(
             colaborador=self.colaborador,
             tipo='salario',
@@ -100,8 +100,9 @@ class PagamentosColaboradoresTest(TestCase):
         )
         form = PagamentoColaboradorForm(data=self.dados_pagamento())
 
-        self.assertFalse(form.is_valid())
-        self.assertTrue(form.non_field_errors())
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        self.assertEqual(PagamentoColaborador.objects.count(), 2)
 
     def test_marca_pagamento_pendente_como_pago_hoje(self):
         pagamento = PagamentoColaborador.objects.create(

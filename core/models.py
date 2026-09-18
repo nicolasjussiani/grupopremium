@@ -68,6 +68,78 @@ class Unidade(CadastroBase):
         return f'[{self.codigo}] {self.nome}'
 
 
+class ArquivoImportado(models.Model):
+    CATEGORIAS = [
+        ('pagamento_colaborador', 'Pagamento de colaborador'),
+        ('nota_fiscal', 'Nota fiscal'),
+        ('pedido', 'Pedido'),
+        ('reembolso', 'Reembolso'),
+        ('planilha', 'Planilha'),
+        ('outro', 'Outro'),
+    ]
+    STATUS = [
+        ('arquivado', 'Arquivado'),
+        ('vinculado', 'Vinculado'),
+        ('revisar', 'Revisar'),
+        ('erro', 'Erro'),
+    ]
+
+    categoria = models.CharField(max_length=40, choices=CATEGORIAS)
+    subcategoria = models.CharField(max_length=60, blank=True)
+    nome_original = models.CharField(max_length=255)
+    arquivo = models.FileField(upload_to='arquivo_central/%Y/%m/', max_length=500)
+    sha256 = models.CharField(max_length=64, unique=True)
+    tamanho = models.PositiveBigIntegerField(default=0)
+    mime_type = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS, default='arquivado')
+    motivo_revisao = models.TextField(blank=True)
+    metadados = models.JSONField(default=dict, blank=True)
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    object_id = models.PositiveBigIntegerField(null=True, blank=True)
+    content_object = GenericForeignKey('content_type', 'object_id')
+    importado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='arquivos_importados',
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Arquivo importado'
+        verbose_name_plural = 'Arquivos importados'
+        ordering = ['-criado_em', '-pk']
+        indexes = [
+            models.Index(fields=['categoria', 'status']),
+            models.Index(fields=['content_type', 'object_id']),
+        ]
+
+    def __str__(self):
+        return self.nome_original
+
+
+class OrigemArquivoImportado(models.Model):
+    arquivo_importado = models.ForeignKey(
+        ArquivoImportado, on_delete=models.CASCADE, related_name='origens'
+    )
+    caminho_relativo = models.CharField(max_length=2000, unique=True)
+    pasta_raiz = models.CharField(max_length=255, blank=True)
+    modificado_em = models.DateTimeField(null=True, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Origem de arquivo importado'
+        verbose_name_plural = 'Origens de arquivos importados'
+        ordering = ['caminho_relativo']
+
+    def __str__(self):
+        return self.caminho_relativo
+
+
 class PerfilUsuario(models.Model):
     PERFIS = [
         ('admin', 'Administrador'),

@@ -286,7 +286,7 @@ def lista_colaboradores(request):
 def lista_pagamentos_colaboradores(request):
     pagamentos = PagamentoColaborador.objects.select_related(
         'colaborador', 'criado_por'
-    )
+    ).prefetch_related('arquivos_importados')
     status_filter = request.GET.get('status', '').strip()
     status_validos = {valor for valor, _ in PagamentoColaborador.STATUS}
     if status_filter in status_validos:

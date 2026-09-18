@@ -21,10 +21,16 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.csrf import csrf_failure as default_csrf_failure
 
 from core.access import user_has_access, user_is_executive
-from core.models import AprovacaoRegistro, Fornecedor, LogAtividade, PerfilUsuario, Notificacao, Unidade
-from core.forms import FornecedorForm, UnidadeForm, UsuarioERPForm
+from core.models import (
+    AprovacaoRegistro, ArquivoImportado, Fornecedor, LogAtividade,
+    PerfilUsuario, Notificacao, Unidade,
+)
+from core.forms import (
+    FornecedorForm, RevisaoPagamentoImportadoForm, UnidadeForm, UsuarioERPForm,
+)
 from recrutamento.models import Vaga, Candidato
-from admissional.models import Admissao, Colaborador
+from admissional.models import Admissao, Colaborador, PagamentoColaborador
+from django.db import transaction
 from administrativo.models import DemandaAdministrativa
 from sesmet.models import IntegracaoSeguranca, OrdemServico, RegistroEPI
 from compras.models import Material, PedidoCompra, SolicitacaoMaterial
@@ -33,6 +39,126 @@ from manutencao.models import RegistroManutencao
 
 
 logger = logging.getLogger(__name__)
+
+
+@login_required
+def arquivo_central(request):
+    if not user_has_access(
+        request.user,
+        permission='core.view_arquivoimportado',
+        profiles=('rh', 'financeiro', 'gestor'),
+    ):
+        raise PermissionDenied
+
+    arquivos = ArquivoImportado.objects.select_related(
+        'content_type'
+    ).prefetch_related('origens')
+    categoria = request.GET.get('categoria', '').strip()
+    categorias_validas = {value for value, _ in ArquivoImportado.CATEGORIAS}
+    if categoria in categorias_validas:
+        arquivos = arquivos.filter(categoria=categoria)
+    else:
+        categoria = ''
+    status = request.GET.get('status', '').strip()
+    status_validos = {value for value, _ in ArquivoImportado.STATUS}
+    if status in status_validos:
+        arquivos = arquivos.filter(status=status)
+    else:
+        status = ''
+    query = request.GET.get('q', '').strip()[:120]
+    if query:
+        arquivos = arquivos.filter(
+            Q(nome_original__icontains=query)
+            | Q(origens__caminho_relativo__icontains=query)
+            | Q(subcategoria__icontains=query)
+        ).distinct()
+
+    paginator = Paginator(arquivos, 100)
+    page = paginator.get_page(request.GET.get('page'))
+    return render(request, 'core/arquivo_central.html', {
+        'page': page,
+        'arquivos': page.object_list,
+        'query': query,
+        'categoria_filter': categoria,
+        'status_filter': status,
+        'categoria_choices': ArquivoImportado.CATEGORIAS,
+        'status_choices': ArquivoImportado.STATUS,
+        'total_arquivos': ArquivoImportado.objects.count(),
+        'total_revisar': ArquivoImportado.objects.filter(status='revisar').count(),
+        'total_vinculados': ArquivoImportado.objects.filter(status='vinculado').count(),
+    })
+
+
+@login_required
+def baixar_arquivo_importado(request, pk):
+    if not user_has_access(
+        request.user,
+        permission='core.view_arquivoimportado',
+        profiles=('rh', 'financeiro', 'gestor'),
+    ):
+        raise PermissionDenied
+    arquivo = get_object_or_404(ArquivoImportado, pk=pk)
+    return redirect(arquivo.arquivo.url)
+
+
+@login_required
+@transaction.atomic
+def revisar_arquivo_importado(request, pk):
+    if not user_has_access(
+        request.user,
+        permission='core.change_arquivoimportado',
+        profiles=('rh', 'financeiro', 'gestor'),
+    ):
+        raise PermissionDenied
+    arquivo = get_object_or_404(ArquivoImportado.objects.select_for_update(), pk=pk)
+    metadados = arquivo.metadados or {}
+    data_texto = metadados.get('data_pagamento', '')
+    tipo = arquivo.subcategoria if arquivo.subcategoria in dict(PagamentoColaborador.TIPOS) else 'salario'
+    competencia = data_texto
+    if data_texto and tipo in {'salario', 'salario_beneficios', 'prestacao_servico', 'freelancer', 'distrato'}:
+        competencia = f'{data_texto[:7]}-01'
+    initial = {
+        'colaborador': metadados.get('colaborador_sugerido_id'),
+        'tipo': tipo,
+        'competencia': competencia,
+        'valor': str(metadados.get('valor', '')).replace(',', '.'),
+        'data_pagamento': data_texto,
+        'observacao': f'Importado do arquivo {arquivo.nome_original}',
+    }
+    if request.method == 'POST':
+        form = RevisaoPagamentoImportadoForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+            identificador = metadados.get('identificador_transacao') or f'arquivo:{arquivo.sha256}'
+            pagamento = PagamentoColaborador.objects.filter(
+                identificador_transacao=identificador
+            ).first() or PagamentoColaborador(identificador_transacao=identificador)
+            pagamento.colaborador = data['colaborador']
+            pagamento.tipo = data['tipo']
+            pagamento.competencia = data['competencia']
+            pagamento.valor = data['valor']
+            pagamento.data_vencimento = data['data_pagamento']
+            pagamento.status = 'pago'
+            pagamento.data_pagamento = data['data_pagamento']
+            pagamento.observacao = data['observacao']
+            if not pagamento.criado_por_id:
+                pagamento.criado_por = request.user
+            pagamento.full_clean()
+            pagamento.save()
+            arquivo.content_object = pagamento
+            arquivo.status = 'vinculado'
+            arquivo.motivo_revisao = ''
+            arquivo.save(update_fields=[
+                'content_type', 'object_id', 'status', 'motivo_revisao', 'atualizado_em'
+            ])
+            messages.success(request, 'Arquivo revisado e pagamento vinculado com sucesso.')
+            return redirect('arquivo_central')
+    else:
+        form = RevisaoPagamentoImportadoForm(initial=initial)
+    return render(request, 'core/revisar_arquivo_importado.html', {
+        'arquivo': arquivo,
+        'form': form,
+    })
 
 
 def _usuario_admin(user):
