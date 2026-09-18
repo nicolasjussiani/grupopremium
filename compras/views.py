@@ -726,9 +726,10 @@ def nova_solicitacao(request):
         from django.contrib import messages
         from django.shortcuts import render
         messages.error(request, f'ERRO 500 VERCEL: {type(exc).__name__}: {exc}')
-        messages.error(request, traceback.format_exc())
         return render(request, 'compras/nova_solicitacao.html', {
             'materiais': [],
             'post_data': request.POST if request.method == 'POST' else {},
             'itens_form': [{'material_id': '', 'quantidade': '1'}],
+            'debug_error': f'{type(exc).__name__}: {exc}',
+            'debug_traceback': traceback.format_exc(),
         })
