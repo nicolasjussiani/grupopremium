@@ -182,9 +182,5 @@ class PagamentoColaboradorForm(forms.ModelForm):
                 'competencia_fim',
                 'O fim da competência não pode ser anterior ao início.',
             )
-        if cleaned_data.get('recorrente') and tipo not in {'vale_transporte', 'ajuda_custo'}:
-            self.add_error(
-                'recorrente',
-                'A recorrência semanal é permitida apenas para VT ou ajuda de custo.',
-            )
+        cleaned_data['recorrente'] = tipo in {'vale_transporte', 'ajuda_custo'}
         return cleaned_data

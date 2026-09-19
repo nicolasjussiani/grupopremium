@@ -98,7 +98,10 @@ def classificar_pagamento_regra(subcategoria, data_pagamento, valor, colaborador
     if data_pagamento and valor is not None:
         if 4 <= data_pagamento.day <= 15 and valor > Decimal('1000'):
             return 'salario'
-        if data_pagamento.weekday() == 0 and valor < Decimal('200'):
+        if data_pagamento.weekday() == 0 and (
+            valor < Decimal('200')
+            or (colaborador and colaborador.tipo_contrato == 'pj')
+        ):
             return (
                 'ajuda_custo'
                 if colaborador and colaborador.tipo_contrato == 'pj'

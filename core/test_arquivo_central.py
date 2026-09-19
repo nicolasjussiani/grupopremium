@@ -64,6 +64,15 @@ class ExtracaoArquivoCentralTest(TestCase):
             'salario',
         )
 
+    def test_regra_classifica_segunda_de_pj_como_ajuda_de_custo(self):
+        colaborador = Colaborador(tipo_contrato='pj')
+        self.assertEqual(
+            classificar_pagamento_regra(
+                'adiantamento', date(2026, 9, 21), Decimal('450.00'), colaborador
+            ),
+            'ajuda_custo',
+        )
+
 
 class ImportacaoArquivoCentralTest(TestCase):
     def setUp(self):

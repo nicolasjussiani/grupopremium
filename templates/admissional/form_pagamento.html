@@ -43,10 +43,18 @@
 <script>
 (function () {
   const colaborador = document.getElementById('id_colaborador');
+  const tipo = document.getElementById('id_tipo');
+  const recorrente = document.getElementById('id_recorrente');
   const inicio = document.getElementById('id_competencia');
   const fim = document.getElementById('id_competencia_fim');
   const resumo = document.getElementById('resumo-colaborador');
   const baseUrl = "{% url 'resumo_colaborador_pagamento' 0 %}";
+
+  function atualizarRecorrencia() {
+    if (!tipo || !recorrente) return;
+    recorrente.checked = tipo.value === 'vale_transporte' || tipo.value === 'ajuda_custo';
+    recorrente.disabled = true;
+  }
 
   async function atualizarResumo() {
     if (!colaborador || !colaborador.value) {
@@ -72,6 +80,8 @@
   [colaborador, inicio, fim].forEach(function (campo) {
     if (campo) campo.addEventListener('change', atualizarResumo);
   });
+  if (tipo) tipo.addEventListener('change', atualizarRecorrencia);
+  atualizarRecorrencia();
   atualizarResumo();
 })();
 </script>
