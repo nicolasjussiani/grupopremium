@@ -101,8 +101,7 @@ def painel_financeiro(request):
 def entrada_documento(request):
     if request.method == 'POST':
         campos_obrigatorios = (
-            'tipo', 'numero_documento', 'descricao', 'valor', 'centro_custo',
-            'unidade', 'cnpj_emitente', 'razao_social_emitente', 'data_emissao',
+            'tipo', 'numero_documento', 'descricao', 'valor',
         )
         if any(not request.POST.get(campo, '').strip() for campo in campos_obrigatorios):
             messages.error(request, 'Preencha todos os campos obrigatorios.')
@@ -124,12 +123,12 @@ def entrada_documento(request):
             numero_documento=request.POST['numero_documento'],
             descricao=request.POST['descricao'],
             valor=valor_documento,
-            centro_custo=request.POST['centro_custo'],
-            unidade=request.POST['unidade'],
+            centro_custo=request.POST.get('centro_custo', '').strip(),
+            unidade=request.POST.get('unidade', '').strip(),
             cnpj_emitente=request.POST.get('cnpj_emitente', ''),
             razao_social_emitente=request.POST.get('razao_social_emitente', ''),
             contratos_vinculados=request.POST.get('contratos_vinculados', ''),
-            data_emissao=request.POST['data_emissao'],
+            data_emissao=request.POST.get('data_emissao') or None,
             data_vencimento=request.POST.get('data_vencimento') or None,
             status='em_auditoria',
             recebido_por=request.user,
@@ -319,8 +318,9 @@ def lancar_erp(request, doc_pk):
         descricao = request.POST.get('descricao', '').strip()
         tipo = request.POST.get('tipo', '')
         competencia = request.POST.get('competencia', '')
+        centro_custo = request.POST.get('centro_custo', '').strip() or doc.centro_custo
         tipos_validos = {value for value, _ in LancamentoERP.TIPOS}
-        if not descricao or not competencia or tipo not in tipos_validos:
+        if not descricao or not competencia or not centro_custo or tipo not in tipos_validos:
             messages.error(request, 'Dados do lancamento invalidos ou incompletos.')
             return render(request, 'financeiro/lancar_erp.html', {
                 'documento': doc,
@@ -331,7 +331,7 @@ def lancar_erp(request, doc_pk):
             descricao=descricao,
             tipo=tipo,
             valor=doc.valor,
-            centro_custo=doc.centro_custo,
+            centro_custo=centro_custo,
             competencia=competencia,
             status='em_validacao',
             lancado_por=request.user,

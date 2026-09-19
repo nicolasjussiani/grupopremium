@@ -18,6 +18,7 @@
     <div class="gateway-box">
       <div class="gateway-question">Informações do documento estão corretas?</div>
       <p style="font-size:0.82rem;color:var(--text-secondary);">SIM → Inicia auditoria automática | NÃO → Solicitar correção ao emitente</p>
+      <p style="font-size:0.82rem;color:var(--text-secondary);margin-top:6px;">Obrigatórios somente: tipo, número, descrição, valor e arquivo. Os demais dados podem ficar em branco neste cadastro.</p>
     </div>
 
     <form method="post" enctype="multipart/form-data" style="margin-top:20px;">
@@ -45,32 +46,32 @@
           <input type="number" name="valor" class="form-control" required min="0.01" step="0.01" placeholder="0,00">
         </div>
         <div class="form-group">
-          <label class="form-label">Centro de Custo <span class="required">*</span></label>
-          <input type="text" name="centro_custo" class="form-control" required placeholder="Ex: ADM, OPE-SP...">
+          <label class="form-label">Centro de Custo <span style="color:var(--text-muted);">(opcional)</span></label>
+          <input type="text" name="centro_custo" class="form-control" placeholder="Ex: ADM, OPE-SP...">
         </div>
         <div class="form-group">
-          <label class="form-label">Unidade <span class="required">*</span></label>
-          <input type="text" name="unidade" class="form-control" required placeholder="Ex: Matriz SP, Filial RJ...">
+          <label class="form-label">Unidade <span style="color:var(--text-muted);">(opcional)</span></label>
+          <input type="text" name="unidade" class="form-control" placeholder="Ex: Matriz SP, Filial RJ...">
         </div>
         <div class="form-group">
-          <label class="form-label">CNPJ do Emitente <span class="required">*</span></label>
-          <input type="text" id="id_cnpj" name="cnpj_emitente" class="form-control" required placeholder="00.000.000/0001-00">
+          <label class="form-label">CNPJ do Emitente <span style="color:var(--text-muted);">(opcional)</span></label>
+          <input type="text" id="id_cnpj" name="cnpj_emitente" class="form-control" placeholder="00.000.000/0001-00">
         </div>
         <div class="form-group">
-          <label class="form-label">Razão Social do Emitente <span class="required">*</span></label>
-          <input type="text" id="id_razao" name="razao_social_emitente" class="form-control" required placeholder="Nome da empresa emitente">
+          <label class="form-label">Razão Social do Emitente <span style="color:var(--text-muted);">(opcional)</span></label>
+          <input type="text" id="id_razao" name="razao_social_emitente" class="form-control" placeholder="Nome da empresa emitente">
         </div>
         <div class="form-group">
           <label class="form-label">Contratos Vinculados</label>
           <input type="text" name="contratos_vinculados" class="form-control" placeholder="Nº do(s) contrato(s)">
         </div>
         <div class="form-group">
-          <label class="form-label">Data de Emissão <span class="required">*</span></label>
-          <input type="date" name="data_emissao" class="form-control" required>
+          <label class="form-label">Data de Emissão <span style="color:var(--text-muted);">(opcional)</span></label>
+          <input type="date" name="data_emissao" class="form-control">
         </div>
         <div class="form-group">
-          <label class="form-label">Data de Vencimento <span class="required">*</span></label>
-          <input type="date" id="id_vencimento" name="data_vencimento" class="form-control" required>
+          <label class="form-label">Data de Vencimento <span style="color:var(--text-muted);">(opcional)</span></label>
+          <input type="date" id="id_vencimento" name="data_vencimento" class="form-control">
         </div>
         <div class="form-group form-full">
           <label class="form-label">Nota Fiscal (PDF) <span class="required">*</span></label>
