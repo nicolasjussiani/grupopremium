@@ -1,8 +1,10 @@
-"""Assistente local, sem API externa e sem permissao para gravacoes autonomas."""
+"""Assistente local, sem API externa, com ingestao automatica de documentos."""
 import hashlib
+from datetime import timedelta
 from pathlib import Path
 
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.urls import reverse
 
 from admissional.models import Colaborador, PagamentoColaborador, PresencaDiaria
@@ -46,8 +48,8 @@ def responder_pergunta(user, pergunta):
     if not texto:
         return 'Digite uma pergunta sobre uma funcao, prazo ou indicador do ERP.'
     if any(termo in texto for termo in ('alterar', 'apagar', 'excluir', 'aprovar por mim', 'cadastrar por mim')):
-        return ('Por seguranca, eu nao altero, excluo nem aprovo registros. Posso orientar o caminho '
-                'e preparar dados de um documento para sua revisao.')
+        return ('A conversa nao exclui nem aprova processos administrativos. O envio de documentos, '
+                'porem, e processado e arquivado automaticamente.')
     if 'presen' in texto or 'falta' in texto:
         if user_has_access(user, profiles=('admin', 'rh', 'gestor', 'sesmet')):
             ultima = PresencaDiaria.objects.order_by('-data').values_list('data', flat=True).first()
@@ -80,7 +82,7 @@ def responder_pergunta(user, pergunta):
         return 'Abra a area Aprovacoes para visualizar somente as etapas destinadas ao seu usuario.'
     if 'document' in texto or 'arquivo' in texto:
         return ('Envie o arquivo em "Ler documento". Sem chave de IA, PDFs com texto e nomes de arquivos '
-                'sao classificados por regras locais. O resultado exige confirmacao humana.')
+                'sao classificados por regras locais e processados sem etapa de aprovacao.')
     if any(termo in texto for termo in ('como', 'onde', 'ajuda', 'usar')):
         return f'A Central de Ajuda possui o passo a passo de cada modulo: {reverse("ajuda")}. Tambem respondo sobre Presenca, EPI, Compras, Pagamentos, Documentos e Aprovacoes.'
     return ('No modo provisorio eu respondo sobre Presenca, EPI, Compras, Pagamentos, Documentos e Aprovacoes. '
@@ -96,8 +98,65 @@ def _texto_pdf(conteudo):
         return ''
 
 
+def _vincular_pagamento_automatico(
+    arquivo, user, colaborador, valor, data_pagamento, identificador
+):
+    faltantes = []
+    if not colaborador:
+        faltantes.append('colaborador')
+    if valor is None or valor <= 0:
+        faltantes.append('valor')
+    if not data_pagamento:
+        faltantes.append('data')
+    tipo = 'reembolso' if arquivo.categoria == 'reembolso' else arquivo.subcategoria
+    if tipo not in dict(PagamentoColaborador.TIPOS):
+        faltantes.append('tipo')
+    if faltantes:
+        arquivo.status = 'erro'
+        arquivo.motivo_revisao = (
+            'Processamento automatico nao concluido. Dados nao identificados: '
+            + ', '.join(faltantes) + '.'
+        )
+        arquivo.save(update_fields=['status', 'motivo_revisao', 'atualizado_em'])
+        return None
+
+    competencia = data_pagamento
+    if tipo in {'salario', 'salario_beneficios', 'prestacao_servico', 'freelancer', 'distrato'}:
+        competencia = data_pagamento.replace(day=1)
+    competencia_fim = (
+        competencia + timedelta(days=6)
+        if tipo in {'vale_transporte', 'ajuda_custo'} else competencia
+    )
+    pagamento, _ = PagamentoColaborador.objects.get_or_create(
+        identificador_transacao=identificador or f'assistente:{arquivo.sha256}',
+        defaults={
+            'colaborador': colaborador,
+            'tipo': tipo,
+            'competencia': competencia,
+            'competencia_fim': competencia_fim,
+            'valor': valor,
+            'data_vencimento': data_pagamento,
+            'status': 'pago',
+            'data_pagamento': data_pagamento,
+            'observacao': f'Importado automaticamente de {arquivo.nome_original}',
+            'recorrente': tipo in {'vale_transporte', 'ajuda_custo'},
+            'criado_por': user,
+        },
+    )
+    pagamento.full_clean()
+    pagamento.save()
+    arquivo.content_object = pagamento
+    arquivo.status = 'vinculado'
+    arquivo.motivo_revisao = ''
+    arquivo.save(update_fields=[
+        'content_type', 'object_id', 'status', 'motivo_revisao', 'atualizado_em'
+    ])
+    return pagamento
+
+
+@transaction.atomic
 def registrar_documento(user, key, nome_original, content_type, categoria_solicitada=''):
-    """Cria uma fila de revisao; nunca cria o objeto de negocio final sozinho."""
+    """Classifica, arquiva e vincula automaticamente quando houver dados suficientes."""
     tamanho = default_storage.size(key)
     digest = hashlib.sha256()
     conteudo = bytearray()
@@ -140,16 +199,22 @@ def registrar_documento(user, key, nome_original, content_type, categoria_solici
         'colaborador_sugerido_id': colaborador.pk if colaborador else None,
     }
     metadados = {chave: valor_meta for chave, valor_meta in metadados.items() if valor_meta not in ('', None)}
-    motivos = ['Importado pelo assistente provisorio; confirme os dados antes de vincular.']
+    eh_pagamento = categoria in {'pagamento_colaborador', 'reembolso'}
+    motivo = ''
     if not texto and caminho.suffix.lower() in {'.pdf', '.png', '.jpg', '.jpeg'}:
-        motivos.append('Texto nao extraido localmente; leitura visual aguardara a chave da IA ou revisao manual.')
+        motivo = 'Arquivo armazenado automaticamente; leitura visual sera ampliada quando a chave da IA for configurada.'
     arquivo = ArquivoImportado(
         categoria=categoria, subcategoria=subcategoria, nome_original=nome_original[:255],
         sha256=sha256, tamanho=tamanho, mime_type=(content_type or '')[:120],
-        status='revisar', motivo_revisao=' '.join(motivos), metadados=metadados,
+        status='revisar' if eh_pagamento else 'arquivado',
+        motivo_revisao=motivo, metadados=metadados,
         importado_por=user,
     )
     arquivo.arquivo.name = key
     arquivo.full_clean(exclude=('arquivo',))
     arquivo.save()
+    if eh_pagamento:
+        _vincular_pagamento_automatico(
+            arquivo, user, colaborador, valor, data_pagamento, identificador
+        )
     return arquivo, True

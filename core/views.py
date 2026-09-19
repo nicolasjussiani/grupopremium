@@ -438,7 +438,7 @@ def ajuda(request):
 
 @login_required
 def assistente_erp(request):
-    """Assistente provisoria: consulta local e documentos sempre sob revisao."""
+    """Assistente provisoria: consulta local e ingestao automatica de documentos."""
     resposta = ''
     if request.method == 'POST':
         acao = request.POST.get('acao', '')
@@ -462,7 +462,12 @@ def assistente_erp(request):
                     request.POST.get('categoria', ''),
                 )
                 if criado:
-                    messages.success(request, 'Documento recebido e colocado em revisao. Nenhum cadastro foi alterado automaticamente.')
+                    if arquivo.status == 'erro':
+                        messages.warning(request, arquivo.motivo_revisao)
+                    elif arquivo.status == 'vinculado':
+                        messages.success(request, 'Documento processado e vinculado automaticamente ao cadastro.')
+                    else:
+                        messages.success(request, 'Documento classificado e armazenado automaticamente.')
                 else:
                     messages.info(request, 'Esse documento ja estava registrado; mantivemos apenas uma copia.')
                 return redirect(f'{reverse("assistente_erp")}?arquivo={arquivo.pk}')
@@ -480,18 +485,12 @@ def assistente_erp(request):
             pk=int(arquivo_id), importado_por=request.user
         ).first()
     recentes = ArquivoImportado.objects.filter(importado_por=request.user)[:8]
-    pode_revisar_pagamento = user_has_access(
-        request.user,
-        permission='core.change_arquivoimportado',
-        profiles=('admin', 'rh', 'financeiro', 'gestor'),
-    )
     return render(request, 'core/assistente_erp.html', {
         'resposta': resposta,
         'pergunta': request.POST.get('pergunta', '')[:500],
         'categorias': [item for item in ArquivoImportado.CATEGORIAS if item[0] in permitidas],
         'arquivos_recentes': recentes,
         'arquivo_atual': arquivo_atual,
-        'pode_revisar_pagamento': pode_revisar_pagamento,
         'ia_configurada': False,
     })
 

@@ -18,17 +18,17 @@
 {% block content %}
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
   <h1 class="mod-title">Assistente do ERP</h1>
-  <div class="mod-desc">Modo provisorio sem chave de API: orientacao local e leitura segura de documentos.</div>
+  <div class="mod-desc">Modo provisorio sem chave de API: orientacao local e processamento automatico de documentos.</div>
 </div>
 
 <div class="alert alert-info" data-persistent-alert style="margin-bottom:20px;">
-  <strong>Modo seguro ativo.</strong> A assistente nao altera, exclui nem aprova registros. Documentos ficam em revisao e so alimentam um cadastro depois da confirmacao de uma pessoa autorizada.
+  <strong>Processamento automatico ativo.</strong> Documentos sao classificados e armazenados imediatamente. Pagamentos completos sao vinculados sem aprovacao manual.
 </div>
 
 <div class="assistant-safety">
   <div><strong>Consulta por area</strong><br>O usuario recebe apenas informacoes permitidas para o seu perfil.</div>
-  <div><strong>Sem alteracao automatica</strong><br>Nenhuma resposta executa comandos ou muda regras do ERP.</div>
-  <div><strong>Preparado para API</strong><br>A chave futura ampliara a conversa e a leitura visual sem mudar o fluxo de aprovacao.</div>
+  <div><strong>Sem espera por aprovacao</strong><br>O documento e processado no momento do envio.</div>
+  <div><strong>Preparado para API</strong><br>A chave futura ampliara a leitura visual mantendo o processamento automatico.</div>
 </div>
 
 <div class="assistant-grid">
@@ -64,7 +64,7 @@
         <label class="form-label" for="assistente-documento">Arquivo</label>
         <input id="assistente-documento" type="file" name="assistente_documento" class="form-control" accept="application/pdf,image/png,image/jpeg" required>
       </div>
-      <button class="btn btn-mod6" type="submit">Enviar para revisao</button>
+      <button class="btn btn-mod6" type="submit">Enviar e processar</button>
     </form>
     {% if arquivo_atual %}
     <div class="assistant-answer" style="margin-top:18px;">
@@ -72,9 +72,6 @@
       Categoria: {{ arquivo_atual.get_categoria_display }} · Situacao: {{ arquivo_atual.get_status_display }}<br>
       {{ arquivo_atual.motivo_revisao }}<br>
       <a href="{% url 'baixar_arquivo_importado' arquivo_atual.pk %}" target="_blank">Abrir documento</a>
-      {% if pode_revisar_pagamento and arquivo_atual.status == 'revisar' and arquivo_atual.categoria == 'pagamento_colaborador' or pode_revisar_pagamento and arquivo_atual.status == 'revisar' and arquivo_atual.categoria == 'reembolso' %}
-      · <a href="{% url 'revisar_arquivo_importado' arquivo_atual.pk %}">Revisar e confirmar dados</a>
-      {% endif %}
     </div>
     {% endif %}
   </section>
