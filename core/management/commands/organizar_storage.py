@@ -3,6 +3,7 @@ from django.core.files.storage import default_storage
 
 from core.storage_organization import (
     audit_storage_references,
+    iter_storage_files,
     iter_file_models,
     organize_instance_files,
     quarantine_orphaned_files,
@@ -29,12 +30,17 @@ class Command(BaseCommand):
         total_records = 0
         total_files = 0
         details = []
+        known_names = set(iter_storage_files(default_storage))
 
         for model in iter_file_models():
             model_records = 0
             model_files = 0
             for instance in model.objects.iterator():
-                moved = organize_instance_files(instance, dry_run=dry_run)
+                moved = organize_instance_files(
+                    instance,
+                    dry_run=dry_run,
+                    known_names=known_names,
+                )
                 if moved:
                     model_records += 1
                     model_files += len(moved)

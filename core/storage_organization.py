@@ -8,6 +8,7 @@ from django.db import transaction
 
 
 FILE_FIELDS = {
+    'core.ArquivoImportado': ('arquivo',),
     'admissional.Colaborador': (
         'anexo_cpf', 'anexo_cpf_verso',
         'anexo_rg', 'anexo_rg_verso',
@@ -29,7 +30,7 @@ FILE_FIELDS = {
     'manutencao.RegistroManutencao': ('foto_equipamento',),
 }
 
-ALLOWED_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
+ALLOWED_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.xml', '.docx', '.xlsx'}
 
 
 def _safe_segment(value, fallback):
@@ -40,6 +41,9 @@ def _safe_segment(value, fallback):
 
 def canonical_prefix(instance, field_name):
     label = instance._meta.label
+    if label == 'core.ArquivoImportado':
+        digest = _safe_segment(instance.sha256, 'sem_hash')
+        return f'arquivo_central/{digest[:2]}/'
     if label == 'admissional.Colaborador':
         return (
             f'admissional/colaboradores/{instance.pk}/documentos/'
@@ -93,7 +97,8 @@ def canonical_prefix(instance, field_name):
 
 def audit_storage_references():
     """Confere se toda referencia do banco existe e usa o prefixo esperado."""
-    total = 0
+    references = []
+    storage_files = {}
     missing = []
     noncanonical = []
     for model_label, field_names in FILE_FIELDS.items():
@@ -104,14 +109,30 @@ def audit_storage_references():
                 name = field_file.name if field_file else ''
                 if not name:
                     continue
-                total += 1
                 reference = f'{model_label}#{instance.pk}.{field_name}'
-                if not field_file.storage.exists(name):
-                    missing.append(reference)
-                elif not name.startswith(canonical_prefix(instance, field_name)):
+                storage = field_file.storage
+                references.append((storage, name, reference))
+                if not name.startswith(canonical_prefix(instance, field_name)):
                     noncanonical.append(reference)
+
+    # Em S3, uma listagem paginada evita uma requisicao HEAD para cada arquivo.
+    # Backends sem listagem eficiente continuam usando exists como fallback.
+    for storage, _name, _reference in references:
+        storage_id = id(storage)
+        if storage_id in storage_files:
+            continue
+        if getattr(storage, 'bucket_name', None) and getattr(storage, 'connection', None):
+            storage_files[storage_id] = set(iter_storage_files(storage))
+        else:
+            storage_files[storage_id] = None
+
+    for storage, name, reference in references:
+        known_names = storage_files[id(storage)]
+        exists = name in known_names if known_names is not None else storage.exists(name)
+        if not exists:
+            missing.append(reference)
     return {
-        'total': total,
+        'total': len(references),
         'missing': missing,
         'noncanonical': noncanonical,
     }
@@ -154,7 +175,7 @@ def delete_if_unreferenced(storage, source_name):
         storage.delete(source_name)
 
 
-def organize_instance_files(instance, *, dry_run=False):
+def organize_instance_files(instance, *, dry_run=False, known_names=None):
     """Move arquivos de uma instancia para seus caminhos canonicos."""
     field_names = FILE_FIELDS.get(instance._meta.label, ())
     if not instance.pk or not field_names:
@@ -170,7 +191,12 @@ def organize_instance_files(instance, *, dry_run=False):
 
         storage = field_file.storage
         # Referencias legadas podem apontar para um objeto que ja nao existe.
-        if not storage.exists(source_name):
+        source_exists = (
+            source_name in known_names
+            if known_names is not None
+            else storage.exists(source_name)
+        )
+        if not source_exists:
             continue
 
         destination_name = canonical_key(instance, field_name, source_name)
@@ -210,6 +236,21 @@ def referenced_file_names():
 
 
 def iter_storage_files(storage, path=''):
+    bucket_name = getattr(storage, 'bucket_name', None)
+    connection = getattr(storage, 'connection', None)
+    if bucket_name and connection is not None:
+        client = connection.meta.client
+        paginator = client.get_paginator('list_objects_v2')
+        prefix = path.strip('/')
+        if prefix:
+            prefix += '/'
+        for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+            for item in page.get('Contents', ()):
+                key = item.get('Key')
+                if key and not key.endswith('/'):
+                    yield key
+        return
+
     directories, files = storage.listdir(path)
     for filename in files:
         yield f'{path}/{filename}'.lstrip('/')

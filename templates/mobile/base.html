@@ -13,6 +13,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="{% static 'pwa-icon-180.png' %}">
   <link rel="icon" href="{% static 'favicon.jpeg' %}" type="image/jpeg">
   <link rel="stylesheet" href="{% static 'css/mobile.css' %}?v=5">
+  <link rel="stylesheet" href="{% static 'css/mobile-area-flow.css' %}?v=1">
   <title>{% block title %}PremiumBR ERP{% endblock %}</title>
 </head>
 <body>
@@ -33,7 +34,10 @@
     </div>
   {% endif %}
 
-  <main class="mobile-main">{% block content %}{% endblock %}</main>
+  <main class="mobile-main">
+    {% if area_flow %}{% include 'components/area_flow.html' %}{% endif %}
+    {% block content %}{% endblock %}
+  </main>
 
   <nav class="mobile-bottom-nav" aria-label="Navegação principal">
     {% if is_visao_executiva %}

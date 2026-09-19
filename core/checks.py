@@ -6,7 +6,7 @@ from core.storage_organization import FILE_FIELDS
 
 
 LOCAL_APPS = {
-    'admissional', 'recrutamento', 'financeiro', 'manutencao', 'compras', 'sesmet',
+    'core', 'admissional', 'recrutamento', 'financeiro', 'manutencao', 'compras', 'sesmet',
 }
 
 

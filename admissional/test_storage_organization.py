@@ -10,7 +10,11 @@ from manutencao.models import Ativo, RegistroManutencao
 from recrutamento.models import Candidato, Talento
 from sesmet.models import EquipamentoProtecao
 
-from core.storage_organization import canonical_prefix, orphan_quarantine_key
+from core.storage_organization import (
+    canonical_prefix,
+    iter_storage_files,
+    orphan_quarantine_key,
+)
 from .models import Colaborador, DocumentoAdmissional
 
 
@@ -126,3 +130,49 @@ class ColaboradorStorageOrganizationTests(TestCase):
         self.assertTrue(destination.endswith('.pdf'))
         self.assertNotIn('Maria', destination)
         self.assertNotIn('12345678900', destination)
+
+    def test_listagem_s3_usa_paginacao_e_ignora_pastas(self):
+        class FakePaginator:
+            def paginate(self, **kwargs):
+                self.kwargs = kwargs
+                return [
+                    {'Contents': [
+                        {'Key': 'financeiro/'},
+                        {'Key': 'financeiro/documentos/1.pdf'},
+                    ]},
+                    {'Contents': [{'Key': 'financeiro/documentos/2.pdf'}]},
+                ]
+
+        class FakeClient:
+            def __init__(self):
+                self.paginator = FakePaginator()
+
+            def get_paginator(self, operation):
+                self.operation = operation
+                return self.paginator
+
+        class FakeMeta:
+            def __init__(self):
+                self.client = FakeClient()
+
+        class FakeConnection:
+            def __init__(self):
+                self.meta = FakeMeta()
+
+        class FakeStorage:
+            bucket_name = 'arquivos'
+            connection = FakeConnection()
+
+        storage = FakeStorage()
+
+        names = list(iter_storage_files(storage, 'financeiro'))
+
+        self.assertEqual(names, [
+            'financeiro/documentos/1.pdf',
+            'financeiro/documentos/2.pdf',
+        ])
+        self.assertEqual(storage.connection.meta.client.operation, 'list_objects_v2')
+        self.assertEqual(
+            storage.connection.meta.client.paginator.kwargs,
+            {'Bucket': 'arquivos', 'Prefix': 'financeiro/'},
+        )

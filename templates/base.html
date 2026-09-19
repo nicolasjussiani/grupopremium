@@ -247,6 +247,9 @@
 
     <!-- ÁREA DE CONTEÚDO -->
     <main class="content-area" id="conteudo-principal" tabindex="-1">
+      {% if area_flow %}
+        {% include 'components/area_flow.html' %}
+      {% endif %}
       {% block content %}{% endblock %}
     </main>
   </div>

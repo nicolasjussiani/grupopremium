@@ -1,0 +1,36 @@
+<details class="area-flow area-flow--{{ area_flow.theme }}" open>
+  <summary class="area-flow-summary">
+    <span class="area-flow-heading">
+      <span class="area-flow-kicker">Fluxo da área</span>
+      <strong>{{ area_flow.title }}</strong>
+      <small>{{ area_flow.description }}</small>
+    </span>
+    <span class="area-flow-toggle" aria-hidden="true">Mostrar ou ocultar</span>
+  </summary>
+
+  <div class="area-flow-content">
+    <ol class="area-flow-track" style="--flow-columns: {{ area_flow.steps|length }};" aria-label="Etapas de {{ area_flow.title }}">
+      {% for step in area_flow.steps %}
+        <li class="area-flow-step">
+          <span class="area-flow-number">{{ forloop.counter }}</span>
+          <span class="area-flow-step-copy">
+            <strong>{{ step.label }}</strong>
+            {% if step.detail %}<small>{{ step.detail }}</small>{% endif %}
+          </span>
+        </li>
+      {% endfor %}
+    </ol>
+
+    {% if area_flow.branches %}
+      <div class="area-flow-branches" aria-label="Decisões e retornos do fluxo">
+        {% for branch in area_flow.branches %}
+          <div class="area-flow-branch">
+            <span>{{ branch.condition }}</span>
+            <span class="area-flow-branch-arrow" aria-hidden="true">→</span>
+            <strong>{{ branch.result }}</strong>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</details>

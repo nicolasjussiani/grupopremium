@@ -3,6 +3,8 @@
 from django.core.cache import cache
 from django.db import DatabaseError
 
+from core.area_flows import flow_for_request
+
 
 def navigation_access(request):
     # Calculado pelo middleware antes de qualquer transacao da view. Assim o
@@ -10,6 +12,7 @@ def navigation_access(request):
     contexto = {
         'is_intermediario': getattr(request, 'is_intermediario', False),
         'is_estoque_compras': getattr(request, 'is_estoque_compras', False),
+        'area_flow': flow_for_request(request),
     }
     if not request.user.is_authenticated:
         return contexto

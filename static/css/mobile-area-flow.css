@@ -1,0 +1,36 @@
+.area-flow {
+  margin: 0 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(13, 33, 73, 0.08);
+  overflow: hidden;
+}
+
+.area-flow__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  color: var(--navy);
+  cursor: pointer;
+  list-style: none;
+}
+
+.area-flow__summary::-webkit-details-marker { display: none; }
+.area-flow__summary::after { content: "+"; color: var(--gold); font-size: 24px; }
+.area-flow[open] .area-flow__summary::after { content: "−"; }
+.area-flow__eyebrow { display: block; color: var(--gold); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.area-flow__title { display: block; margin-top: 2px; font-size: 17px; }
+.area-flow__body { padding: 0 16px 16px; }
+.area-flow__description { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.area-flow__track { display: grid; gap: 22px; }
+.area-flow__step { position: relative; display: grid; grid-template-columns: 34px 1fr; gap: 11px; align-items: start; }
+.area-flow__step:not(:last-child)::after { content: "↓"; position: absolute; left: 11px; bottom: -21px; color: var(--gold); font-size: 18px; font-weight: 800; }
+.area-flow__number { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 13px; font-weight: 800; }
+.area-flow__content { min-width: 0; padding-top: 2px; }
+.area-flow__label { display: block; color: var(--ink); font-size: 14px; line-height: 1.25; }
+.area-flow__detail { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.area-flow__branches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.area-flow__branch { padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--gold) 9%, var(--surface)); color: var(--navy); font-size: 11px; font-weight: 700; }
