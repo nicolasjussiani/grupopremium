@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}Assistente do ERP - Grupo PremiumBR{% endblock %}
+{% block nav_assistente %}active{% endblock %}
+{% block topbar_title %}Assistente do ERP{% endblock %}
+
+{% block extra_css %}
+<style>
+  .assistant-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:20px;align-items:start}
+  .assistant-answer{padding:18px;border-radius:12px;background:var(--bg-page);border-left:4px solid #2563eb;white-space:pre-wrap;line-height:1.6}
+  .assistant-safety{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+  .assistant-safety div{padding:12px;border:1px solid var(--border);border-radius:10px;font-size:.82rem}
+  .assistant-files{display:grid;gap:10px}
+  .assistant-file{padding:12px;border:1px solid var(--border);border-radius:10px;display:flex;justify-content:space-between;gap:12px;align-items:center}
+  @media(max-width:860px){.assistant-grid{grid-template-columns:1fr}.assistant-safety{grid-template-columns:1fr}.assistant-file{align-items:flex-start;flex-direction:column}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <h1 class="mod-title">Assistente do ERP</h1>
+  <div class="mod-desc">Modo provisorio sem chave de API: orientacao local e leitura segura de documentos.</div>
+</div>
+
+<div class="alert alert-info" data-persistent-alert style="margin-bottom:20px;">
+  <strong>Modo seguro ativo.</strong> A assistente nao altera, exclui nem aprova registros. Documentos ficam em revisao e so alimentam um cadastro depois da confirmacao de uma pessoa autorizada.
+</div>
+
+<div class="assistant-safety">
+  <div><strong>Consulta por area</strong><br>O usuario recebe apenas informacoes permitidas para o seu perfil.</div>
+  <div><strong>Sem alteracao automatica</strong><br>Nenhuma resposta executa comandos ou muda regras do ERP.</div>
+  <div><strong>Preparado para API</strong><br>A chave futura ampliara a conversa e a leitura visual sem mudar o fluxo de aprovacao.</div>
+</div>
+
+<div class="assistant-grid">
+  <section class="card">
+    <div class="card-header"><div class="card-title">Perguntar sobre o sistema</div></div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="perguntar">
+      <div class="form-group">
+        <label class="form-label" for="pergunta">O que voce precisa saber?</label>
+        <textarea id="pergunta" name="pergunta" class="form-control" rows="4" maxlength="500" required placeholder="Ex.: quantos ciclos de EPI estao ativos?">{{ pergunta }}</textarea>
+      </div>
+      <button class="btn btn-mod6" type="submit">Perguntar</button>
+    </form>
+    {% if resposta %}<div class="assistant-answer" style="margin-top:18px;">{{ resposta }}</div>{% endif %}
+    <p style="font-size:.78rem;color:var(--text-muted);margin-top:14px;">Sugestoes: Presenca, EPI, Compras, Pagamentos, Documentos e Aprovacoes.</p>
+  </section>
+
+  <section class="card">
+    <div class="card-header"><div class="card-title">Ler documento</div></div>
+    <p style="color:var(--text-secondary);font-size:.86rem;">PDF, PNG ou JPG, ate 50 MB. O arquivo vai direto ao Supabase para nao sobrecarregar a Vercel.</p>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="documento">
+      <div class="form-group">
+        <label class="form-label" for="categoria">Destino sugerido</label>
+        <select id="categoria" name="categoria" class="form-control">
+          <option value="">Identificar automaticamente</option>
+          {% for value, label in categorias %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="assistente-documento">Arquivo</label>
+        <input id="assistente-documento" type="file" name="assistente_documento" class="form-control" accept="application/pdf,image/png,image/jpeg" required>
+      </div>
+      <button class="btn btn-mod6" type="submit">Enviar para revisao</button>
+    </form>
+    {% if arquivo_atual %}
+    <div class="assistant-answer" style="margin-top:18px;">
+      <strong>{{ arquivo_atual.nome_original }}</strong><br>
+      Categoria: {{ arquivo_atual.get_categoria_display }} · Situacao: {{ arquivo_atual.get_status_display }}<br>
+      {{ arquivo_atual.motivo_revisao }}<br>
+      <a href="{% url 'baixar_arquivo_importado' arquivo_atual.pk %}" target="_blank">Abrir documento</a>
+      {% if pode_revisar_pagamento and arquivo_atual.status == 'revisar' and arquivo_atual.categoria == 'pagamento_colaborador' or pode_revisar_pagamento and arquivo_atual.status == 'revisar' and arquivo_atual.categoria == 'reembolso' %}
+      · <a href="{% url 'revisar_arquivo_importado' arquivo_atual.pk %}">Revisar e confirmar dados</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+</div>
+
+{% if arquivos_recentes %}
+<section class="card" style="margin-top:20px;">
+  <div class="card-header"><div class="card-title">Seus documentos recentes</div></div>
+  <div class="assistant-files">
+    {% for arquivo in arquivos_recentes %}
+    <div class="assistant-file">
+      <div><strong>{{ arquivo.nome_original }}</strong><br><small>{{ arquivo.get_categoria_display }} · {{ arquivo.get_status_display }} · {{ arquivo.criado_em|date:'d/m/Y H:i' }}</small></div>
+      <div><a class="btn btn-sm btn-outline" href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank">Abrir</a></div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

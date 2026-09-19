@@ -14,6 +14,7 @@ from django.middleware.csrf import get_token
 from django.db.models import Count, Q
 from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -32,8 +33,14 @@ from core.forms import (
     FornecedorForm, RevisaoPagamentoImportadoForm, UnidadeForm, UsuarioERPForm,
 )
 from recrutamento.models import Vaga, Candidato
-from admissional.models import Admissao, Colaborador, PagamentoColaborador
+from admissional.models import (
+    Admissao, Colaborador, PagamentoColaborador, PresencaDiaria,
+)
 from core.services.importacao_arquivo_central import classificar_pagamento_regra
+from core.direct_uploads import verify_direct_upload
+from core.services.assistente_provisorio import (
+    categorias_permitidas, registrar_documento, responder_pergunta,
+)
 from django.db import transaction
 from administrativo.models import DemandaAdministrativa
 from sesmet.models import IntegracaoSeguranca, OrdemServico, RegistroEPI
@@ -50,7 +57,7 @@ def arquivo_central(request):
     if not user_has_access(
         request.user,
         permission='core.view_arquivoimportado',
-        profiles=('rh', 'financeiro', 'gestor'),
+        profiles=('admin', 'rh', 'financeiro', 'gestor'),
     ):
         raise PermissionDenied
 
@@ -95,13 +102,13 @@ def arquivo_central(request):
 
 @login_required
 def baixar_arquivo_importado(request, pk):
-    if not user_has_access(
+    arquivo = get_object_or_404(ArquivoImportado, pk=pk)
+    if arquivo.importado_por_id != request.user.pk and not user_has_access(
         request.user,
         permission='core.view_arquivoimportado',
-        profiles=('rh', 'financeiro', 'gestor'),
+        profiles=('admin', 'rh', 'financeiro', 'gestor'),
     ):
         raise PermissionDenied
-    arquivo = get_object_or_404(ArquivoImportado, pk=pk)
     return redirect(arquivo.arquivo.url)
 
 
@@ -111,7 +118,7 @@ def revisar_arquivo_importado(request, pk):
     if not user_has_access(
         request.user,
         permission='core.change_arquivoimportado',
-        profiles=('rh', 'financeiro', 'gestor'),
+        profiles=('admin', 'rh', 'financeiro', 'gestor'),
     ):
         raise PermissionDenied
     arquivo = get_object_or_404(ArquivoImportado.objects.select_for_update(), pk=pk)
@@ -267,6 +274,12 @@ def dashboard(request):
         profiles=('rh',),
         groups=('Admissional_RH',),
     )
+    pode_ver_presenca = user_has_access(
+        request.user,
+        permission='admissional.change_presencadiaria',
+        profiles=('rh', 'gestor'),
+        groups=('Admissional_RH',),
+    )
 
     # Perfil do usuário (pode não existir em modo demo)
     perfil = None
@@ -276,11 +289,16 @@ def dashboard(request):
         logger.debug('Usuario sem perfil associado', exc_info=True)
         pass
 
+    try:
+        from sesmet.services import sincronizar_alertas_epi
+        sincronizar_alertas_epi()
+    except Exception:
+        logger.exception('Falha ao sincronizar alertas de EPI no dashboard')
+
     # Todos os KPIs são protegidos — se o banco não estiver disponível,
     # retorna zeros e listas vazias (modo demo sem Supabase)
     try:
         from django.db.models import F as Fcompras
-
         # Módulo 1 - Recrutamento
         vagas_abertas       = Vaga.objects.exclude(status__in=['preenchida', 'cancelada']).count()
         vagas_em_selecao    = Vaga.objects.filter(status='em_selecao').count()
@@ -294,6 +312,13 @@ def dashboard(request):
             .com_documentacao_incompleta().count()
             if pode_ver_documentos_pendentes else 0
         )
+        presencas_definidas_hoje = PresencaDiaria.objects.filter(
+            data=hoje,
+        ).exclude(status='indefinido').values('colaborador_id').distinct().count()
+        presencas_nao_definidas = (
+            max(0, colaboradores_ativos - presencas_definidas_hoje)
+            if pode_ver_presenca else 0
+        )
 
         # Módulo 3 - Administrativo
         demandas_abertas  = DemandaAdministrativa.objects.exclude(status__in=['arquivada']).count()
@@ -301,11 +326,15 @@ def dashboard(request):
             prioridade='urgente').exclude(status='arquivada').count()
 
         # Módulo 4 - SESMET
-        epis_vencidos    = RegistroEPI.objects.filter(data_validade__lt=hoje, tipo_movimentacao='retirada').count()
+        epis_vencidos    = RegistroEPI.objects.filter(
+            data_validade__lt=hoje,
+            tipo_movimentacao='retirada',
+            ciclo_ativo=True,
+        ).count()
         epis_vencendo_7d = RegistroEPI.objects.filter(
             data_validade__gte=hoje,
             data_validade__lte=hoje + timezone.timedelta(days=7),
-            tipo_movimentacao='retirada').count()
+            tipo_movimentacao='retirada', ciclo_ativo=True).count()
 
         # Módulo 5 - Compras
         solicitacoes_pendentes = SolicitacaoMaterial.objects.filter(
@@ -354,6 +383,7 @@ def dashboard(request):
         vagas_abertas = vagas_em_selecao = candidatos_pendentes = 0
         admissoes_em_andamento = colaboradores_ativos = 0
         documentos_incompletos = 0
+        presencas_nao_definidas = 0
         demandas_abertas = demandas_urgentes = 0
         epis_vencidos = epis_vencendo_7d = 0
         solicitacoes_pendentes = materiais_criticos = 0
@@ -373,6 +403,8 @@ def dashboard(request):
         'colaboradores_ativos': colaboradores_ativos,
         'documentos_incompletos': documentos_incompletos,
         'pode_ver_documentos_pendentes': pode_ver_documentos_pendentes,
+        'pode_ver_presenca': pode_ver_presenca,
+        'presencas_nao_definidas': presencas_nao_definidas,
         'demandas_abertas': demandas_abertas,
         'demandas_urgentes': demandas_urgentes,
         'epis_vencidos': epis_vencidos,
@@ -402,6 +434,66 @@ def dashboard(request):
 def ajuda(request):
     """Guia leve e contextual, disponível a todos os perfis do ERP."""
     return render(request, 'core/ajuda.html')
+
+
+@login_required
+def assistente_erp(request):
+    """Assistente provisoria: consulta local e documentos sempre sob revisao."""
+    resposta = ''
+    if request.method == 'POST':
+        acao = request.POST.get('acao', '')
+        if acao == 'perguntar':
+            pergunta = request.POST.get('pergunta', '').strip()[:500]
+            resposta = responder_pergunta(request.user, pergunta)
+        elif acao == 'documento':
+            try:
+                key = verify_direct_upload(request, 'assistente_documento', required=True)
+                nome = request.POST.get(
+                    'direct_upload_assistente_documento_original_name', 'documento'
+                ).strip()
+                from pathlib import Path
+                nome = Path(nome).name[:255] or 'documento'
+                extensao_real = Path(key).suffix.lower()
+                if Path(nome).suffix.lower() != extensao_real:
+                    nome = f'{Path(nome).stem[:220]}{extensao_real}'
+                tipos = {'.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg'}
+                arquivo, criado = registrar_documento(
+                    request.user, key, nome, tipos.get(extensao_real, ''),
+                    request.POST.get('categoria', ''),
+                )
+                if criado:
+                    messages.success(request, 'Documento recebido e colocado em revisao. Nenhum cadastro foi alterado automaticamente.')
+                else:
+                    messages.info(request, 'Esse documento ja estava registrado; mantivemos apenas uma copia.')
+                return redirect(f'{reverse("assistente_erp")}?arquivo={arquivo.pk}')
+            except ValidationError as exc:
+                messages.error(request, exc.messages[0])
+            except Exception:
+                logger.exception('Falha ao registrar documento pelo assistente provisorio')
+                messages.error(request, 'Nao foi possivel analisar o documento. Tente novamente.')
+
+    permitidas = categorias_permitidas(request.user)
+    arquivo_id = request.GET.get('arquivo', '')
+    arquivo_atual = None
+    if arquivo_id.isdigit():
+        arquivo_atual = ArquivoImportado.objects.filter(
+            pk=int(arquivo_id), importado_por=request.user
+        ).first()
+    recentes = ArquivoImportado.objects.filter(importado_por=request.user)[:8]
+    pode_revisar_pagamento = user_has_access(
+        request.user,
+        permission='core.change_arquivoimportado',
+        profiles=('admin', 'rh', 'financeiro', 'gestor'),
+    )
+    return render(request, 'core/assistente_erp.html', {
+        'resposta': resposta,
+        'pergunta': request.POST.get('pergunta', '')[:500],
+        'categorias': [item for item in ArquivoImportado.CATEGORIAS if item[0] in permitidas],
+        'arquivos_recentes': recentes,
+        'arquivo_atual': arquivo_atual,
+        'pode_revisar_pagamento': pode_revisar_pagamento,
+        'ia_configurada': False,
+    })
 
 
 @login_required
@@ -611,6 +703,7 @@ def painel_sla_processos(request):
         return redirect('dashboard')
 
     agora = timezone.now()
+    hoje_sla = timezone.localdate()
     processos = []
 
     # 1. Aprovações Genéricas Pendentes
@@ -770,7 +863,7 @@ def painel_sla_processos(request):
             'url': reverse('lista_manutencoes'),
         })
 
-    # 10. Pendências de integração e assinatura do SESMET
+    # 10. Pendências de integração e ciclos de EPI do SESMET
     for integracao in IntegracaoSeguranca.objects.filter(
         concluida=False, colaborador__status='ativo'
     ).select_related('colaborador').only(
@@ -786,18 +879,22 @@ def painel_sla_processos(request):
         })
 
     for registro in RegistroEPI.objects.filter(
-        tipo_movimentacao='retirada', assinado=False, colaborador__status='ativo'
+        tipo_movimentacao='retirada',
+        ciclo_ativo=True,
+        data_validade__lte=hoje_sla + timezone.timedelta(days=15),
+        colaborador__status='ativo',
     ).select_related('colaborador', 'equipamento', 'registrado_por').only(
-        'criado_em', 'colaborador__nome', 'equipamento__nome',
+        'criado_em', 'data_validade', 'colaborador__nome', 'equipamento__nome',
         'registrado_por__first_name', 'registrado_por__last_name',
     ):
+        dias = (registro.data_validade - hoje_sla).days
         processos.append({
-            'tipo': 'Entrega de EPI', 'modulo': 'SESMET',
+            'tipo': 'Ciclo de EPI', 'modulo': 'SESMET',
             'titulo': f'{registro.colaborador.nome} - {registro.equipamento.nome}',
-            'status': 'Aguardando assinatura',
+            'status': 'Prazo vencido' if dias < 0 else f'Vence em {dias} dia(s)',
             'responsavel': registro.registrado_por.get_full_name() if registro.registrado_por else 'SESMET',
             'criado_em': registro.criado_em,
-            'url': reverse('assinar_epi', args=[registro.pk]),
+            'url': reverse('dashboard_sesmet'),
         })
 
     for ordem in OrdemServico.objects.filter(

@@ -1,4 +1,6 @@
 """ERP Grupo PremiumBR — Views do Módulo 4: SESMET"""
+import logging
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -11,9 +13,15 @@ from core.direct_uploads import assign_direct_upload
 from core.validators import validate_image_upload
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Prefetch
 import base64
 import binascii
 import uuid
+
+from .services import sincronizar_alertas_epi
+
+
+logger = logging.getLogger(__name__)
 
 def registrar_log(usuario, acao, detalhes):
     if usuario.is_authenticated:
@@ -32,20 +40,24 @@ def _aplicar_foto_equipamento(equipamento, request):
 
 @login_required
 def dashboard_sesmet(request):
-    hoje = timezone.now().date()
+    hoje = timezone.localdate()
+    try:
+        sincronizar_alertas_epi()
+    except Exception:
+        logger.exception('Falha ao sincronizar alertas de EPI')
     # Verifica epis que o colaborador retirou e não devolveu
-    epis_vencidos = RegistroEPI.objects.filter(tipo_movimentacao='retirada', data_validade__lt=hoje)
-    epis_vencendo = RegistroEPI.objects.filter(
-        tipo_movimentacao='retirada',
+    epis_ativos = RegistroEPI.objects.filter(
+        tipo_movimentacao='retirada', ciclo_ativo=True
+    ).select_related('colaborador', 'equipamento', 'registrado_por')
+    epis_vencidos = epis_ativos.filter(data_validade__lt=hoje)
+    epis_vencendo = epis_ativos.filter(
         data_validade__gte=hoje,
-        data_validade__lte=hoje + timezone.timedelta(days=7)
+        data_validade__lte=hoje + timezone.timedelta(days=15)
     )
-    nao_assinados = RegistroEPI.objects.filter(tipo_movimentacao='retirada', assinado=False)
     
     return render(request, 'sesmet/dashboard.html', {
         'epis_vencidos': epis_vencidos,
         'epis_vencendo': epis_vencendo,
-        'nao_assinados': nao_assinados,
         'total_colaboradores': Colaborador.objects.filter(status='ativo').count(),
         'total_epis_ativos': EquipamentoProtecao.objects.count(),
         'hoje': hoje,
@@ -69,29 +81,13 @@ def registrar_epi(request, colaborador_pk=None):
         equip_pk = request.POST.get('equipamento')
         equipamento = get_object_or_404(EquipamentoProtecao, pk=equip_pk)
         
-        from datetime import datetime
-        try:
-            data_movimentacao_obj = datetime.strptime(
-                request.POST.get('data_movimentacao', ''), '%Y-%m-%d'
-            ).date()
-            quantidade = int(request.POST.get('quantidade', 1))
-        except (ValueError, TypeError):
-            messages.error(request, 'Data ou quantidade invalida.')
-            return redirect('registrar_epi')
-        tipo_movimentacao = request.POST.get('tipo_movimentacao', 'retirada')
-        tipos_validos = {value for value, _ in RegistroEPI.TIPO_MOVIMENTACAO}
-        if quantidade <= 0 or tipo_movimentacao not in tipos_validos:
-            messages.error(request, 'Quantidade ou tipo de movimentacao invalido.')
-            return redirect('registrar_epi')
-        
         epi = RegistroEPI(
             colaborador=colab,
             equipamento=equipamento,
-            tipo_movimentacao=tipo_movimentacao,
-            data_movimentacao=data_movimentacao_obj,
-            quantidade=quantidade,
+            tipo_movimentacao='retirada',
+            data_movimentacao=timezone.localdate(),
+            quantidade=1,
             registrado_por=request.user,
-            obs=request.POST.get('obs', ''),
         )
         try:
             epi.save()
@@ -99,26 +95,34 @@ def registrar_epi(request, colaborador_pk=None):
             messages.error(request, exc.messages[0])
             return redirect('registrar_epi')
         
-        registrar_log(request.user, "MOVIMENTACAO_EPI", f"{epi.get_tipo_movimentacao_display()} de {equipamento.nome} para {colab.nome}")
+        registrar_log(request.user, "ENTREGA_EPI", f"Entrega de {equipamento.nome} para {colab.nome}")
         
         messages.success(request,
-            f'✅ Movimentação registrada: {epi.get_tipo_movimentacao_display()} de {equipamento.nome} para {colab.nome}.')
+            f'✅ Entrega confirmada: {equipamento.nome} para {colab.nome}. '
+            f'O ciclo de 90 dias termina em {epi.data_validade:%d/%m/%Y}.')
         return redirect('dashboard_sesmet')
 
     colaboradores = Colaborador.objects.filter(status='ativo')
-    equipamentos = EquipamentoProtecao.objects.all()
+    equipamentos = EquipamentoProtecao.objects.filter(estoque_atual__gt=0)
     
     return render(request, 'sesmet/registrar_epi.html', {
         'colaborador': colaborador,
         'colaboradores': colaboradores,
         'equipamentos': equipamentos,
-        'tipos_movimentacao': RegistroEPI.TIPO_MOVIMENTACAO,
     })
 
 @login_required
 def matriz_epis(request):
-    hoje = timezone.now().date()
-    colaboradores = Colaborador.objects.filter(status='ativo').prefetch_related('movimentacoes_epi')
+    hoje = timezone.localdate()
+    colaboradores = Colaborador.objects.filter(status='ativo').prefetch_related(
+        Prefetch(
+            'movimentacoes_epi',
+            queryset=RegistroEPI.objects.filter(
+                tipo_movimentacao='retirada', ciclo_ativo=True
+            ).select_related('equipamento', 'registrado_por'),
+            to_attr='epis_ativos',
+        )
+    )
     return render(request, 'sesmet/matriz_epis.html', {
         'colaboradores': colaboradores,
         'hoje': hoje,
@@ -202,20 +206,18 @@ def catalogo_equipamentos(request):
 def novo_equipamento(request):
     if request.method == 'POST':
         try:
-            dias_durabilidade = int(request.POST.get('dias_durabilidade', 30))
             estoque_atual = int(request.POST.get('estoque_atual', 0))
         except (TypeError, ValueError):
-            dias_durabilidade = 0
             estoque_atual = -1
-        if dias_durabilidade <= 0 or estoque_atual < 0 or not request.POST.get('nome', '').strip():
-            messages.error(request, 'Nome, durabilidade ou estoque invalido.')
+        if estoque_atual < 0 or not request.POST.get('nome', '').strip():
+            messages.error(request, 'Nome ou estoque inválido.')
             return render(request, 'sesmet/form_equipamento.html', {'equip': None})
         equip = EquipamentoProtecao(
             nome=request.POST['nome'],
             numero_ca=request.POST.get('numero_ca', ''),
             fabricante=request.POST.get('fabricante', ''),
             validade_ca=request.POST.get('validade_ca') or None,
-            dias_durabilidade=dias_durabilidade,
+            dias_durabilidade=90,
             estoque_atual=estoque_atual,
         )
         try:
@@ -237,19 +239,17 @@ def editar_equipamento(request, pk):
     equip = get_object_or_404(EquipamentoProtecao, pk=pk)
     if request.method == 'POST':
         try:
-            dias_durabilidade = int(request.POST.get('dias_durabilidade', 30))
             estoque_atual = int(request.POST.get('estoque_atual', 0))
         except (TypeError, ValueError):
-            dias_durabilidade = 0
             estoque_atual = -1
-        if dias_durabilidade <= 0 or estoque_atual < 0 or not request.POST.get('nome', '').strip():
-            messages.error(request, 'Nome, durabilidade ou estoque invalido.')
+        if estoque_atual < 0 or not request.POST.get('nome', '').strip():
+            messages.error(request, 'Nome ou estoque inválido.')
             return render(request, 'sesmet/form_equipamento.html', {'equip': equip})
         equip.nome = request.POST['nome']
         equip.numero_ca = request.POST.get('numero_ca', '')
         equip.fabricante = request.POST.get('fabricante', '')
         equip.validade_ca = request.POST.get('validade_ca') or None
-        equip.dias_durabilidade = dias_durabilidade
+        equip.dias_durabilidade = 90
         equip.estoque_atual = estoque_atual
         try:
             _aplicar_foto_equipamento(equip, request)

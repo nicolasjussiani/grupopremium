@@ -58,6 +58,14 @@ class AcessoModuloMiddleware(MiddlewareMixin):
         if user_is_executive(request.user):
             return None
 
+        acesso_folha_financeiro = (
+            path.startswith('/admissional/colaboradores/pagamentos/')
+            and (
+                perfil == 'financeiro'
+                or request.user.has_perm('admissional.view_pagamentocolaborador')
+            )
+        )
+
         if (
             request.is_intermediario
             and path.startswith(('/recrutamento/', '/admissional/'))
@@ -80,6 +88,7 @@ class AcessoModuloMiddleware(MiddlewareMixin):
             )
             if (
                 path.startswith(prefix)
+                and not (prefix == '/admissional/' and acesso_folha_financeiro)
                 and perfil not in perfis_permitidos
                 and not possui_permissao
             ):

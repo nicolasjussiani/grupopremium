@@ -39,8 +39,8 @@
   <ol style="margin:14px 0 0 20px;line-height:1.8;color:var(--text-muted);">
     <li>No Catálogo de EPIs, escolha <strong>Novo EPI</strong>.</li>
     <li>Fotografe o equipamento e confira fabricante e número do CA na embalagem.</li>
-    <li>Informe durabilidade e estoque real. O código EPI é gerado automaticamente.</li>
-    {% if not is_estoque_compras %}<li>Na entrega, selecione colaborador, equipamento e quantidade; confira a validade calculada.</li>{% endif %}
+    <li>Informe o estoque real. O código EPI é gerado automaticamente.</li>
+    {% if not is_estoque_compras %}<li>Na entrega, selecione o colaborador e o produto recebido. O ciclo de 90 dias e os avisos são automáticos.</li>{% endif %}
   </ol>
 </details>
 {% endif %}

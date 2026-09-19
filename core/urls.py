@@ -7,6 +7,7 @@ from core import views_upload
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('ajuda/', views.ajuda, name='ajuda'),
+    path('assistente/', views.assistente_erp, name='assistente_erp'),
     path('cadastros/', views.cadastros_gerais, name='cadastros_gerais'),
     path('cadastros/fornecedores/novo/', views.novo_fornecedor, name='novo_fornecedor'),
     path('cadastros/fornecedores/<int:pk>/editar/', views.editar_fornecedor, name='editar_fornecedor'),

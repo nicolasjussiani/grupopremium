@@ -6,7 +6,7 @@
 {% block content %}
 <div class="module-banner mod-banner-4" style="margin-bottom:20px;">
   <div class="mod-title">📊 Matriz de EPIs por Colaborador</div>
-  <div class="mod-desc">Visão consolidada de validade e conformidade de todos os EPIs</div>
+  <div class="mod-desc">Ciclos ativos de 90 dias e responsável por cada entrega</div>
 </div>
 
 <div style="margin-bottom:16px;display:flex;gap:12px;align-items:center;">
@@ -29,25 +29,25 @@
       </div>
     </div>
 
-    {% with epis=colaborador.epis.all %}
+    {% with epis=colaborador.epis_ativos %}
     {% if epis %}
     <div class="table-wrap" style="border:none;">
       <table>
         <thead>
           <tr>
-            <th>Tipo EPI</th>
+            <th>Produto recebido</th>
             <th>Data Entrega</th>
-            <th>Validade</th>
+            <th>Fim do ciclo</th>
             <th>Nº CA</th>
             <th>Status</th>
-            <th>Assinado</th>
+            <th>Registrado por</th>
           </tr>
         </thead>
         <tbody>
           {% for epi in epis %}
           <tr>
-            <td style="font-weight:600;">{{ epi.get_tipo_epi_display }}</td>
-            <td style="font-size:0.82rem;">{{ epi.data_entrega|date:"d/m/Y" }}</td>
+            <td style="font-weight:600;">{{ epi.equipamento.nome }}</td>
+            <td style="font-size:0.82rem;">{{ epi.data_movimentacao|date:"d/m/Y" }}</td>
             <td style="font-size:0.82rem;">
               {% if epi.data_validade %}
                 {% if epi.esta_vencido %}
@@ -62,19 +62,14 @@
                 <span style="color:var(--text-muted);">Avaliação</span>
               {% endif %}
             </td>
-            <td style="font-size:0.82rem;color:var(--text-muted);">{{ epi.numero_ca|default:"—" }}</td>
+            <td style="font-size:0.82rem;color:var(--text-muted);">{{ epi.equipamento.numero_ca|default:"—" }}</td>
             <td>
-              <span class="badge {% if epi.status == 'ativo' %}badge-success{% elif epi.status == 'vencido' %}badge-danger{% elif epi.status == 'substituido' %}badge-muted{% else %}badge-warning{% endif %}">
-                {{ epi.get_status_display }}
-              </span>
+              {% if epi.esta_vencido %}<span class="badge badge-danger">Vencido</span>
+              {% elif epi.dias_para_vencer <= 15 %}<span class="badge badge-warning">Próximo do prazo</span>
+              {% else %}<span class="badge badge-success">Em uso</span>{% endif %}
             </td>
             <td>
-              {% if epi.assinado %}
-                <span class="badge badge-success" style="margin-right: 5px;">✅ Sim</span>
-                <a href="{% url 'recibo_epi' epi.pk %}" class="btn btn-sm btn-outline">📄 Ver Recibo</a>
-              {% else %}
-                <a href="{% url 'assinar_epi' epi.pk %}" class="btn btn-sm" style="background-color: var(--mod4-cyan); color: #fff;">✍️ Assinar</a>
-              {% endif %}
+              {{ epi.registrado_por.get_full_name|default:epi.registrado_por.username|default:"Não informado" }}
             </td>
           </tr>
           {% endfor %}

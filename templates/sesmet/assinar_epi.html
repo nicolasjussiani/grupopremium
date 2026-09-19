@@ -60,11 +60,11 @@
     </div>
 
     <div style="margin-bottom: 20px; font-size: 0.9rem; line-height: 1.5;">
-      <p>Eu, <strong>{{ epi.colaborador.nome }}</strong>, declaro ter recebido o EPI <strong>{{ epi.get_tipo_epi_display }}</strong> em perfeitas condições de uso para a execução das minhas atividades na empresa.</p>
+      <p>Eu, <strong>{{ epi.colaborador.nome }}</strong>, declaro ter recebido o EPI <strong>{{ epi.equipamento.nome }}</strong> em perfeitas condições de uso para a execução das minhas atividades na empresa.</p>
       <ul style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px; padding-left: 20px;">
-        <li>Data de Entrega: {{ epi.data_entrega|date:"d/m/Y" }}</li>
+        <li>Data de Entrega: {{ epi.data_movimentacao|date:"d/m/Y" }}</li>
         <li>Quantidade: {{ epi.quantidade }}</li>
-        {% if epi.numero_ca %}<li>CA: {{ epi.numero_ca }}</li>{% endif %}
+        {% if epi.equipamento.numero_ca %}<li>CA: {{ epi.equipamento.numero_ca }}</li>{% endif %}
       </ul>
     </div>
 

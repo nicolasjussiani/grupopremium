@@ -30,8 +30,8 @@
     <div class="kpi-card" style="--kpi-color:var(--warning);">
       <div class="kpi-icon">⚠️</div>
       <div class="kpi-value" style="color:var(--warning);">{{ epis_vencendo|length }}</div>
-      <div class="kpi-label">Vencendo em 7 dias</div>
-      {% if nao_assinados %}<div class="kpi-sub">{{ nao_assinados|length }} não assinados</div>{% endif %}
+      <div class="kpi-label">Vencendo em 15 dias</div>
+      <div class="kpi-sub">Avisos automáticos para o SESMET</div>
     </div>
   </div>
 
@@ -85,7 +85,7 @@
   <!-- EPIs Vencendo -->
   <div class="card" style="border-top-color:var(--warning);">
     <div class="card-header">
-      <div class="card-title" style="color:var(--warning);">⚠️ Vencendo em 7 dias</div>
+      <div class="card-title" style="color:var(--warning);">⚠️ Vencendo em 15 dias</div>
       {% if epis_vencendo %}<span class="badge badge-warning">{{ epis_vencendo|length }}</span>{% endif %}
     </div>
 
@@ -117,50 +117,11 @@
     {% else %}
     <div style="text-align:center;padding:30px;color:var(--success);">
       <div style="font-size:2.5rem;">✅</div>
-      <p style="margin-top:10px;font-size:0.84rem;">Nenhum EPI vencendo nos próximos 7 dias.</p>
+      <p style="margin-top:10px;font-size:0.84rem;">Nenhum EPI vencendo nos próximos 15 dias.</p>
     </div>
     {% endif %}
   </div>
 </div>
-
-<!-- EPIs não assinados -->
-{% if nao_assinados %}
-<div class="card" style="margin-top:20px;border-top-color:var(--info);">
-  <div class="card-header">
-    <div class="card-title" style="color:var(--info);">🖊️ EPIs Aguardando Assinatura</div>
-    <span class="badge badge-info">{{ nao_assinados|length }}</span>
-  </div>
-  <div class="table-wrap" style="border:none;">
-    <table>
-      <thead>
-        <tr>
-          <th>Colaborador</th>
-          <th>EPI</th>
-          <th>Entrega</th>
-          <th>Registrado por</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for epi in nao_assinados %}
-        <tr>
-          <td style="font-weight:600;">{{ epi.colaborador.nome }}</td>
-          <td>{{ epi.equipamento.nome }}</td>
-          <td style="font-size:0.82rem;">{{ epi.data_movimentacao|date:"d/m/Y" }}</td>
-          <td style="font-size:0.82rem;color:var(--text-muted);">{{ epi.registrado_por.get_full_name|default:epi.registrado_por }}</td>
-          <td>
-            <form method="post" action="{% url 'assinar_epi' epi.pk %}" style="display:inline;">
-              {% csrf_token %}
-              <button type="submit" name="acao" value="assinar" class="btn btn-sm btn-success">✅ Assinar</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
 
 <!-- Catálogo de EPIs -->
 <div class="card" style="margin-top:20px; text-align: center; padding: 30px;">

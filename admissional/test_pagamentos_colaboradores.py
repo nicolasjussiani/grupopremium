@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from admissional.forms import PagamentoColaboradorForm
 from admissional.models import Colaborador, PagamentoColaborador, PresencaDiaria
+from core.models import PerfilUsuario
 
 
 class PagamentosColaboradoresTest(TestCase):
@@ -45,6 +46,15 @@ class PagamentosColaboradoresTest(TestCase):
         self.client.logout()
         response = self.client.get(reverse('lista_pagamentos_colaboradores'))
         self.assertEqual(response.status_code, 302)
+
+    def test_usuario_financeiro_acessa_folha_integrada(self):
+        financeiro = User.objects.create_user('financeiro_folha', password='senha-forte')
+        PerfilUsuario.objects.create(usuario=financeiro, perfil='financeiro')
+        self.client.force_login(financeiro)
+
+        response = self.client.get(reverse('lista_pagamentos_colaboradores'))
+
+        self.assertEqual(response.status_code, 200)
 
     def test_cadastra_pagamento_pendente(self):
         response = self.client.post(
@@ -227,7 +237,6 @@ class PagamentosColaboradoresTest(TestCase):
 
         self.assertContains(response, '80,00')
         self.assertNotContains(response, '2.000,00')
-
     def test_confirmacao_de_pagamento_nao_aceita_get(self):
         pagamento = PagamentoColaborador.objects.create(
             colaborador=self.colaborador,
@@ -267,3 +276,29 @@ class PagamentosColaboradoresTest(TestCase):
 
         self.assertContains(response, '2000,00')
         self.assertNotContains(response, '80,00')
+
+
+class PresencaNaoDefinidaTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser('admin_presenca', password='senha-forte')
+        self.client = Client()
+        self.client.force_login(self.user)
+        self.colaborador = Colaborador.objects.create(nome='Sem marcação', status='ativo')
+
+    def test_lista_sem_registro_aparece_como_nao_definido(self):
+        response = self.client.get(reverse('controle_presenca'), {
+            'data': '2026-09-18',
+        })
+
+        self.assertEqual(response.context['presencas'][0].status, 'indefinido')
+        self.assertEqual(response.context['total_nao_definidos'], 1)
+        self.assertContains(response, 'Não definido')
+
+    def test_exportacao_inclui_colaborador_sem_marcacao(self):
+        response = self.client.get(reverse('exportar_presenca_csv'), {
+            'data': '2026-09-18',
+        })
+
+        conteudo = response.content.decode()
+        self.assertIn('Sem marcação', conteudo)
+        self.assertIn('Não definido', conteudo)

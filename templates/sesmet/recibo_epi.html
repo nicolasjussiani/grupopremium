@@ -114,19 +114,15 @@
     </div>
     <div class="info-item">
       <div class="info-label">Equipamento Fornecido</div>
-      <div class="info-value" style="font-weight: 700;">{{ epi.get_tipo_epi_display }}</div>
+      <div class="info-value" style="font-weight: 700;">{{ epi.equipamento.nome }}</div>
     </div>
     <div class="info-item">
       <div class="info-label">Quantidade / CA</div>
-      <div class="info-value">{{ epi.quantidade }} un. {% if epi.numero_ca %}(CA: {{ epi.numero_ca }}){% endif %}</div>
-    </div>
-    <div class="info-item">
-      <div class="info-label">Motivo da Entrega</div>
-      <div class="info-value">{{ epi.get_motivo_substituicao_display }}</div>
+      <div class="info-value">{{ epi.quantidade }} un. {% if epi.equipamento.numero_ca %}(CA: {{ epi.equipamento.numero_ca }}){% endif %}</div>
     </div>
     <div class="info-item">
       <div class="info-label">Data de Entrega</div>
-      <div class="info-value">{{ epi.data_entrega|date:"d/m/Y" }}</div>
+      <div class="info-value">{{ epi.data_movimentacao|date:"d/m/Y" }}</div>
     </div>
   </div>
 

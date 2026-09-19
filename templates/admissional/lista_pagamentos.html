@@ -49,6 +49,7 @@
 </div>
 
 <div style="margin-bottom:20px;display:flex;gap:10px;flex-wrap:wrap;">
+  {% if can_view_financeiro %}<a href="{% url 'painel_financeiro' %}" class="btn btn-outline">← Painel Financeiro</a>{% endif %}
   <a href="{% url 'visao_beneficios_colaboradores' %}" class="btn btn-outline">Visualizar VT e ajuda de custo</a>
   {% if can_add_pagamento %}<a href="{% url 'novo_pagamento_colaborador' %}" class="btn btn-mod6">➕ Novo pagamento</a>{% endif %}
 </div>

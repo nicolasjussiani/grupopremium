@@ -433,6 +433,7 @@ class DocumentoAdmissional(models.Model):
 
 class PresencaDiaria(models.Model):
     STATUS_CHOICES = [
+        ('indefinido', 'Não definido'),
         ('presente', 'Presente'),
         ('falta', 'Falta'),
         ('atestado', 'Atestado/Licença'),
@@ -441,7 +442,7 @@ class PresencaDiaria(models.Model):
 
     colaborador = models.ForeignKey(Colaborador, on_delete=models.CASCADE, related_name='presencas')
     data = models.DateField(verbose_name='Data')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='presente')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='indefinido')
     observacao = models.TextField(blank=True, verbose_name='Observação')
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)

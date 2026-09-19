@@ -40,7 +40,7 @@ class EquipamentoProtecao(models.Model):
     numero_ca = models.CharField(max_length=20, blank=True, verbose_name='Número do CA')
     fabricante = models.CharField(max_length=150, blank=True)
     validade_ca = models.DateField(null=True, blank=True, verbose_name='Validade do CA')
-    dias_durabilidade = models.PositiveIntegerField(default=30, verbose_name='Durabilidade Estimada (dias)')
+    dias_durabilidade = models.PositiveIntegerField(default=90, verbose_name='Ciclo padrão (dias)')
     estoque_atual = models.IntegerField(default=0, verbose_name='Quantidade em Estoque')
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
@@ -66,6 +66,12 @@ class EquipamentoProtecao(models.Model):
             type(self).objects.filter(pk=self.pk).update(codigo=self.codigo)
 
 class RegistroEPI(models.Model):
+    NIVEIS_ALERTA = [
+        ('', 'Sem alerta'),
+        ('proximo', 'Vencimento próximo'),
+        ('urgente', 'Vencimento urgente'),
+        ('vencido', 'Vencido'),
+    ]
     TIPO_MOVIMENTACAO = [
         ('retirada', 'Retirada (Entrega)'),
         ('devolucao', 'Devolução'),
@@ -81,6 +87,14 @@ class RegistroEPI(models.Model):
     
     # Validade calculada no caso de 'retirada'
     data_validade = models.DateField(null=True, blank=True, verbose_name='Data de Vencimento Previsto')
+    ciclo_ativo = models.BooleanField(default=True, db_index=True, verbose_name='Ciclo de 90 dias ativo')
+    nivel_alerta = models.CharField(
+        max_length=10,
+        choices=NIVEIS_ALERTA,
+        default='',
+        blank=True,
+        verbose_name='Último alerta enviado',
+    )
     
     assinado = models.BooleanField(default=False, verbose_name='Colaborador Assinou?')
     assinatura_base64 = models.TextField(blank=True, null=True, verbose_name='Assinatura Digital')
@@ -102,9 +116,19 @@ class RegistroEPI(models.Model):
         return f"{self.get_tipo_movimentacao_display()} - {self.equipamento.nome} ({self.colaborador.nome})"
 
     def calcular_validade(self):
-        if self.tipo_movimentacao == 'retirada' and self.equipamento.dias_durabilidade:
-            return self.data_movimentacao + timedelta(days=self.equipamento.dias_durabilidade)
+        if self.tipo_movimentacao == 'retirada':
+            return self.data_movimentacao + timedelta(days=90)
         return None
+
+    @property
+    def dias_para_vencer(self):
+        if not self.data_validade:
+            return None
+        return (self.data_validade - timezone.localdate()).days
+
+    @property
+    def esta_vencido(self):
+        return self.dias_para_vencer is not None and self.dias_para_vencer < 0
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
@@ -127,9 +151,24 @@ class RegistroEPI(models.Model):
             if self.tipo_movimentacao == 'retirada':
                 if equipamento.estoque_atual < self.quantidade:
                     raise ValidationError('Estoque insuficiente para esta retirada.')
+                type(self).objects.filter(
+                    colaborador_id=self.colaborador_id,
+                    equipamento_id=self.equipamento_id,
+                    tipo_movimentacao='retirada',
+                    ciclo_ativo=True,
+                ).update(ciclo_ativo=False)
                 equipamento.estoque_atual -= self.quantidade
             elif self.tipo_movimentacao == 'devolucao':
                 equipamento.estoque_atual += self.quantidade
+                type(self).objects.filter(
+                    colaborador_id=self.colaborador_id,
+                    equipamento_id=self.equipamento_id,
+                    tipo_movimentacao='retirada',
+                    ciclo_ativo=True,
+                ).update(ciclo_ativo=False)
+                self.ciclo_ativo = False
+            else:
+                self.ciclo_ativo = False
             super().save(*args, **kwargs)
             equipamento.save(update_fields=['estoque_atual', 'atualizado_em'])
             self.equipamento = equipamento

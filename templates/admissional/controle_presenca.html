@@ -1,13 +1,21 @@
 {% extends 'base.html' %}
 {% block title %}Controle de Presença Diária — ERP Grupo PremiumBR{% endblock %}
-{% block nav_colaboradores %}active{% endblock %}
+{% block nav_presenca %}active{% endblock %}
 {% block topbar_title %}Controle de Presença Diária{% endblock %}
 
 {% block content %}
 <div class="module-banner mod-banner-2" style="margin-bottom:20px;">
   <div class="mod-title">?? Controle de Presença Diária</div>
-  <div class="mod-desc">Marque a presença dos colaboradores ativos para o dia selecionado.</div>
+  <div class="mod-desc">Quem ainda não foi atualizado aparece claramente como “Não definido”.</div>
 </div>
+
+<div class="kpi-grid" style="margin-bottom:20px;">
+  <div class="kpi-card"><div class="kpi-label">Colaboradores na lista</div><div class="kpi-value">{{ total_colaboradores_presenca }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Presença preenchida</div><div class="kpi-value">{{ total_definidos }}</div></div>
+  <div class="kpi-card" style="--kpi-color:var(--warning);"><div class="kpi-label">Não definidos</div><div class="kpi-value">{{ total_nao_definidos }}</div><div class="kpi-sub">Lista ainda não utilizada/completada</div></div>
+</div>
+
+{% if total_nao_definidos %}<div class="alert alert-warning" style="margin-bottom:20px;">⚠️ Existem {{ total_nao_definidos }} colaborador(es) sem definição nesta data.</div>{% endif %}
 
 <div class="card" style="margin-bottom: 20px;">
   <form method="get" class="flex gap-4 align-center">
@@ -29,11 +37,12 @@
 <form method="post">
     {% csrf_token %}
     <input type="hidden" name="data" value="{{ data_selecionada|date:'Y-m-d' }}">
+    <input type="hidden" name="unidade" value="{{ unidade_filter }}">
     <div class="card">
         <div style="overflow-x:auto;">
             <table class="table">
                 <thead>
-                    <tr>
+                    <tr {% if p.status == 'indefinido' %}style="background:rgba(245,158,11,.08);"{% endif %}>
                         <th>Colaborador</th>
                         <th>Cliente/Unidade</th>
                         <th>CPF/Matrícula</th>

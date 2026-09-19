@@ -28,7 +28,7 @@
         <th style="padding: 12px;">Nome do EPI</th>
         <th style="padding: 12px;">Fabricante</th>
         <th style="padding: 12px;">Número CA</th>
-        <th style="padding: 12px;">Durabilidade</th>
+        <th style="padding: 12px;">Ciclo</th>
         <th style="padding: 12px;">Estoque</th>
         <th style="padding: 12px; text-align: right;">Ações</th>
       </tr>
@@ -44,7 +44,7 @@
         <td style="padding: 12px; font-weight: 500;">{{ eq.nome }}</td>
         <td style="padding: 12px;">{{ eq.fabricante|default:"-" }}</td>
         <td style="padding: 12px;">{{ eq.numero_ca|default:"-" }}</td>
-        <td style="padding: 12px;">{{ eq.dias_durabilidade }} dias</td>
+        <td style="padding: 12px;">90 dias</td>
         <td style="padding: 12px;">
           <span class="badge {% if eq.estoque_atual <= 5 %}badge-danger{% else %}badge-success{% endif %}">
             {{ eq.estoque_atual }} und

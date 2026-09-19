@@ -248,15 +248,12 @@ class OperationalEndToEndTests(TestCase):
         response = self.client.post(reverse('registrar_epi'), {
             'colaborador': str(colaborador.pk),
             'equipamento': str(equipamento.pk),
-            'tipo_movimentacao': 'retirada',
-            'data_movimentacao': date.today().isoformat(),
-            'quantidade': '2',
-            'obs': 'Entrega de admissao',
         })
         self.assertEqual(response.status_code, 302)
         registro_epi = RegistroEPI.objects.get(colaborador=colaborador)
         equipamento.refresh_from_db()
-        self.assertEqual(equipamento.estoque_atual, 8)
+        self.assertEqual(equipamento.estoque_atual, 9)
+        self.assertEqual(registro_epi.data_validade, date.today() + timedelta(days=90))
 
         signature = 'data:image/png;base64,' + base64.b64encode(PNG_BYTES).decode()
         response = self.client.post(

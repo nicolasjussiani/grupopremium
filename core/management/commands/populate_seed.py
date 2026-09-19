@@ -229,7 +229,9 @@ class Command(BaseCommand):
 
     def _criar_colaboradores_admissoes(self):
         from admissional.models import Colaborador, Admissao, DocumentoAdmissional
-        from sesmet.models import RegistroEPI, OrdemServico, IntegracaoSeguranca
+        from sesmet.models import (
+            EquipamentoProtecao, IntegracaoSeguranca, OrdemServico, RegistroEPI,
+        )
         self.stdout.write('  🏢 Criando colaboradores e EPIs...')
 
         rh = User.objects.get(username='carlos.rh')
@@ -274,22 +276,28 @@ class Command(BaseCommand):
 
             # EPIs para cada colaborador
             epis_config = [
-                {'tipo_epi': 'luva', 'motivo': 'inicial', 'dias_atras': 25, 'num_ca': 'CA-12345'},
-                {'tipo_epi': 'calcado', 'motivo': 'inicial', 'dias_atras': 90, 'num_ca': 'CA-23456'},
-                {'tipo_epi': 'protetor_auricular', 'motivo': 'inicial', 'dias_atras': 80, 'num_ca': 'CA-34567'},
-                {'tipo_epi': 'oculos', 'motivo': 'inicial', 'dias_atras': 90, 'num_ca': 'CA-45678'},
-                {'tipo_epi': 'uniforme', 'motivo': 'inicial', 'dias_atras': 90, 'num_ca': ''},
+                {'nome': 'Luva', 'dias_atras': 25, 'num_ca': 'CA-12345'},
+                {'nome': 'Calçado de Segurança', 'dias_atras': 90, 'num_ca': 'CA-23456'},
+                {'nome': 'Protetor Auricular', 'dias_atras': 80, 'num_ca': 'CA-34567'},
+                {'nome': 'Óculos de Proteção', 'dias_atras': 90, 'num_ca': 'CA-45678'},
+                {'nome': 'Uniforme', 'dias_atras': 90, 'num_ca': ''},
             ]
             for ep in epis_config:
                 data_ent = hoje - timedelta(days=ep['dias_atras'])
+                equipamento, _ = EquipamentoProtecao.objects.get_or_create(
+                    nome=ep['nome'],
+                    defaults={
+                        'numero_ca': ep['num_ca'],
+                        'dias_durabilidade': 90,
+                        'estoque_atual': 100,
+                    },
+                )
                 epi, _ = RegistroEPI.objects.get_or_create(
                     colaborador=colab,
-                    tipo_epi=ep['tipo_epi'],
-                    data_entrega=data_ent,
+                    equipamento=equipamento,
+                    data_movimentacao=data_ent,
                     defaults={
                         'quantidade': 1,
-                        'numero_ca': ep['num_ca'],
-                        'motivo_substituicao': ep['motivo'],
                         'assinado': True,
                         'registrado_por': sesmet,
                     }
@@ -325,17 +333,19 @@ class Command(BaseCommand):
                 }
             )
 
-        # EPI vencido para demonstração (respirador P2 — validade 3 dias)
+        # EPI vencido para demonstração (ciclo fixo de 90 dias)
         rafael = Colaborador.objects.filter(cpf='001.234.567-89').first()
         if rafael:
+            respirador, _ = EquipamentoProtecao.objects.get_or_create(
+                nome='Respirador P2',
+                defaults={'numero_ca': 'CA-56789', 'estoque_atual': 100},
+            )
             RegistroEPI.objects.get_or_create(
                 colaborador=rafael,
-                tipo_epi='respirador_p2',
-                data_entrega=hoje - timedelta(days=10),
+                equipamento=respirador,
+                data_movimentacao=hoje - timedelta(days=95),
                 defaults={
-                    'quantidade': 2,
-                    'numero_ca': 'CA-56789',
-                    'motivo_substituicao': 'inicial',
+                    'quantidade': 1,
                     'assinado': True,
                     'registrado_por': sesmet,
                 }

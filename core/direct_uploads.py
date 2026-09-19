@@ -24,6 +24,7 @@ UPLOAD_RULES = {
     'arquivo_colaborador': ('_temporarios/admissional/documentos-colaboradores', 'document'),
     'documento': ('_temporarios/compras/requisicoes/documentos', 'document'),
     'comprovante_pagamento': ('_temporarios/compras/requisicoes/comprovantes', 'document'),
+    'assistente_documento': ('_temporarios/assistente/documentos', 'document'),
 }
 
 DOCUMENT_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}

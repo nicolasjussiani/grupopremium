@@ -257,6 +257,7 @@ class FullSiteRouteTests(TestCase):
             ('logout', (), 405),
             ('dashboard', (), 200),
             ('ajuda', (), 200),
+            ('assistente_erp', (), 200),
             ('cadastros_gerais', (), 200),
             ('novo_fornecedor', (), 200),
             ('editar_fornecedor', (self.fornecedor.pk,), 200),
@@ -390,6 +391,10 @@ class FullSiteRouteTests(TestCase):
         Vaga.objects.filter(pk=self.vaga.pk).update(
             criado_em=timezone.now() - timedelta(days=8)
         )
+        RegistroEPI.objects.filter(pk=self.registro_epi.pk).update(
+            ciclo_ativo=True,
+            data_validade=date.today() + timedelta(days=3),
+        )
         IntegracaoSeguranca.objects.create(
             colaborador=self.colaborador,
             data_integracao=date.today(),
@@ -415,7 +420,7 @@ class FullSiteRouteTests(TestCase):
             'Aprovação Genérica', 'Pedido de Compra', 'Documento Financeiro',
             'Vaga', 'Admissão', 'Demanda Administrativa',
             'Solicitação de Material', 'Lançamento ERP', 'Manutenção',
-            'Entrega de EPI', 'Integração de Segurança', 'Ordem de Serviço',
+            'Ciclo de EPI', 'Integração de Segurança', 'Ordem de Serviço',
         })
         self.assertContains(response, 'Resumo por área')
         self.assertContains(response, 'Distribuição por tempo')

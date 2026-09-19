@@ -60,6 +60,10 @@
         <span class="nav-icon">❓</span>
         Central de Ajuda
       </a>
+      <a href="{% url 'assistente_erp' %}" class="nav-item {% block nav_assistente %}{% endblock %}">
+        <span class="nav-icon">AI</span>
+        Assistente do ERP
+      </a>
       <a href="{% url 'cadastros_gerais' %}" class="nav-item {% block nav_cadastros %}{% endblock %}">
         <span class="nav-icon">🏬</span>
         Fornecedores e Unidades
@@ -452,6 +456,22 @@ window.uploadFileDirectly = async function(input, form) {
   hidden.value = presign.token;
   hidden.setAttribute('value', presign.token);
   input.dataset.directUploadToken = presign.token;
+  let originalName = form.querySelector(`input[name="direct_upload_${input.name}_original_name"]`);
+  if (!originalName) {
+    originalName = document.createElement('input');
+    originalName.type = 'hidden';
+    originalName.name = `direct_upload_${input.name}_original_name`;
+    form.appendChild(originalName);
+  }
+  originalName.value = file.name;
+  let originalType = form.querySelector(`input[name="direct_upload_${input.name}_content_type"]`);
+  if (!originalType) {
+    originalType = document.createElement('input');
+    originalType.type = 'hidden';
+    originalType.name = `direct_upload_${input.name}_content_type`;
+    form.appendChild(originalType);
+  }
+  originalType.value = contentType;
   input.disabled = true;
   return presign.token;
 };

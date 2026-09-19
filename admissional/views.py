@@ -393,6 +393,11 @@ def lista_pagamentos_colaboradores(request):
             permission='admissional.change_pagamentocolaborador',
             profiles=('rh', 'financeiro', 'gestor'),
         ),
+        'can_view_financeiro': user_has_access(
+            request.user,
+            permission='financeiro.view_documentofinanceiro',
+            profiles=('financeiro', 'gestor'),
+        ),
     })
 
 
@@ -767,7 +772,9 @@ from .models import PresencaDiaria
 def controle_presenca(request):
     from datetime import datetime
     data_str = request.GET.get('data') or request.POST.get('data')
-    unidade_filter = request.GET.get('unidade', '')
+    unidade_filter = (
+        request.GET.get('unidade') or request.POST.get('unidade') or ''
+    ).strip()[:100]
     
     if data_str:
         try:
@@ -806,19 +813,28 @@ def controle_presenca(request):
     if unidade_filter:
         colaboradores = colaboradores.filter(unidade__icontains=unidade_filter)
         
-    presencas = []
-    for c in colaboradores:
-        p = PresencaDiaria.objects.filter(colaborador=c, data=data_selecionada).first()
-        if not p:
-            p = PresencaDiaria(colaborador=c, data=data_selecionada)
-        p.status_choices = PresencaDiaria.STATUS_CHOICES
-        presencas.append(p)
+    colaboradores = list(colaboradores)
+    registros = {
+        presenca.colaborador_id: presenca
+        for presenca in PresencaDiaria.objects.filter(
+            colaborador_id__in=[c.pk for c in colaboradores],
+            data=data_selecionada,
+        )
+    }
+    presencas = [
+        registros.get(c.pk) or PresencaDiaria(colaborador=c, data=data_selecionada)
+        for c in colaboradores
+    ]
+    total_nao_definidos = sum(p.status == 'indefinido' for p in presencas)
         
     return render(request, 'admissional/controle_presenca.html', {
         'presencas': presencas,
         'data_selecionada': data_selecionada,
         'unidade_filter': unidade_filter,
         'status_choices': PresencaDiaria.STATUS_CHOICES,
+        'total_nao_definidos': total_nao_definidos,
+        'total_definidos': len(presencas) - total_nao_definidos,
+        'total_colaboradores_presenca': len(presencas),
     })
 
 @login_required
@@ -837,23 +853,32 @@ def exportar_presenca_csv(request):
     writer = csv.writer(response)
     writer.writerow(['Data', 'Colaborador', 'CPF/Matricula', 'Cliente/Unidade', 'Cidade/UF', 'Status', 'Observacao'])
     
-    presencas = PresencaDiaria.objects.filter(data=data_filtro)
+    colaboradores = Colaborador.objects.filter(status='ativo')
     if unidade_filter:
-        presencas = presencas.filter(colaborador__unidade__icontains=unidade_filter)
-        
-    for p in presencas:
+        colaboradores = colaboradores.filter(unidade__icontains=unidade_filter)
+    colaboradores = list(colaboradores)
+    presencas = {
+        p.colaborador_id: p
+        for p in PresencaDiaria.objects.filter(
+            data=data_filtro,
+            colaborador_id__in=[c.pk for c in colaboradores],
+        )
+    }
+
+    for colaborador in colaboradores:
+        p = presencas.get(colaborador.pk)
         def csv_safe(value):
             text = str(value or '')
             return "'" + text if text.startswith(('=', '+', '-', '@')) else text
 
         writer.writerow([
-            p.data.strftime("%d/%m/%Y"),
-            csv_safe(p.colaborador.nome),
-            csv_safe(p.colaborador.cpf),
-            csv_safe(p.colaborador.unidade),
-            csv_safe(p.colaborador.cidade if hasattr(p.colaborador, 'cidade') else ''),
-            p.get_status_display(),
-            csv_safe(p.observacao),
+            data_filtro.strftime("%d/%m/%Y"),
+            csv_safe(colaborador.nome),
+            csv_safe(colaborador.cpf),
+            csv_safe(colaborador.unidade),
+            '',
+            p.get_status_display() if p else 'Não definido',
+            csv_safe(p.observacao if p else ''),
         ])
     return response
 

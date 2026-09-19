@@ -16,7 +16,7 @@
       <ol style="margin:10px 0 0 20px;color:var(--text-muted);line-height:1.7;">
         <li>Adicione uma foto nítida do EPI.</li>
         <li>Confira no produto o nome, fabricante e número do CA.</li>
-        <li>Informe durabilidade e quantidade física disponível.</li>
+        <li>Informe a quantidade física disponível; o ciclo será sempre de 90 dias.</li>
         <li>Salve. O código EPI será criado automaticamente.</li>
       </ol>
     </div>
@@ -51,9 +51,9 @@
     </div>
     <div class="form-grid">
       <div class="form-group">
-        <label class="form-label">Durabilidade (dias) <span class="required">*</span></label>
-        <input type="number" name="dias_durabilidade" class="form-control" required min="1" value="{% if request.POST.dias_durabilidade %}{{ request.POST.dias_durabilidade }}{% elif equip %}{{ equip.dias_durabilidade }}{% else %}30{% endif %}">
-        <small style="color:var(--text-muted);">Usado para calcular quando o EPI vence.</small>
+        <label class="form-label">Ciclo de substituição</label>
+        <input type="text" class="form-control" value="90 dias (automático)" disabled>
+        <small style="color:var(--text-muted);">Todas as entregas usam o mesmo ciclo de 90 dias.</small>
       </div>
       <div class="form-group"><label class="form-label">Quantidade em estoque</label><input type="number" name="estoque_atual" class="form-control" min="0" value="{% if request.POST.estoque_atual %}{{ request.POST.estoque_atual }}{% elif equip %}{{ equip.estoque_atual }}{% else %}0{% endif %}"></div>
     </div>

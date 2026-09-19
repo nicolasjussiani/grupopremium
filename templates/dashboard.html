@@ -114,6 +114,15 @@
   {% endif %}
   {% endif %}
 
+  {% if pode_ver_presenca %}
+  <a href="{% url 'controle_presenca' %}" class="kpi-card kpi-mod2 kpi-card-custom" style="text-decoration:none;">
+    <div class="kpi-icon">📅</div>
+    <div class="kpi-value">{{ presencas_nao_definidas }}</div>
+    <div class="kpi-label" style="font-weight:600;">Presenças não definidas hoje</div>
+    <div class="kpi-sub">{% if presencas_nao_definidas %}A lista ainda não foi completada{% else %}Lista do dia preenchida{% endif %}</div>
+  </a>
+  {% endif %}
+
   {% if is_visao_executiva or request.user.perfil.perfil == 'gestor' %}
   <a href="{% url 'lista_demandas' %}" class="kpi-card kpi-mod3 kpi-card-custom" style="text-decoration:none;">
     <div class="kpi-icon" style="opacity: 0.8;">
