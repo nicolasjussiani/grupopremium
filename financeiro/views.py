@@ -153,11 +153,6 @@ def entrada_documento(request):
             doc.arquivo = arquivo_upload
         elif direct_key:
             doc.arquivo.name = direct_key
-        else:
-            messages.error(request, 'Envie o documento em PDF ou imagem valida.')
-            return render(request, 'financeiro/entrada_documento.html', {
-                'tipos': DocumentoFinanceiro.TIPOS,
-            })
 
         try:
             doc.full_clean()

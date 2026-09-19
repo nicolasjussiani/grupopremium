@@ -40,6 +40,18 @@ class EntradaDocumentoOpcionalTests(TestCase):
         self.assertIsNone(documento.data_vencimento)
         self.assertEqual(documento.auditoria.count(), len(AuditoriaItem.ITENS_CHECKLIST))
 
+    def test_novo_documento_aceita_cadastro_sem_pdf(self):
+        response = self.client.post(reverse('entrada_documento'), {
+            'tipo': 'nota_fiscal',
+            'numero_documento': 'NF-SEM-PDF-001',
+            'descricao': 'Documento cadastrado sem anexo',
+            'valor': '89.90',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        documento = DocumentoFinanceiro.objects.get(numero_documento='NF-SEM-PDF-001')
+        self.assertFalse(documento.arquivo)
+
     def test_formulario_indica_campos_complementares_como_opcionais(self):
         response = self.client.get(reverse('entrada_documento'))
 
@@ -49,6 +61,10 @@ class EntradaDocumentoOpcionalTests(TestCase):
         )
         self.assertNotContains(
             response, 'name="data_vencimento" class="form-control" required'
+        )
+        self.assertContains(response, 'inclusive o PDF')
+        self.assertNotContains(
+            response, 'name="arquivo_pdf" accept="application/pdf" class="form-control" required'
         )
 
     def test_centro_de_custo_pode_ser_informado_no_lancamento(self):
