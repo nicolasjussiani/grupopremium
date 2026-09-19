@@ -267,6 +267,24 @@ def logout_view(request):
 @login_required
 def dashboard(request):
     hoje = timezone.now().date()
+    from core.assistant_navigation import (
+        answer_with_process, processes_for_user, recommend_process,
+    )
+
+    pergunta_ia = ''
+    resposta_ia = ''
+    processo_recomendado = None
+    if request.method == 'POST' and request.POST.get('acao') == 'perguntar_ia':
+        pergunta_ia = request.POST.get('pergunta', '').strip()[:500]
+        if pergunta_ia:
+            resposta_ia = answer_with_process(
+                request.user,
+                pergunta_ia,
+                responder_pergunta(request.user, pergunta_ia),
+            )
+            processo_recomendado = recommend_process(request.user, pergunta_ia)
+        else:
+            resposta_ia = 'Conte o que você precisa fazer para eu indicar o processo e a tela correta.'
     is_visao_executiva = user_is_executive(request.user)
     pode_ver_documentos_pendentes = user_has_access(
         request.user,
@@ -427,6 +445,12 @@ def dashboard(request):
         'hoje': hoje,
         'modo_demo': False,
     }
+    context.update({
+        'processos_assistente': processes_for_user(request.user),
+        'pergunta_ia': pergunta_ia,
+        'resposta_ia': resposta_ia,
+        'processo_recomendado': processo_recomendado,
+    })
     return render(request, 'dashboard.html', context)
 
 
@@ -439,12 +463,22 @@ def ajuda(request):
 @login_required
 def assistente_erp(request):
     """Assistente provisoria: consulta local e ingestao automatica de documentos."""
+    from core.assistant_navigation import (
+        answer_with_process, processes_for_user, recommend_process,
+    )
+
     resposta = ''
+    processo_recomendado = None
     if request.method == 'POST':
         acao = request.POST.get('acao', '')
         if acao == 'perguntar':
             pergunta = request.POST.get('pergunta', '').strip()[:500]
-            resposta = responder_pergunta(request.user, pergunta)
+            resposta = answer_with_process(
+                request.user,
+                pergunta,
+                responder_pergunta(request.user, pergunta),
+            )
+            processo_recomendado = recommend_process(request.user, pergunta)
         elif acao == 'documento':
             try:
                 key = verify_direct_upload(request, 'assistente_documento', required=True)
@@ -492,6 +526,8 @@ def assistente_erp(request):
         'arquivos_recentes': recentes,
         'arquivo_atual': arquivo_atual,
         'ia_configurada': False,
+        'processos_assistente': processes_for_user(request.user),
+        'processo_recomendado': processo_recomendado,
     })
 
 

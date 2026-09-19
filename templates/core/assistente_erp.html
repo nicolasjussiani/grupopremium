@@ -11,14 +11,19 @@
   .assistant-safety div{padding:12px;border:1px solid var(--border);border-radius:10px;font-size:.82rem}
   .assistant-files{display:grid;gap:10px}
   .assistant-file{padding:12px;border:1px solid var(--border);border-radius:10px;display:flex;justify-content:space-between;gap:12px;align-items:center}
-  @media(max-width:860px){.assistant-grid{grid-template-columns:1fr}.assistant-safety{grid-template-columns:1fr}.assistant-file{align-items:flex-start;flex-direction:column}}
+  .assistant-route{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:.82rem}
+  .ai-process-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .ai-process-card{--card-accent:#1769aa;display:flex;min-height:180px;flex-direction:column;padding:17px;border:1px solid var(--border);border-top:3px solid var(--card-accent);border-radius:14px;background:#fff}
+  .ai-process-card--green{--card-accent:#159a68}.ai-process-card--yellow{--card-accent:#d59313}.ai-process-card--blue{--card-accent:#2e72d2}.ai-process-card--cyan{--card-accent:#0891b2}.ai-process-card--purple{--card-accent:#7c55c7}.ai-process-card--navy{--card-accent:#1f3e68}.ai-process-card--orange{--card-accent:#dc6b24}
+  .ai-process-topline{display:flex;gap:8px;color:var(--text-muted);font-size:.68rem}.ai-process-number{color:var(--card-accent);font-weight:800}.ai-process-card h3{margin:14px 0 7px;font-size:.96rem}.ai-process-card p{margin:0 0 14px;color:var(--text-muted);font-size:.76rem;line-height:1.5}.ai-process-link{margin-top:auto;color:var(--card-accent);font-size:.76rem;font-weight:800;text-decoration:none}
+  @media(max-width:860px){.assistant-grid{grid-template-columns:1fr}.assistant-safety{grid-template-columns:1fr}.assistant-file{align-items:flex-start;flex-direction:column}.ai-process-grid{grid-template-columns:1fr}}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
-  <h1 class="mod-title">Assistente do ERP</h1>
-  <div class="mod-desc">Modo provisorio sem chave de API: orientacao local e processamento automatico de documentos.</div>
+  <h1 class="mod-title">Inteligência do ERP</h1>
+  <div class="mod-desc">Pergunte o que precisa fazer e receba o processo, o caminho do menu e o acesso direto à tela.</div>
 </div>
 
 <div class="alert alert-info" data-persistent-alert style="margin-bottom:20px;">
@@ -43,7 +48,7 @@
       </div>
       <button class="btn btn-mod6" type="submit">Perguntar</button>
     </form>
-    {% if resposta %}<div class="assistant-answer" style="margin-top:18px;">{{ resposta }}</div>{% endif %}
+    {% if resposta %}<div class="assistant-answer" style="margin-top:18px;">{{ resposta }}{% if processo_recomendado %}<div class="assistant-route"><strong>Caminho:</strong> {{ processo_recomendado.directory }} · <a href="{{ processo_recomendado.url }}">Abrir tela indicada</a></div>{% endif %}</div>{% endif %}
     <p style="font-size:.78rem;color:var(--text-muted);margin-top:14px;">Sugestoes: Presenca, EPI, Compras, Pagamentos, Documentos e Aprovacoes.</p>
   </section>
 
@@ -76,6 +81,11 @@
     {% endif %}
   </section>
 </div>
+
+<section class="card" style="margin-top:20px;">
+  <div class="card-header"><div><div class="card-title">Processos e diretórios</div><small style="color:var(--text-muted);">Atalhos liberados para o seu perfil.</small></div></div>
+  {% include 'core/_assistant_processes.html' %}
+</section>
 
 {% if arquivos_recentes %}
 <section class="card" style="margin-top:20px;">

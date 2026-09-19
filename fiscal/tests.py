@@ -125,6 +125,8 @@ class FiscalIntegrationTests(TestCase):
         folha, created = self._import()
         self.assertTrue(created)
         self.assertEqual(folha.status, 'pronta')
+        self.assertEqual(folha.arquivo_origem.nome_original, 'folha-fiscal.xlsx')
+        self.assertIn('folha-fiscal-2026-09-', folha.arquivo_origem.arquivo.name)
         self.assertEqual(folha.itens.count(), 1)
         self.assertEqual(folha.beneficios.count(), 1)
         self.assertEqual(folha.parcelas_beneficio.count(), 4)
@@ -166,6 +168,22 @@ class FiscalIntegrationTests(TestCase):
         self.assertEqual(self.collaborator.categoria_trabalho, 'freelancer')
         gerar_pagamentos_fiscais(folha, self.user)
         self.assertEqual(item.colaborador.pagamentos.get(tipo='freelancer').valor, 100)
+
+    def test_colaborador_inativo_vai_para_revisao_sem_abortar_lote(self):
+        self.collaborator.status = 'inativo'
+        self.collaborator.save(update_fields=['status'])
+        folha, _ = self._import()
+
+        created, skipped = gerar_pagamentos_fiscais(folha, self.user)
+
+        self.assertEqual(created, 0)
+        self.assertGreater(skipped, 0)
+        item = folha.itens.get()
+        self.assertEqual(item.status_conciliacao, 'revisar')
+        self.assertIn('inativo', ' '.join(item.problemas).lower())
+        benefit = folha.beneficios.get()
+        self.assertEqual(benefit.status_conciliacao, 'revisar')
+        self.assertIn('inativo', ' '.join(benefit.problemas).lower())
 
     def test_paginas_fiscais_renderizam_e_post_get_sao_separados(self):
         folha, _ = self._import()

@@ -192,6 +192,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # ── Configuração Supabase Storage (S3) ────────────────────────────────────────
 SUPABASE_S3_ENDPOINT_URL = os.environ.get('SUPABASE_S3_ENDPOINT_URL')
+# O endpoint direto evita respostas 400 do gateway legado do Supabase ao
+# assinar chamadas S3 (HeadObject/PutObject).
+if SUPABASE_S3_ENDPOINT_URL:
+    SUPABASE_S3_ENDPOINT_URL = SUPABASE_S3_ENDPOINT_URL.replace(
+        '.supabase.co/storage/v1/s3',
+        '.storage.supabase.co/storage/v1/s3',
+    )
 if is_serverless and not RUNNING_TESTS and not SUPABASE_S3_ENDPOINT_URL:
     raise ImproperlyConfigured('O armazenamento S3 e obrigatorio em ambiente serverless.')
 if RUNNING_TESTS:

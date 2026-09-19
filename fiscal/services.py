@@ -41,7 +41,7 @@ def normalizar_documento(value):
 def decimal_value(value):
     if value is None or value == '' or str(value).upper() in FORMULA_ERRORS:
         return None
-    text = str(value).strip()
+    text = str(value).strip().replace('\xa0', '').replace('R$', '').replace(' ', '')
     if ',' in text and '.' in text:
         text = text.replace('.', '').replace(',', '.')
     elif ',' in text:
@@ -61,7 +61,12 @@ def excel_date(value):
     try:
         serial = float(text)
     except ValueError:
-        for fmt in ('%d/%m/%Y', '%d/%m/%y', '%Y-%m-%d'):
+        for fmt in (
+            '%d/%m/%Y', '%d/%m/%y',
+            '%m/%d/%Y', '%m/%d/%y',
+            '%d-%m-%Y', '%d-%m-%y',
+            '%Y-%m-%d',
+        ):
             try:
                 return datetime.strptime(text, fmt).date()
             except ValueError:
@@ -176,6 +181,7 @@ class XlsxReader:
 SALARY_SHEETS = {
     'CLT': 'clt',
     'PJ': 'pj',
+    'ATIVOS': 'pj',
     'FREELANCE FIXO': 'freelancer',
     'SUPERVISOR': 'supervisor',
     'ADM': 'administrativo',
@@ -231,14 +237,24 @@ def _collaborator_index():
     return by_document, by_name
 
 
-def _match_collaborator(document, name, by_document, by_name):
+def _match_collaborator(
+    document, name, by_document, by_name, *, allow_inactive=False
+):
     matches = by_document.get(normalizar_documento(document), []) if document else []
     method = 'documento'
     if not matches:
         matches = by_name.get(normalizar_texto(name), [])
         method = 'nome'
     if len(matches) == 1:
-        return matches[0], []
+        collaborator = matches[0]
+        if (
+            not allow_inactive
+            and collaborator.status in Colaborador.STATUS_SEM_PAGAMENTO
+        ):
+            return collaborator, [
+                f'Colaborador {collaborator.get_status_display().lower()} no cadastro admissional.'
+            ]
+        return collaborator, []
     if len(matches) > 1:
         return None, [f'Cadastro ambíguo: mais de um colaborador encontrado por {method}.']
     return None, ['Colaborador não encontrado no cadastro admissional.']
@@ -261,7 +277,9 @@ def _formula_issues(cells, headers):
 
 
 @transaction.atomic
-def importar_folha_xlsx(*, content, filename, competencia, usuario=None):
+def importar_folha_xlsx(
+    *, content, filename, competencia, usuario=None, include_rescisoes=True
+):
     if len(content) > 10 * 1024 * 1024:
         raise ValidationError('A planilha excede o limite de 10 MB.')
     reader = XlsxReader(content)
@@ -285,7 +303,8 @@ def importar_folha_xlsx(*, content, filename, competencia, usuario=None):
             metadados={'competencia': competencia.isoformat(), 'tipo': 'folha_fiscal'},
             importado_por=usuario,
         )
-        archive.arquivo.save(filename, ContentFile(content), save=False)
+        storage_name = f'folha-fiscal-{competencia:%Y-%m}-{digest[:12]}.xlsx'
+        archive.arquivo.save(storage_name, ContentFile(content), save=False)
         archive.full_clean()
         archive.save()
     folha = FolhaFiscal.objects.create(
@@ -296,19 +315,20 @@ def importar_folha_xlsx(*, content, filename, competencia, usuario=None):
         hash_origem=digest,
         importado_por=usuario,
     )
-    if not archive.content_type_id and not archive.object_id:
-        archive.content_object = folha
-        archive.status = 'vinculado'
-        archive.save(update_fields=['content_type', 'object_id', 'status', 'atualizado_em'])
+    archive.content_object = folha
+    archive.status = 'vinculado'
+    archive.save(update_fields=['content_type', 'object_id', 'status', 'atualizado_em'])
 
     by_document, by_name = _collaborator_index()
     total_issues = 0
     found_salary_sheet = False
+    items_to_create = []
+    freelancer_collaborator_ids = set()
 
     for original_name in reader.sheets:
         normalized_sheet = normalizar_texto(original_name)
         regime = SALARY_SHEETS.get(normalized_sheet)
-        if not regime:
+        if not regime or (regime == 'rescisao' and not include_rescisoes):
             continue
         found_salary_sheet = True
         rows = reader.rows(original_name)
@@ -325,10 +345,27 @@ def importar_folha_xlsx(*, content, filename, competencia, usuario=None):
             if not _valid_name(name):
                 continue
             document = _value(cells, headers, 'CPF', 'CNPJ')
-            collaborator, issues = _match_collaborator(document, name, by_document, by_name)
+            collaborator, issues = _match_collaborator(
+                document,
+                name,
+                by_document,
+                by_name,
+                allow_inactive=regime == 'rescisao',
+            )
             issues.extend(_formula_issues(cells, headers))
-            start_raw = _value(cells, headers, 'ADMISSÃO', 'DATA INICIO', 'INICIO DE PRESTAÇÃO DE SERVIÇO')
-            end_raw = _value(cells, headers, 'TERMINO DA PRESTAÇÃO')
+            start_raw = _value(
+                cells,
+                headers,
+                'ADMISSAO',
+                'DATA INICIO',
+                'INICIO DE PRESTACAO DE SERVICO',
+            )
+            end_raw = _value(
+                cells,
+                headers,
+                'TERMINO DA PRESTACAO',
+                'DESLIGAMENTO',
+            )
             payment_raw = _value(cells, headers, 'DATA PAGAMENTO')
             start = _date_with_issue(start_raw, 'Data inicial', issues)
             end = _date_with_issue(end_raw, 'Data final', issues)
@@ -336,15 +373,19 @@ def importar_folha_xlsx(*, content, filename, competencia, usuario=None):
             planned = decimal_value(_value(cells, headers, 'SALARIO PLANEJADO', 'A RECEBER PLANEJADO'))
             execute = decimal_value(_value(cells, headers, 'SALARIO A EXECUTAR', 'A RECEBER', 'TOTAL SALARIO'))
             salary = decimal_value(_value(cells, headers, 'SALARIO', 'DIARIA/SALARIO'))
-            effective_regime = 'freelancer' if salary and 0 < salary < 150 else regime
+            effective_regime = regime
+            if normalized_sheet == 'ATIVOS':
+                clt_value = normalizar_texto(_value(cells, headers, 'CLT'))
+                effective_regime = 'clt' if clt_value in {'SIM', 'CLT'} else 'pj'
+            if effective_regime in {'clt', 'pj'} and salary and 0 < salary < 150:
+                effective_regime = 'freelancer'
             if effective_regime == 'freelancer' and collaborator and collaborator.categoria_trabalho != 'freelancer':
-                collaborator.categoria_trabalho = 'freelancer'
-                collaborator.save(update_fields=['categoria_trabalho', 'atualizado_em'])
+                freelancer_collaborator_ids.add(collaborator.pk)
             if execute is None and regime in {'supervisor', 'administrativo'}:
                 execute = salary
-            if not execute and not planned:
+            if regime != 'rescisao' and not execute and not planned:
                 issues.append('Valor líquido a executar/planejado não informado.')
-            item = ItemFolhaFiscal.objects.create(
+            item = ItemFolhaFiscal(
                 folha=folha,
                 colaborador=collaborator,
                 aba_origem=original_name.strip(),
@@ -373,13 +414,28 @@ def importar_folha_xlsx(*, content, filename, competencia, usuario=None):
                 problemas=issues,
                 observacoes=str(_value(cells, headers, 'OBSERVAÇÕES')),
             )
+            items_to_create.append(item)
             total_issues += len(item.problemas)
 
-    benefit_sheet = next(
-        (name for name in reader.sheets if normalizar_texto(name) == 'AJUDA DE CUSTO GERAL'),
-        None,
-    )
-    if benefit_sheet:
+    if items_to_create:
+        ItemFolhaFiscal.objects.bulk_create(items_to_create, batch_size=200)
+    if freelancer_collaborator_ids:
+        Colaborador.objects.filter(pk__in=freelancer_collaborator_ids).update(
+            categoria_trabalho='freelancer'
+        )
+
+    benefit_sheets = [
+        name
+        for name in reader.sheets
+        if (
+            normalizar_texto(name) == 'AJUDA DE CUSTO GERAL'
+            or normalizar_texto(name).startswith('VT ')
+            or normalizar_texto(name).startswith('VALE TRANSPORTE')
+        )
+    ]
+    benefits_to_create = []
+    benefit_weeks = []
+    for benefit_sheet in benefit_sheets:
         rows = reader.rows(benefit_sheet)
         header_row, headers = _header_map(rows)
         if header_row:
@@ -403,7 +459,7 @@ def importar_folha_xlsx(*, content, filename, competencia, usuario=None):
                     if collaborator and collaborator.tipo_contrato == 'pj'
                     else 'vale_transporte'
                 )
-                benefit = BeneficioFiscal.objects.create(
+                benefit = BeneficioFiscal(
                     folha=folha,
                     colaborador=collaborator,
                     aba_origem=benefit_sheet.strip(),
@@ -418,19 +474,24 @@ def importar_folha_xlsx(*, content, filename, competencia, usuario=None):
                     status_conciliacao='conciliado' if collaborator and not issues else 'revisar',
                     problemas=issues,
                 )
-                ParcelaBeneficioFiscal.objects.bulk_create([
-                    ParcelaBeneficioFiscal(
-                        beneficio=benefit,
-                        folha=folha,
-                        semana=week,
-                        valor=value,
-                    )
-                    for week, value in enumerate(weeks, start=1)
-                ])
+                benefits_to_create.append(benefit)
+                benefit_weeks.append((benefit, weeks))
                 total_issues += len(issues)
         else:
             folha.observacoes_importacao += f'Aba {benefit_sheet}: cabeçalho não encontrado.\n'
             total_issues += 1
+    if benefits_to_create:
+        BeneficioFiscal.objects.bulk_create(benefits_to_create, batch_size=200)
+        ParcelaBeneficioFiscal.objects.bulk_create([
+                ParcelaBeneficioFiscal(
+                    beneficio=benefit,
+                    folha=folha,
+                    semana=week,
+                    valor=value,
+                )
+                for benefit, weeks in benefit_weeks
+                for week, value in enumerate(weeks, start=1)
+            ], batch_size=400)
 
     if not found_salary_sheet:
         raise ValidationError('Nenhuma aba de folha reconhecida foi encontrada.')
@@ -446,7 +507,6 @@ def _month_end(day):
 
 @transaction.atomic
 def gerar_pagamentos_fiscais(folha, usuario=None):
-    created = 0
     skipped = 0
     type_by_regime = {
         'clt': 'salario',
@@ -456,15 +516,26 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
         'administrativo': 'salario',
         'rescisao': 'distrato',
     }
+    transaction_prefix = f'fiscal:{folha.pk}:'
+    existing_payments = {
+        payment.identificador_transacao: payment
+        for payment in PagamentoColaborador.objects.filter(
+            identificador_transacao__startswith=transaction_prefix
+        )
+    }
+    payments_to_create = []
+    item_links = []
+    installment_links = []
+    invalid_items = []
+    invalid_benefits = {}
+
     for item in folha.itens.select_related('colaborador', 'pagamento'):
         value = item.valor_para_pagamento
         if item.pagamento_id or not item.colaborador_id or item.problemas or not value or value <= 0:
             skipped += 1
             continue
         transaction_id = f'fiscal:{folha.pk}:item:{item.pk}'
-        payment = PagamentoColaborador.objects.filter(
-            identificador_transacao=transaction_id
-        ).first()
+        payment = existing_payments.get(transaction_id)
         if not payment:
             payment = PagamentoColaborador(
                 identificador_transacao=transaction_id,
@@ -479,11 +550,17 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
                 observacao=f'Importado da folha Fiscal {folha.competencia:%m/%Y}, aba {item.aba_origem}, linha {item.linha_origem}.',
                 criado_por=usuario,
             )
-            payment.full_clean()
-            payment.save()
-            created += 1
-        item.pagamento = payment
-        item.save(update_fields=['pagamento'])
+            try:
+                payment.full_clean(validate_unique=False, validate_constraints=False)
+            except ValidationError as exc:
+                item.problemas = [*item.problemas, *exc.messages]
+                item.status_conciliacao = 'revisar'
+                invalid_items.append(item)
+                skipped += 1
+                continue
+            payments_to_create.append(payment)
+            existing_payments[transaction_id] = payment
+        item_links.append((item, payment))
 
     for installment in folha.parcelas_beneficio.select_related('beneficio__colaborador', 'pagamento'):
         benefit = installment.beneficio
@@ -492,9 +569,7 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
             continue
         start = folha.competencia + timedelta(days=(installment.semana - 1) * 7)
         transaction_id = f'fiscal:{folha.pk}:beneficio:{installment.pk}'
-        payment = PagamentoColaborador.objects.filter(
-            identificador_transacao=transaction_id
-        ).first()
+        payment = existing_payments.get(transaction_id)
         if not payment:
             payment = PagamentoColaborador(
                 identificador_transacao=transaction_id,
@@ -508,11 +583,46 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
                 observacao=f'Importado da folha Fiscal {folha.competencia:%m/%Y}, semana {installment.semana}.',
                 criado_por=usuario,
             )
-            payment.full_clean()
-            payment.save()
-            created += 1
+            try:
+                payment.full_clean(validate_unique=False, validate_constraints=False)
+            except ValidationError as exc:
+                if benefit.pk not in invalid_benefits:
+                    benefit.problemas = [*benefit.problemas, *exc.messages]
+                    benefit.status_conciliacao = 'revisar'
+                    invalid_benefits[benefit.pk] = benefit
+                skipped += 1
+                continue
+            payments_to_create.append(payment)
+            existing_payments[transaction_id] = payment
+        installment_links.append((installment, payment))
+
+    if payments_to_create:
+        PagamentoColaborador.objects.bulk_create(payments_to_create, batch_size=200)
+    items_to_update = []
+    for item, payment in item_links:
+        item.pagamento = payment
+        items_to_update.append(item)
+    items_to_update.extend(invalid_items)
+    if items_to_update:
+        ItemFolhaFiscal.objects.bulk_update(
+            items_to_update,
+            ['pagamento', 'problemas', 'status_conciliacao'],
+            batch_size=200,
+        )
+    installments_to_update = []
+    for installment, payment in installment_links:
         installment.pagamento = payment
-        installment.save(update_fields=['pagamento'])
+        installments_to_update.append(installment)
+    if installments_to_update:
+        ParcelaBeneficioFiscal.objects.bulk_update(
+            installments_to_update, ['pagamento'], batch_size=400
+        )
+    if invalid_benefits:
+        BeneficioFiscal.objects.bulk_update(
+            list(invalid_benefits.values()),
+            ['problemas', 'status_conciliacao'],
+            batch_size=200,
+        )
 
     has_review = (
         folha.itens.filter(status_conciliacao='revisar').exists()
@@ -520,4 +630,4 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
     )
     folha.status = 'revisao' if has_review else 'processada'
     folha.save(update_fields=['status', 'atualizado_em'])
-    return created, skipped
+    return len(payments_to_create), skipped

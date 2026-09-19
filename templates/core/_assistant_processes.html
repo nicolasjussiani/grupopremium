@@ -1,0 +1,17 @@
+<div class="ai-process-grid">
+  {% for processo in processos_assistente %}
+  <article class="ai-process-card ai-process-card--{{ processo.theme }}">
+    <div class="ai-process-topline">
+      <span class="ai-process-number">{{ forloop.counter|stringformat:"02d" }}</span>
+      <span class="ai-process-path">{{ processo.directory }}</span>
+    </div>
+    <h3>{{ processo.title }}</h3>
+    <p>{{ processo.summary }}</p>
+    <a class="ai-process-link" href="{{ processo.url }}">
+      Ir para esta tela <span aria-hidden="true">→</span>
+    </a>
+  </article>
+  {% empty %}
+  <div class="ai-empty-processes">Não há processos liberados para o seu perfil.</div>
+  {% endfor %}
+</div>
