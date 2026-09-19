@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}VT pago de {{ colaborador.nome|default:"Colaborador" }} — ERP Grupo PremiumBR{% endblock %}
+{% block nav_pagamentos_colaboradores %}active{% endblock %}
+{% block topbar_title %}Histórico de vale-transporte{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <h1 class="mod-title">🚌 VTs pagos</h1>
+  <div class="mod-desc">
+    {{ colaborador.nome|default:"Colaborador sem nome" }}{% if colaborador.unidade %} · {{ colaborador.unidade }}{% endif %}
+  </div>
+</div>
+
+<div class="kpi-grid" style="margin-bottom:20px;">
+  <div class="kpi-card">
+    <div class="kpi-label">Total pago em VT</div>
+    <div class="kpi-value">R$ {{ total_pago|floatformat:2 }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Pagamentos realizados</div>
+    <div class="kpi-value">{{ quantidade_pagamentos }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Último pagamento</div>
+    <div class="kpi-value" style="font-size:1.35rem;">{{ ultimo_pagamento|date:"d/m/Y"|default:"—" }}</div>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;display:flex;gap:10px;flex-wrap:wrap;">
+  <a href="{% url 'lista_colaboradores' %}" class="btn btn-outline">← Voltar para colaboradores</a>
+  {% if can_add_pagamento and colaborador.tipo_contrato == 'clt' and colaborador.status == 'ativo' %}
+    <a href="{% url 'novo_pagamento_colaborador' %}?colaborador={{ colaborador.pk }}&amp;tipo=vale_transporte" class="btn btn-mod6">➕ Cadastrar novo VT</a>
+  {% endif %}
+</div>
+
+{% if pagamentos %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Competência</th>
+        <th>Vencimento</th>
+        <th>Data do pagamento</th>
+        <th>Valor</th>
+        <th>Comprovante</th>
+        <th>Observação</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pagamento in pagamentos %}
+      <tr>
+        <td>
+          {{ pagamento.competencia|date:"d/m/Y" }}
+          {% if pagamento.fim_competencia != pagamento.competencia %}<br><small>até {{ pagamento.fim_competencia|date:"d/m/Y" }}</small>{% endif %}
+        </td>
+        <td>{{ pagamento.data_vencimento|date:"d/m/Y" }}</td>
+        <td><span class="badge badge-success">{{ pagamento.data_pagamento|date:"d/m/Y" }}</span></td>
+        <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
+        <td>
+          {% with comprovante=pagamento.arquivos_importados.first %}
+            {% if comprovante %}<a href="{% url 'baixar_arquivo_importado' comprovante.pk %}" class="btn btn-sm btn-outline" target="_blank" rel="noopener">Abrir</a>{% else %}—{% endif %}
+          {% endwith %}
+        </td>
+        <td>{{ pagamento.observacao|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <div class="empty-icon">🚌</div>
+    <p>Nenhum vale-transporte foi marcado como pago para este colaborador.</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

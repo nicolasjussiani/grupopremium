@@ -1,6 +1,7 @@
 """ERP Grupo PremiumBR — URLs do Módulo 2: Admissional"""
 from django.urls import path
 from admissional import views
+from admissional import views_vt
 
 urlpatterns = [
     path('', views.lista_admissoes, name='lista_admissoes'),
@@ -16,6 +17,7 @@ urlpatterns = [
     path('colaboradores/pagamentos/novo/', views.novo_pagamento_colaborador, name='novo_pagamento_colaborador'),
     path('colaboradores/pagamentos/<int:pk>/editar/', views.editar_pagamento_colaborador, name='editar_pagamento_colaborador'),
     path('colaboradores/pagamentos/<int:pk>/marcar-pago/', views.marcar_pagamento_como_pago, name='marcar_pagamento_como_pago'),
+    path('colaboradores/<int:pk>/pagamentos/vale-transporte/', views_vt.historico_vt_colaborador, name='historico_vt_colaborador'),
     path('colaboradores/<int:pk>/editar/', views.editar_colaborador, name='editar_colaborador'),
     path('colaboradores/<int:pk>/documentos/', views.documentos_colaborador, name='documentos_colaborador'),
     path('colaboradores/<int:pk>/documentos/<int:documento_pk>/baixar/', views.baixar_documento_colaborador, name='baixar_documento_colaborador'),
