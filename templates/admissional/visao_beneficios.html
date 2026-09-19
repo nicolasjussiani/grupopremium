@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}VT e ajuda de custo — ERP Grupo PremiumBR{% endblock %}
+{% block nav_pagamentos_colaboradores %}active{% endblock %}
+{% block topbar_title %}VT e ajuda de custo{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <h1 class="mod-title">🚌 VT e ajuda de custo</h1>
+  <div class="mod-desc">Visão exclusiva dos benefícios no período selecionado.</div>
+</div>
+
+<div class="kpi-grid" style="margin-bottom:20px;">
+  <div class="kpi-card"><div class="kpi-label">Vale-transporte</div><div class="kpi-value">R$ {{ total_vt|floatformat:2 }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Ajuda de custo</div><div class="kpi-value">R$ {{ total_ajuda|floatformat:2 }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Total do período</div><div class="kpi-value">R$ {{ total_geral|floatformat:2 }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Pessoas</div><div class="kpi-value">{{ total_pessoas }}</div></div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+    <div style="flex:1;min-width:220px;"><label for="busca-beneficio">Colaborador</label><input id="busca-beneficio" class="form-control" type="search" name="q" value="{{ query }}" placeholder="Nome, CPF ou unidade"></div>
+    <div style="min-width:180px;"><label for="unidade-beneficio">Unidade</label><select id="unidade-beneficio" class="form-control" name="unidade"><option value="">Todas</option>{% for unidade in unidades %}<option value="{{ unidade }}" {% if unidade_filter == unidade %}selected{% endif %}>{{ unidade }}</option>{% endfor %}</select></div>
+    <div><label for="beneficio-inicio">Data inicial</label><input id="beneficio-inicio" class="form-control" type="date" name="data_inicio" value="{{ data_inicio|date:'Y-m-d' }}"></div>
+    <div><label for="beneficio-fim">Data final</label><input id="beneficio-fim" class="form-control" type="date" name="data_fim" value="{{ data_fim|date:'Y-m-d' }}"></div>
+    <button class="btn btn-mod6" type="submit">Filtrar</button>
+    <a href="{% url 'visao_beneficios_colaboradores' %}" class="btn">Mês atual</a>
+  </form>
+</div>
+
+<div style="margin-bottom:20px;"><a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn btn-outline">← Voltar para folha</a></div>
+{% if pagamentos %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Colaborador</th><th>Unidade</th><th>Benefício</th><th>Competência</th><th>Valor</th><th>Faltas</th><th>Situação</th></tr></thead>
+  <tbody>{% for pagamento in pagamentos %}<tr>
+    <td><strong>{{ pagamento.colaborador.nome }}</strong><br><small>{{ pagamento.colaborador.get_tipo_contrato_display }}</small></td>
+    <td>{{ pagamento.colaborador.unidade|default:"—" }}</td>
+    <td>{{ pagamento.get_tipo_display }}{% if pagamento.recorrente %}<br><span class="badge badge-info">Recorrente</span>{% endif %}</td>
+    <td>{{ pagamento.competencia|date:"d/m/Y" }} a {{ pagamento.fim_competencia|date:"d/m/Y" }}</td>
+    <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
+    <td><span class="badge {% if pagamento.faltas_periodo %}badge-danger{% else %}badge-success{% endif %}">{{ pagamento.faltas_periodo }}</span></td>
+    <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<div class="card"><div class="empty-state"><p>Nenhum VT ou ajuda de custo neste período.</p></div></div>{% endif %}
+{% endblock %}

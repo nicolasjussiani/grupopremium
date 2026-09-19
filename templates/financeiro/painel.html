@@ -38,6 +38,21 @@
   <a href="{% url 'entrada_documento' %}" class="btn btn-mod6">+ Novo Documento</a>
 </div>
 
+<div class="card" style="margin-top:20px;border-left:4px solid var(--mod6-blue);">
+  <div class="card-header" style="gap:12px;flex-wrap:wrap;">
+    <div>
+      <div class="card-title">Folha de pagamento do mês</div>
+      <div style="font-size:.8rem;color:var(--text-muted);">{{ folha_mes_quantidade }} pagamento(s) · Benefícios: R$ {{ folha_mes_beneficios|floatformat:2 }}</div>
+    </div>
+    <a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn btn-mod6">Abrir folha</a>
+  </div>
+  <div class="kpi-grid" style="margin-top:14px;">
+    <div class="kpi-card"><div class="kpi-label">Total da folha</div><div class="kpi-value">R$ {{ folha_mes_total|floatformat:2 }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Pago</div><div class="kpi-value">R$ {{ folha_mes_pago|floatformat:2 }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Pendente</div><div class="kpi-value">R$ {{ folha_mes_pendente|floatformat:2 }}</div></div>
+  </div>
+</div>
+
 {% if dashboard_budget %}
 <div class="card" style="margin-top:24px;border-top-color:var(--mod6-blue);">
   <div class="card-header">

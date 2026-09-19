@@ -3,7 +3,8 @@ import mimetypes
 import re
 import unicodedata
 import zipfile
-from datetime import datetime
+from calendar import monthrange
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -87,6 +88,33 @@ def classificar(caminho_relativo):
     else:
         subcategoria = 'outro'
     return categoria, subcategoria
+
+
+def classificar_pagamento_regra(subcategoria, data_pagamento, valor, colaborador=None):
+    """Aplica as regras de negócio sobre a classificação extraída do arquivo."""
+    tipos_preservados = {'freelancer', 'distrato', 'reembolso', 'prestacao_servico'}
+    if subcategoria in tipos_preservados:
+        return subcategoria
+    if data_pagamento and valor is not None:
+        if 4 <= data_pagamento.day <= 15 and valor > Decimal('1000'):
+            return 'salario'
+        if data_pagamento.weekday() == 0 and valor < Decimal('200'):
+            return (
+                'ajuda_custo'
+                if colaborador and colaborador.tipo_contrato == 'pj'
+                else 'vale_transporte'
+            )
+    if subcategoria == 'adiantamento':
+        return (
+            'prestacao_servico'
+            if colaborador and colaborador.tipo_contrato == 'pj'
+            else 'salario'
+        )
+    if subcategoria == 'vale_transporte' and colaborador and colaborador.tipo_contrato == 'pj':
+        return 'ajuda_custo'
+    if subcategoria == 'ajuda_custo' and colaborador and colaborador.tipo_contrato == 'clt':
+        return 'vale_transporte'
+    return subcategoria
 
 
 def extrair_texto(caminho, categoria):
@@ -287,6 +315,10 @@ def analisar_arquivo(caminho, relativo, colaboradores):
     metadados['colaborador_sugerido_id'] = colaborador.pk if colaborador else None
     metadados['pontuacao_beneficiario'] = round(match_beneficiario[1], 3)
     metadados['pontuacao_nome_indicado'] = round(match_indicado[1], 3)
+
+    subcategoria = classificar_pagamento_regra(
+        subcategoria, data_pagamento, valor, colaborador
+    )
 
     if categoria in {'pagamento_colaborador', 'reembolso'}:
         if subcategoria not in dict(PagamentoColaborador.TIPOS):
@@ -504,18 +536,34 @@ class ImportadorArquivoCentral:
                 }
                 else data_pagamento
             )
-            pagamento = PagamentoColaborador.objects.create(
+            competencia_fim = (
+                competencia.replace(day=monthrange(competencia.year, competencia.month)[1])
+                if competencia.day == 1 and analise['subcategoria'] in {
+                    'salario', 'salario_beneficios', 'prestacao_servico',
+                    'freelancer', 'distrato',
+                }
+                else competencia + (
+                    timedelta(days=6)
+                    if analise['subcategoria'] in {'vale_transporte', 'ajuda_custo'}
+                    else timedelta(0)
+                )
+            )
+            pagamento = PagamentoColaborador(
                 colaborador=analise['colaborador'],
                 tipo=analise['subcategoria'],
                 competencia=competencia,
+                competencia_fim=competencia_fim,
                 valor=analise['valor'],
                 data_vencimento=data_pagamento,
                 status='pago',
                 data_pagamento=data_pagamento,
+                recorrente=analise['subcategoria'] in {'vale_transporte', 'ajuda_custo'},
                 observacao=f'Importado do arquivo {arquivo.nome_original}',
                 identificador_transacao=identificador,
                 criado_por=self.usuario,
             )
+            pagamento.full_clean()
+            pagamento.save()
             self.contadores['pagamentos_criados'] += 1
         arquivo.content_type = ContentType.objects.get_for_model(pagamento)
         arquivo.object_id = pagamento.pk

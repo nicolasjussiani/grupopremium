@@ -67,6 +67,7 @@ class ColaboradorForm(forms.ModelForm):
         cleaned_data['cpf'] = cleaned_data.get('cpf') or None
         for name, default in (
             ('tipo_contrato', 'clt'),
+            ('categoria_trabalho', 'fixo'),
             ('marca', 'eco_premium'),
             ('status', 'ativo'),
         ):
@@ -124,11 +125,12 @@ class PagamentoColaboradorForm(forms.ModelForm):
     class Meta:
         model = PagamentoColaborador
         fields = (
-            'colaborador', 'tipo', 'competencia', 'valor',
-            'data_vencimento', 'status', 'data_pagamento', 'observacao',
+            'colaborador', 'tipo', 'competencia', 'competencia_fim', 'valor',
+            'data_vencimento', 'status', 'data_pagamento', 'recorrente', 'observacao',
         )
         widgets = {
             'competencia': forms.DateInput(attrs={'type': 'date'}),
+            'competencia_fim': forms.DateInput(attrs={'type': 'date'}),
             'valor': forms.TextInput(attrs={
                 'inputmode': 'decimal', 'placeholder': 'Ex.: 2000,00',
             }),
@@ -144,6 +146,7 @@ class PagamentoColaboradorForm(forms.ModelForm):
         )
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-control'
+        self.fields['recorrente'].widget.attrs['class'] = 'form-check-input'
         self.fields['valor'].localize = True
         self.fields['valor'].widget.is_localized = True
 
@@ -170,4 +173,18 @@ class PagamentoColaboradorForm(forms.ModelForm):
             )
         if status == 'pendente':
             cleaned_data['data_pagamento'] = None
+        competencia = cleaned_data.get('competencia')
+        competencia_fim = cleaned_data.get('competencia_fim')
+        if competencia and not competencia_fim:
+            cleaned_data['competencia_fim'] = competencia
+        if competencia and competencia_fim and competencia_fim < competencia:
+            self.add_error(
+                'competencia_fim',
+                'O fim da competência não pode ser anterior ao início.',
+            )
+        if cleaned_data.get('recorrente') and tipo not in {'vale_transporte', 'ajuda_custo'}:
+            self.add_error(
+                'recorrente',
+                'A recorrência semanal é permitida apenas para VT ou ajuda de custo.',
+            )
         return cleaned_data

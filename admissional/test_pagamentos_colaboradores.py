@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from admissional.forms import PagamentoColaboradorForm
-from admissional.models import Colaborador, PagamentoColaborador
+from admissional.models import Colaborador, PagamentoColaborador, PresencaDiaria
 
 
 class PagamentosColaboradoresTest(TestCase):
@@ -31,6 +31,7 @@ class PagamentosColaboradoresTest(TestCase):
             'colaborador': self.colaborador.pk,
             'tipo': 'salario',
             'competencia': '2026-09-01',
+            'competencia_fim': '2026-09-30',
             'valor': '2000,00',
             'data_vencimento': '2026-09-05',
             'status': 'pendente',
@@ -163,6 +164,69 @@ class PagamentosColaboradoresTest(TestCase):
         pagamento.refresh_from_db()
         self.assertEqual(pagamento.status, 'pago')
         self.assertEqual(pagamento.data_pagamento, timezone.localdate())
+
+    def test_pagamento_recorrente_gera_proxima_semana_uma_vez(self):
+        pagamento = PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='vale_transporte',
+            competencia=date(2026, 9, 14),
+            competencia_fim=date(2026, 9, 20),
+            valor=Decimal('80.00'),
+            data_vencimento=date(2026, 9, 14),
+            recorrente=True,
+        )
+
+        self.client.post(reverse('marcar_pagamento_como_pago', args=[pagamento.pk]))
+        self.client.post(reverse('marcar_pagamento_como_pago', args=[pagamento.pk]))
+
+        proximo = PagamentoColaborador.objects.get(competencia=date(2026, 9, 21))
+        self.assertEqual(proximo.competencia_fim, date(2026, 9, 27))
+        self.assertEqual(proximo.status, 'pendente')
+        self.assertTrue(proximo.recorrente)
+
+    def test_lista_mostra_faltas_do_periodo(self):
+        PresencaDiaria.objects.create(
+            colaborador=self.colaborador,
+            data=date(2026, 9, 10),
+            status='falta',
+        )
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='salario',
+            competencia=date(2026, 9, 1),
+            valor=Decimal('2000.00'),
+            data_vencimento=date(2026, 9, 5),
+        )
+
+        response = self.client.get(reverse('lista_pagamentos_colaboradores'), {
+            'data_inicio': '2026-09-01', 'data_fim': '2026-09-30',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['pagamentos'][0].faltas_periodo, 1)
+
+    def test_visao_de_beneficios_exclui_salario(self):
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='vale_transporte',
+            competencia=date(2026, 9, 14),
+            valor=Decimal('80.00'),
+            data_vencimento=date(2026, 9, 14),
+        )
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='salario',
+            competencia=date(2026, 9, 1),
+            valor=Decimal('2000.00'),
+            data_vencimento=date(2026, 9, 5),
+        )
+
+        response = self.client.get(reverse('visao_beneficios_colaboradores'), {
+            'data_inicio': '2026-09-01', 'data_fim': '2026-09-30',
+        })
+
+        self.assertContains(response, '80,00')
+        self.assertNotContains(response, '2.000,00')
 
     def test_confirmacao_de_pagamento_nao_aceita_get(self):
         pagamento = PagamentoColaborador.objects.create(

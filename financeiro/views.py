@@ -3,10 +3,11 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.db import transaction
 import logging
 import json
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from .models import DocumentoFinanceiro, AuditoriaItem, LancamentoERP, OrcamentoCentroCusto, ItemDocumentoFinanceiro
 from django.http import HttpResponse
@@ -16,6 +17,7 @@ from core.validators import validate_document_upload
 from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.utils.text import get_valid_filename
+from admissional.models import PagamentoColaborador
 
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,23 @@ def painel_financeiro(request):
     )
     # Calcula Orcamento/Budget do Mês
     mes_atual = timezone.now().date().replace(day=1)
+    if mes_atual.month == 12:
+        proximo_mes = mes_atual.replace(year=mes_atual.year + 1, month=1)
+    else:
+        proximo_mes = mes_atual.replace(month=mes_atual.month + 1)
+    fim_mes = proximo_mes - timedelta(days=1)
+    folha_mes = PagamentoColaborador.objects.filter(
+        Q(data_pagamento__range=(mes_atual, fim_mes))
+        | Q(data_pagamento__isnull=True, data_vencimento__range=(mes_atual, fim_mes))
+    )
+    resumo_folha = folha_mes.aggregate(
+        total=Sum('valor'),
+        pago=Sum('valor', filter=Q(status='pago')),
+        pendente=Sum('valor', filter=Q(status='pendente')),
+        beneficios=Sum(
+            'valor', filter=Q(tipo__in=['vale_transporte', 'ajuda_custo'])
+        ),
+    )
     
     dashboard_budget = []
     try:
@@ -68,6 +87,11 @@ def painel_financeiro(request):
         'total_valor_pendente': sum(d.valor for d in docs_pendentes),
         'total_lancado_mes': sum(l.valor for l in finalizados_mes),
         'dashboard_budget': dashboard_budget,
+        'folha_mes_quantidade': folha_mes.count(),
+        'folha_mes_total': resumo_folha['total'] or 0,
+        'folha_mes_pago': resumo_folha['pago'] or 0,
+        'folha_mes_pendente': resumo_folha['pendente'] or 0,
+        'folha_mes_beneficios': resumo_folha['beneficios'] or 0,
     })
 
 

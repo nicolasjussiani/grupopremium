@@ -1,6 +1,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
+from datetime import date
+from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -11,7 +13,8 @@ from django.urls import reverse
 from admissional.models import Colaborador, PagamentoColaborador
 from core.models import ArquivoImportado, OrigemArquivoImportado
 from core.services.importacao_arquivo_central import (
-    ImportadorArquivoCentral, classificar, extrair_beneficiario, extrair_data,
+    ImportadorArquivoCentral, classificar, classificar_pagamento_regra,
+    extrair_beneficiario, extrair_data,
     extrair_valor,
     nome_seguro_storage,
     sha256_arquivo,
@@ -51,6 +54,16 @@ class ExtracaoArquivoCentralTest(TestCase):
         self.assertEqual(categoria, 'pagamento_colaborador')
         self.assertEqual(subcategoria, 'vale_transporte')
 
+    def test_regra_classifica_valor_alto_no_inicio_do_mes_como_salario(self):
+        self.assertEqual(
+            classificar_pagamento_regra(
+                'adiantamento',
+                date(2026, 9, 8),
+                Decimal('1500.00'),
+            ),
+            'salario',
+        )
+
 
 class ImportacaoArquivoCentralTest(TestCase):
     def setUp(self):
@@ -74,7 +87,8 @@ class ImportacaoArquivoCentralTest(TestCase):
         self.assertEqual(arquivo.status, 'vinculado')
         self.assertEqual(arquivo.content_object, pagamento)
         self.assertEqual(pagamento.colaborador, self.colaborador)
-        self.assertEqual(pagamento.tipo, 'adiantamento')
+        self.assertEqual(pagamento.tipo, 'vale_transporte')
+        self.assertTrue(pagamento.recorrente)
         self.assertEqual(str(pagamento.valor), '87.50')
         self.assertEqual(str(pagamento.data_pagamento), '2026-08-03')
 
@@ -146,7 +160,7 @@ class ImportacaoArquivoCentralTest(TestCase):
 
         response = cliente.post(reverse('revisar_arquivo_importado', args=[arquivo.pk]), {
             'colaborador': self.colaborador.pk,
-            'tipo': 'adiantamento',
+            'tipo': 'vale_transporte',
             'competencia': '2026-08-03',
             'valor': '87,50',
             'data_pagamento': '2026-08-03',

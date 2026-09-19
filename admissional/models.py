@@ -1,4 +1,5 @@
 """ERP Grupo PremiumBR — Models do Módulo 2: Admissional"""
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import models
@@ -71,6 +72,17 @@ class Colaborador(models.Model):
         ('pj', 'PJ'),
     ]
     tipo_contrato = models.CharField(max_length=10, choices=TIPO_CONTRATO, default='clt', verbose_name='Tipo de Contrato')
+    CATEGORIAS_TRABALHO = [
+        ('fixo', 'Colaborador fixo'),
+        ('freelancer', 'Freelancer'),
+    ]
+    categoria_trabalho = models.CharField(
+        max_length=15,
+        choices=CATEGORIAS_TRABALHO,
+        default='fixo',
+        db_index=True,
+        verbose_name='Categoria de trabalho',
+    )
 
     cargo = models.CharField(max_length=200, blank=True, verbose_name='Cargo')
     setor = models.CharField(max_length=100, blank=True, verbose_name='Setor')
@@ -201,7 +213,6 @@ class PagamentoColaborador(models.Model):
         ('salario', 'Salário'),
         ('vale_transporte', 'Vale-transporte'),
         ('ajuda_custo', 'Ajuda de custo'),
-        ('adiantamento', 'Adiantamento'),
         ('salario_beneficios', 'Salário e benefícios'),
         ('prestacao_servico', 'Prestação de serviços'),
         ('freelancer', 'Freelancer'),
@@ -219,7 +230,12 @@ class PagamentoColaborador(models.Model):
         related_name='pagamentos',
     )
     tipo = models.CharField(max_length=30, choices=TIPOS)
-    competencia = models.DateField(verbose_name='Competência/período')
+    competencia = models.DateField(verbose_name='Início da competência')
+    competencia_fim = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name='Fim da competência',
+    )
     valor = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -229,6 +245,11 @@ class PagamentoColaborador(models.Model):
     status = models.CharField(max_length=10, choices=STATUS, default='pendente')
     data_pagamento = models.DateField(null=True, blank=True, verbose_name='Data do pagamento')
     observacao = models.TextField(blank=True, verbose_name='Observação')
+    recorrente = models.BooleanField(
+        default=False,
+        verbose_name='Repetir semanalmente',
+        help_text='Cria a próxima semana automaticamente quando este pagamento for marcado como pago.',
+    )
     identificador_transacao = models.CharField(
         max_length=160,
         unique=True,
@@ -263,6 +284,14 @@ class PagamentoColaborador(models.Model):
 
     def clean(self):
         super().clean()
+        if self.competencia_fim and self.competencia and self.competencia_fim < self.competencia:
+            raise ValidationError({
+                'competencia_fim': 'O fim da competência não pode ser anterior ao início.'
+            })
+        if self.recorrente and self.tipo not in {'vale_transporte', 'ajuda_custo'}:
+            raise ValidationError({
+                'recorrente': 'A recorrência semanal é permitida apenas para VT ou ajuda de custo.'
+            })
         if not self.colaborador_id:
             return
         tipo_contrato = self.colaborador.tipo_contrato
@@ -274,6 +303,41 @@ class PagamentoColaborador(models.Model):
             raise ValidationError({
                 'tipo': 'Ajuda de custo deve ser cadastrada somente para colaboradores PJ.'
             })
+
+    @property
+    def fim_competencia(self):
+        return self.competencia_fim or self.competencia
+
+    def criar_proxima_recorrencia(self, usuario=None):
+        """Gera uma única parcela da semana seguinte, sem duplicar registros."""
+        if not self.recorrente or self.status != 'pago' or self.tipo not in {
+            'vale_transporte', 'ajuda_custo',
+        }:
+            return None, False
+        proximo_inicio = self.competencia + timedelta(days=7)
+        existente = PagamentoColaborador.objects.filter(
+            colaborador=self.colaborador,
+            tipo=self.tipo,
+            competencia=proximo_inicio,
+        ).first()
+        if existente:
+            return existente, False
+        duracao = self.fim_competencia - self.competencia
+        proximo = PagamentoColaborador(
+            colaborador=self.colaborador,
+            tipo=self.tipo,
+            competencia=proximo_inicio,
+            competencia_fim=proximo_inicio + duracao,
+            valor=self.valor,
+            data_vencimento=self.data_vencimento + timedelta(days=7),
+            status='pendente',
+            recorrente=True,
+            observacao=f'Recorrência automática do pagamento #{self.pk}.',
+            criado_por=usuario or self.criado_por,
+        )
+        proximo.full_clean()
+        proximo.save()
+        return proximo, True
 
 
 class Admissao(models.Model):

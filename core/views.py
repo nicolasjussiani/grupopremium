@@ -1,5 +1,7 @@
 """ERP Grupo PremiumBR — Views do Core (Login, Dashboard, Notificações)"""
 import logging
+from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
@@ -13,6 +15,7 @@ from django.db.models import Count, Q
 from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
@@ -30,6 +33,7 @@ from core.forms import (
 )
 from recrutamento.models import Vaga, Candidato
 from admissional.models import Admissao, Colaborador, PagamentoColaborador
+from core.services.importacao_arquivo_central import classificar_pagamento_regra
 from django.db import transaction
 from administrativo.models import DemandaAdministrativa
 from sesmet.models import IntegracaoSeguranca, OrdemServico, RegistroEPI
@@ -113,7 +117,21 @@ def revisar_arquivo_importado(request, pk):
     arquivo = get_object_or_404(ArquivoImportado.objects.select_for_update(), pk=pk)
     metadados = arquivo.metadados or {}
     data_texto = metadados.get('data_pagamento', '')
-    tipo = arquivo.subcategoria if arquivo.subcategoria in dict(PagamentoColaborador.TIPOS) else 'salario'
+    colaborador_sugerido = Colaborador.objects.filter(
+        pk=metadados.get('colaborador_sugerido_id')
+    ).first()
+    try:
+        valor_sugerido = Decimal(str(metadados.get('valor', '')).replace(',', '.'))
+    except InvalidOperation:
+        valor_sugerido = None
+    tipo = classificar_pagamento_regra(
+        arquivo.subcategoria,
+        parse_date(data_texto) if data_texto else None,
+        valor_sugerido,
+        colaborador_sugerido,
+    )
+    if tipo not in dict(PagamentoColaborador.TIPOS):
+        tipo = 'salario'
     competencia = data_texto
     if data_texto and tipo in {'salario', 'salario_beneficios', 'prestacao_servico', 'freelancer', 'distrato'}:
         competencia = f'{data_texto[:7]}-01'
@@ -136,10 +154,16 @@ def revisar_arquivo_importado(request, pk):
             pagamento.colaborador = data['colaborador']
             pagamento.tipo = data['tipo']
             pagamento.competencia = data['competencia']
+            pagamento.competencia_fim = data['competencia'] + (
+                timedelta(days=6)
+                if data['tipo'] in {'vale_transporte', 'ajuda_custo'}
+                else timedelta(0)
+            )
             pagamento.valor = data['valor']
             pagamento.data_vencimento = data['data_pagamento']
             pagamento.status = 'pago'
             pagamento.data_pagamento = data['data_pagamento']
+            pagamento.recorrente = data['tipo'] in {'vale_transporte', 'ajuda_custo'}
             pagamento.observacao = data['observacao']
             if not pagamento.criado_por_id:
                 pagamento.criado_por = request.user

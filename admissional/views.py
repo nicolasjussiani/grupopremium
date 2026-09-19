@@ -1,4 +1,7 @@
 """ERP Grupo PremiumBR — Views do Módulo 2: Admissional"""
+from calendar import monthrange
+from datetime import timedelta
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -6,7 +9,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from .models import (
     Admissao, Colaborador, DocumentoAdmissional, DocumentoColaborador,
-    PagamentoColaborador,
+    PagamentoColaborador, PresencaDiaria,
 )
 from .forms import ColaboradorForm, PagamentoColaboradorForm
 from core.models import Notificacao
@@ -17,7 +20,8 @@ from core.validators import validate_document_upload
 from core.direct_uploads import assign_direct_upload, verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Count, Q, Sum
+from django.http import JsonResponse
 from django.utils.text import get_valid_filename
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -231,6 +235,12 @@ def lista_colaboradores(request):
         colaboradores = colaboradores.filter(
             documentacao_incompleta=documentos_filter == 'incompletos'
         )
+    categoria_filter = request.GET.get('categoria', '').strip()
+    categorias_validas = {valor for valor, _ in Colaborador.CATEGORIAS_TRABALHO}
+    if categoria_filter in categorias_validas:
+        colaboradores = colaboradores.filter(categoria_trabalho=categoria_filter)
+    else:
+        categoria_filter = ''
     query = request.GET.get('q', '').strip()[:100]
     if query:
         filtros = (
@@ -254,6 +264,10 @@ def lista_colaboradores(request):
         'status_filter': status_filter,
         'status_choices': Colaborador.STATUS,
         'documentos_filter': documentos_filter,
+        'categoria_filter': categoria_filter,
+        'categoria_choices': Colaborador.CATEGORIAS_TRABALHO,
+        'total_fixos': Colaborador.objects.filter(status='ativo', categoria_trabalho='fixo').count(),
+        'total_freelancers': Colaborador.objects.filter(status='ativo', categoria_trabalho='freelancer').count(),
         'documentos_incompletos': documentos_incompletos,
         'can_add_colaborador': user_has_access(
             request.user,
@@ -278,6 +292,41 @@ def lista_colaboradores(request):
     })
 
 
+def _periodo_pagamentos(request):
+    hoje = timezone.localdate()
+    inicio_padrao = hoje.replace(day=1)
+    fim_padrao = hoje.replace(day=monthrange(hoje.year, hoje.month)[1])
+    inicio = parse_date(request.GET.get('data_inicio', '')) or inicio_padrao
+    fim = parse_date(request.GET.get('data_fim', '')) or fim_padrao
+    if fim < inicio:
+        inicio, fim = fim, inicio
+    return inicio, fim
+
+
+def _pagamentos_no_periodo(queryset, inicio, fim):
+    return queryset.filter(
+        Q(data_pagamento__range=(inicio, fim))
+        | Q(data_pagamento__isnull=True, data_vencimento__range=(inicio, fim))
+    )
+
+
+def _anexar_faltas(pagamentos, inicio, fim):
+    pagamentos = list(pagamentos)
+    ids = {pagamento.colaborador_id for pagamento in pagamentos}
+    faltas = dict(
+        PresencaDiaria.objects.filter(
+            colaborador_id__in=ids,
+            data__range=(inicio, fim),
+            status='falta',
+        ).values('colaborador_id').annotate(total=Count('pk')).values_list(
+            'colaborador_id', 'total'
+        )
+    )
+    for pagamento in pagamentos:
+        pagamento.faltas_periodo = faltas.get(pagamento.colaborador_id, 0)
+    return pagamentos
+
+
 @login_required
 @access_required(
     permission='admissional.view_pagamentocolaborador',
@@ -287,6 +336,8 @@ def lista_pagamentos_colaboradores(request):
     pagamentos = PagamentoColaborador.objects.select_related(
         'colaborador', 'criado_por'
     ).prefetch_related('arquivos_importados')
+    data_inicio, data_fim = _periodo_pagamentos(request)
+    pagamentos = _pagamentos_no_periodo(pagamentos, data_inicio, data_fim)
     status_filter = request.GET.get('status', '').strip()
     status_validos = {valor for valor, _ in PagamentoColaborador.STATUS}
     if status_filter in status_validos:
@@ -309,13 +360,25 @@ def lista_pagamentos_colaboradores(request):
             | Q(colaborador__unidade__icontains=query)
         )
 
+    categoria_filter = request.GET.get('categoria', '').strip()
+    categorias_validas = {valor for valor, _ in Colaborador.CATEGORIAS_TRABALHO}
+    if categoria_filter in categorias_validas:
+        pagamentos = pagamentos.filter(colaborador__categoria_trabalho=categoria_filter)
+    else:
+        categoria_filter = ''
+
     totais = pagamentos.values('status').annotate(total=Sum('valor'))
     totais_status = {item['status']: item['total'] for item in totais}
+    pagamentos = _anexar_faltas(pagamentos, data_inicio, data_fim)
     return render(request, 'admissional/lista_pagamentos.html', {
         'pagamentos': pagamentos,
         'query': query,
         'status_filter': status_filter,
         'tipo_filter': tipo_filter,
+        'categoria_filter': categoria_filter,
+        'categoria_choices': Colaborador.CATEGORIAS_TRABALHO,
+        'data_inicio': data_inicio,
+        'data_fim': data_fim,
         'status_choices': PagamentoColaborador.STATUS,
         'tipo_choices': PagamentoColaborador.TIPOS,
         'total_pendente': totais_status.get('pendente', 0),
@@ -335,6 +398,76 @@ def lista_pagamentos_colaboradores(request):
 
 @login_required
 @access_required(
+    permission='admissional.view_pagamentocolaborador',
+    profiles=('rh', 'financeiro', 'gestor'),
+)
+def visao_beneficios_colaboradores(request):
+    data_inicio, data_fim = _periodo_pagamentos(request)
+    pagamentos = _pagamentos_no_periodo(
+        PagamentoColaborador.objects.filter(
+            tipo__in=['vale_transporte', 'ajuda_custo']
+        ).select_related('colaborador'),
+        data_inicio,
+        data_fim,
+    )
+    query = request.GET.get('q', '').strip()[:100]
+    if query:
+        pagamentos = pagamentos.filter(
+            Q(colaborador__nome__icontains=query)
+            | Q(colaborador__unidade__icontains=query)
+            | Q(colaborador__cpf__icontains=query)
+        )
+    unidade_filter = request.GET.get('unidade', '').strip()[:100]
+    if unidade_filter:
+        pagamentos = pagamentos.filter(colaborador__unidade=unidade_filter)
+    totais_tipo = {
+        item['tipo']: item['total']
+        for item in pagamentos.values('tipo').annotate(total=Sum('valor'))
+    }
+    total_geral = pagamentos.aggregate(total=Sum('valor'))['total'] or 0
+    pessoas = pagamentos.values('colaborador_id').distinct().count()
+    pagamentos = _anexar_faltas(pagamentos, data_inicio, data_fim)
+    unidades = Colaborador.objects.exclude(unidade='').order_by('unidade').values_list(
+        'unidade', flat=True
+    ).distinct()
+    return render(request, 'admissional/visao_beneficios.html', {
+        'pagamentos': pagamentos,
+        'data_inicio': data_inicio,
+        'data_fim': data_fim,
+        'query': query,
+        'unidade_filter': unidade_filter,
+        'unidades': unidades,
+        'total_vt': totais_tipo.get('vale_transporte', 0),
+        'total_ajuda': totais_tipo.get('ajuda_custo', 0),
+        'total_geral': total_geral,
+        'total_pessoas': pessoas,
+    })
+
+
+@login_required
+@access_required(
+    permission='admissional.view_pagamentocolaborador',
+    profiles=('rh', 'financeiro', 'gestor'),
+)
+def resumo_colaborador_pagamento(request, pk):
+    colaborador = get_object_or_404(Colaborador, pk=pk)
+    inicio, fim = _periodo_pagamentos(request)
+    faltas = PresencaDiaria.objects.filter(
+        colaborador=colaborador,
+        data__range=(inicio, fim),
+        status='falta',
+    ).count()
+    return JsonResponse({
+        'nome': colaborador.nome,
+        'categoria': colaborador.get_categoria_trabalho_display(),
+        'tipo_contrato': colaborador.get_tipo_contrato_display(),
+        'faltas': faltas,
+        'periodo': f'{inicio:%d/%m/%Y} a {fim:%d/%m/%Y}',
+    })
+
+
+@login_required
+@access_required(
     permission='admissional.add_pagamentocolaborador',
     profiles=('rh', 'financeiro', 'gestor'),
 )
@@ -345,7 +478,11 @@ def novo_pagamento_colaborador(request):
             pagamento = form.save(commit=False)
             pagamento.criado_por = request.user
             pagamento.save()
-            messages.success(request, 'Pagamento cadastrado com sucesso.')
+            _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
+            mensagem = 'Pagamento cadastrado com sucesso.'
+            if recorrencia_criada:
+                mensagem += ' A próxima semana foi gerada automaticamente.'
+            messages.success(request, mensagem)
             return redirect('lista_pagamentos_colaboradores')
     else:
         initial = {
@@ -353,6 +490,20 @@ def novo_pagamento_colaborador(request):
             'tipo': request.GET.get('tipo', ''),
             'status': 'pendente',
         }
+        hoje = timezone.localdate()
+        if initial['tipo'] in {'vale_transporte', 'ajuda_custo'}:
+            segunda = hoje - timedelta(days=hoje.weekday())
+            initial.update({
+                'competencia': segunda,
+                'competencia_fim': segunda + timedelta(days=6),
+                'data_vencimento': segunda,
+                'recorrente': True,
+            })
+        else:
+            initial.update({
+                'competencia': hoje.replace(day=1),
+                'competencia_fim': hoje.replace(day=monthrange(hoje.year, hoje.month)[1]),
+            })
         colaborador_id = str(initial['colaborador']).strip()
         if colaborador_id.isdigit() and initial['tipo'] in {'salario', 'vale_transporte', 'ajuda_custo'}:
             colaborador = Colaborador.objects.filter(pk=colaborador_id).first()
@@ -381,8 +532,12 @@ def editar_pagamento_colaborador(request, pk):
     if request.method == 'POST':
         form = PagamentoColaboradorForm(request.POST, instance=pagamento)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Pagamento atualizado com sucesso.')
+            pagamento = form.save()
+            _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
+            mensagem = 'Pagamento atualizado com sucesso.'
+            if recorrencia_criada:
+                mensagem += ' A próxima semana foi gerada automaticamente.'
+            messages.success(request, mensagem)
             return redirect('lista_pagamentos_colaboradores')
     else:
         form = PagamentoColaboradorForm(instance=pagamento)
@@ -410,7 +565,11 @@ def marcar_pagamento_como_pago(request, pk):
         pagamento.status = 'pago'
         pagamento.data_pagamento = timezone.localdate()
         pagamento.save(update_fields=['status', 'data_pagamento', 'atualizado_em'])
-        messages.success(request, 'Pagamento marcado como pago.')
+        _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
+        mensagem = 'Pagamento marcado como pago.'
+        if recorrencia_criada:
+            mensagem += ' A próxima semana foi gerada automaticamente.'
+        messages.success(request, mensagem)
     return redirect('lista_pagamentos_colaboradores')
 
 @login_required

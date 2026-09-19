@@ -6,7 +6,7 @@
 {% block content %}
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
   <h1 class="mod-title">💵 Folha de Pagamento</h1>
-  <div class="mod-desc">Acompanhe salários, vale-transporte e a confirmação de cada pagamento.</div>
+  <div class="mod-desc">Acompanhe salários, benefícios, faltas e a confirmação de cada pagamento.</div>
 </div>
 
 <div class="kpi-grid" style="margin-bottom:20px;">
@@ -34,25 +34,36 @@
         {% for valor, descricao in status_choices %}<option value="{{ valor }}" {% if status_filter == valor %}selected{% endif %}>{{ descricao }}</option>{% endfor %}
       </select>
     </div>
+    <div style="min-width:170px;">
+      <label for="categoria-pagamento">Categoria</label>
+      <select id="categoria-pagamento" class="form-control" name="categoria">
+        <option value="">Fixos e freelancers</option>
+        {% for valor, descricao in categoria_choices %}<option value="{{ valor }}" {% if categoria_filter == valor %}selected{% endif %}>{{ descricao }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label for="data-inicio">Data inicial</label><input id="data-inicio" class="form-control" type="date" name="data_inicio" value="{{ data_inicio|date:'Y-m-d' }}"></div>
+    <div><label for="data-fim">Data final</label><input id="data-fim" class="form-control" type="date" name="data_fim" value="{{ data_fim|date:'Y-m-d' }}"></div>
     <button class="btn btn-mod6" type="submit">Pesquisar</button>
-    {% if query or tipo_filter or status_filter %}<a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn">Limpar</a>{% endif %}
+    <a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn">Mês atual</a>
   </form>
 </div>
 
-{% if can_add_pagamento %}
-<div style="margin-bottom:20px;"><a href="{% url 'novo_pagamento_colaborador' %}" class="btn btn-mod6">➕ Novo pagamento</a></div>
-{% endif %}
+<div style="margin-bottom:20px;display:flex;gap:10px;flex-wrap:wrap;">
+  <a href="{% url 'visao_beneficios_colaboradores' %}" class="btn btn-outline">Visualizar VT e ajuda de custo</a>
+  {% if can_add_pagamento %}<a href="{% url 'novo_pagamento_colaborador' %}" class="btn btn-mod6">➕ Novo pagamento</a>{% endif %}
+</div>
 
 {% if pagamentos %}
 <div class="table-wrap">
   <table>
-    <thead><tr><th>Colaborador</th><th>Tipo</th><th>Competência</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Data do pagamento</th><th>Comprovante</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Colaborador</th><th>Tipo</th><th>Competência</th><th>Faltas</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Data do pagamento</th><th>Comprovante</th><th>Ações</th></tr></thead>
     <tbody>
       {% for pagamento in pagamentos %}
       <tr>
-        <td><strong>{{ pagamento.colaborador.nome|default:"Não informado" }}</strong><div style="font-size:.74rem;color:var(--text-muted);">{{ pagamento.colaborador.unidade }}</div></td>
+        <td><strong>{{ pagamento.colaborador.nome|default:"Não informado" }}</strong><div style="font-size:.74rem;color:var(--text-muted);">{{ pagamento.colaborador.unidade }} · {{ pagamento.colaborador.get_categoria_trabalho_display }}</div></td>
         <td>{{ pagamento.get_tipo_display }}</td>
-        <td>{{ pagamento.competencia|date:"d/m/Y" }}</td>
+        <td>{{ pagamento.competencia|date:"d/m/Y" }}{% if pagamento.fim_competencia != pagamento.competencia %}<br><small>até {{ pagamento.fim_competencia|date:"d/m/Y" }}</small>{% endif %}{% if pagamento.recorrente %}<br><span class="badge badge-info">Recorrente</span>{% endif %}</td>
+        <td><span class="badge {% if pagamento.faltas_periodo %}badge-danger{% else %}badge-success{% endif %}">{{ pagamento.faltas_periodo }}</span></td>
         <td>{{ pagamento.data_vencimento|date:"d/m/Y" }}</td>
         <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
         <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>

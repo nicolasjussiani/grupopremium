@@ -10,6 +10,11 @@
 </div>
 
 <div class="card" style="max-width:900px;margin:0 auto;">
+  <div id="resumo-colaborador" class="alert alert-info" style="display:none;margin-bottom:18px;">
+    <strong id="resumo-nome"></strong>
+    <span id="resumo-detalhes"></span>
+    <strong id="resumo-faltas" style="margin-left:8px;"></strong>
+  </div>
   <form method="post">
     {% csrf_token %}
     {% if form.non_field_errors %}
@@ -22,7 +27,9 @@
           {{ field.label }}{% if field.field.required %} <span class="required">*</span>{% endif %}
         </label>
         {{ field }}
-        {% if field.name == 'competencia' %}<small class="form-help">Para vale-transporte, informe o início da semana; para salário, use o primeiro dia do mês.</small>{% endif %}
+        {% if field.name == 'competencia' %}<small class="form-help">Informe o início exato do período considerado.</small>{% endif %}
+        {% if field.name == 'competencia_fim' %}<small class="form-help">A competência pode variar de uma data até outra.</small>{% endif %}
+        {% if field.name == 'recorrente' %}<small class="form-help">Use para VT ou ajuda de custo semanal. Ao pagar, a semana seguinte será criada automaticamente.</small>{% endif %}
         {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
       </div>
       {% endfor %}
@@ -33,4 +40,39 @@
     </div>
   </form>
 </div>
+<script>
+(function () {
+  const colaborador = document.getElementById('id_colaborador');
+  const inicio = document.getElementById('id_competencia');
+  const fim = document.getElementById('id_competencia_fim');
+  const resumo = document.getElementById('resumo-colaborador');
+  const baseUrl = "{% url 'resumo_colaborador_pagamento' 0 %}";
+
+  async function atualizarResumo() {
+    if (!colaborador || !colaborador.value) {
+      resumo.style.display = 'none';
+      return;
+    }
+    const params = new URLSearchParams();
+    if (inicio.value) params.set('data_inicio', inicio.value);
+    if (fim.value) params.set('data_fim', fim.value);
+    const url = baseUrl.replace('/0/resumo/', '/' + colaborador.value + '/resumo/') + '?' + params.toString();
+    try {
+      const resposta = await fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+      if (!resposta.ok) return;
+      const dados = await resposta.json();
+      document.getElementById('resumo-nome').textContent = dados.nome + ' — ';
+      document.getElementById('resumo-detalhes').textContent = dados.categoria + ' · ' + dados.tipo_contrato + ' · ' + dados.periodo;
+      document.getElementById('resumo-faltas').textContent = dados.faltas + (dados.faltas === 1 ? ' falta' : ' faltas');
+      resumo.style.display = 'block';
+    } catch (erro) {
+      resumo.style.display = 'none';
+    }
+  }
+  [colaborador, inicio, fim].forEach(function (campo) {
+    if (campo) campo.addEventListener('change', atualizarResumo);
+  });
+  atualizarResumo();
+})();
+</script>
 {% endblock %}

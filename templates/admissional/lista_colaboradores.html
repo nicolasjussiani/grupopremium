@@ -9,6 +9,11 @@
   <div class="mod-desc">{{ total_ativos }} colaborador(es) ativo(s) · {{ documentos_incompletos }} com documentação incompleta</div>
 </div>
 
+<div class="kpi-grid" style="margin-bottom:20px;">
+  <div class="kpi-card"><div class="kpi-label">Colaboradores fixos</div><div class="kpi-value">{{ total_fixos }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Freelancers</div><div class="kpi-value">{{ total_freelancers }}</div></div>
+</div>
+
 <div class="card" style="margin-bottom:20px;">
   <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
     <div style="flex:1;min-width:240px;">
@@ -40,8 +45,15 @@
         <option value="completos" {% if documentos_filter == 'completos' %}selected{% endif %}>Documentação completa</option>
       </select>
     </div>
+    <div style="min-width:190px;">
+      <label for="categoria-colaborador">Categoria</label>
+      <select id="categoria-colaborador" class="form-control" name="categoria">
+        <option value="">Fixos e freelancers</option>
+        {% for valor, descricao in categoria_choices %}<option value="{{ valor }}" {% if categoria_filter == valor %}selected{% endif %}>{{ descricao }}</option>{% endfor %}
+      </select>
+    </div>
     <button type="submit" class="btn btn-mod1">🔎 Pesquisar</button>
-    {% if query or status_filter != 'ativo' or documentos_filter %}
+    {% if query or status_filter != 'ativo' or documentos_filter or categoria_filter %}
       <a href="{% url 'lista_colaboradores' %}" class="btn">Limpar</a>
     {% endif %}
   </form>
@@ -70,6 +82,7 @@
       <tr>
         <th>#</th>
         <th>Nome</th>
+        <th>Categoria</th>
         <th>Cargo</th>
         <th>Unidade</th>
         <th>Contrato</th>
@@ -88,6 +101,7 @@
           <div style="font-weight:600;">{{ c.nome }}</div>
           <div style="font-size:0.74rem;color:var(--text-muted);">{{ c.email }}</div>
         </td>
+        <td><span class="badge {% if c.categoria_trabalho == 'freelancer' %}badge-warning{% else %}badge-info{% endif %}">{{ c.get_categoria_trabalho_display }}</span></td>
         <td>{{ c.cargo }}</td>
         <td>{{ c.unidade }}</td>
         <td>
