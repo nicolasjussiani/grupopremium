@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -134,6 +134,34 @@ class PagamentosColaboradoresTest(TestCase):
 
         self.assertTrue(form.is_valid(), form.errors)
 
+    def test_vt_e_ajuda_de_custo_sao_normalizados_para_segunda_feira(self):
+        form = PagamentoColaboradorForm(data=self.dados_pagamento(
+            tipo='vale_transporte',
+            competencia='2026-09-10',
+            competencia_fim='2026-09-30',
+            data_vencimento='2026-09-12',
+        ))
+
+        self.assertTrue(form.is_valid(), form.errors)
+        pagamento = form.save()
+        self.assertEqual(pagamento.competencia, date(2026, 9, 7))
+        self.assertEqual(pagamento.competencia_fim, date(2026, 9, 13))
+        self.assertEqual(pagamento.data_vencimento, date(2026, 9, 7))
+        self.assertTrue(pagamento.recorrente)
+
+    def test_pagamento_realizado_de_vt_registra_segunda_da_semana(self):
+        form = PagamentoColaboradorForm(data=self.dados_pagamento(
+            tipo='vale_transporte',
+            competencia='2026-09-10',
+            data_vencimento='2026-09-12',
+            status='pago',
+            data_pagamento='2026-09-12',
+        ))
+
+        self.assertTrue(form.is_valid(), form.errors)
+        pagamento = form.save()
+        self.assertEqual(pagamento.data_pagamento, date(2026, 9, 7))
+
     def test_modelo_rejeita_vale_transporte_para_pj_fora_do_formulario(self):
         self.colaborador.tipo_contrato = 'pj'
         self.colaborador.save(update_fields=['tipo_contrato'])
@@ -183,7 +211,7 @@ class PagamentosColaboradoresTest(TestCase):
         form.save()
         self.assertEqual(PagamentoColaborador.objects.count(), 2)
 
-    def test_marca_pagamento_pendente_como_pago_hoje(self):
+    def test_marca_vt_como_pago_na_segunda_da_semana(self):
         pagamento = PagamentoColaborador.objects.create(
             colaborador=self.colaborador,
             tipo='vale_transporte',
@@ -199,7 +227,8 @@ class PagamentosColaboradoresTest(TestCase):
         self.assertRedirects(response, reverse('lista_pagamentos_colaboradores'))
         pagamento.refresh_from_db()
         self.assertEqual(pagamento.status, 'pago')
-        self.assertEqual(pagamento.data_pagamento, timezone.localdate())
+        segunda = timezone.localdate() - timedelta(days=timezone.localdate().weekday())
+        self.assertEqual(pagamento.data_pagamento, segunda)
 
     def test_pagamento_recorrente_gera_proxima_semana_uma_vez(self):
         pagamento = PagamentoColaborador.objects.create(

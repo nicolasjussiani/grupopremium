@@ -72,20 +72,21 @@ class ListaColaboradoresContratoTest(TestCase):
 
     def test_desativar_cancela_pendentes_e_preserva_pagamentos_realizados(self):
         hoje = timezone.localdate()
+        proxima_segunda = hoje + timezone.timedelta(days=(-hoje.weekday()) % 7)
         colaborador = Colaborador.objects.create(
             nome='Pessoa com Folha', status='ativo'
         )
         pendente = PagamentoColaborador.objects.create(
-            colaborador=colaborador, tipo='salario', competencia=hoje,
-            valor='2000.00', data_vencimento=hoje, recorrente=True,
+            colaborador=colaborador, tipo='salario', competencia=proxima_segunda,
+            valor='2000.00', data_vencimento=proxima_segunda, recorrente=True,
         )
         vale_transporte = PagamentoColaborador.objects.create(
-            colaborador=colaborador, tipo='vale_transporte', competencia=hoje,
-            valor='80.00', data_vencimento=hoje, recorrente=True,
+            colaborador=colaborador, tipo='vale_transporte', competencia=proxima_segunda,
+            valor='80.00', data_vencimento=proxima_segunda, recorrente=True,
         )
         prestacao = PagamentoColaborador.objects.create(
-            colaborador=colaborador, tipo='prestacao_servico', competencia=hoje,
-            valor='1800.00', data_vencimento=hoje,
+            colaborador=colaborador, tipo='prestacao_servico', competencia=proxima_segunda,
+            valor='1800.00', data_vencimento=proxima_segunda,
         )
         pago = PagamentoColaborador.objects.create(
             colaborador=colaborador, tipo='salario', competencia=hoje,

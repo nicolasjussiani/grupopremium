@@ -20,14 +20,25 @@ TIPOS_PAGAMENTO_CANCELAVEIS_NA_DESATIVACAO = {
     'freelancer',
 }
 
+TIPOS_PAGAMENTO_SEMANAIS = {'vale_transporte', 'ajuda_custo'}
+
+
+def periodo_semanal(data_referencia):
+    """Retorna a segunda e o domingo da semana da data informada."""
+    segunda = data_referencia - timedelta(days=data_referencia.weekday())
+    return segunda, segunda + timedelta(days=6)
+
 
 def cancelar_pagamentos_futuros(colaborador_ids):
     """Retira da folha os pagamentos futuros gerados para pessoas desativadas."""
+    hoje = timezone.localdate()
     return PagamentoColaborador.objects.filter(
         colaborador_id__in=colaborador_ids,
         status='pendente',
         tipo__in=TIPOS_PAGAMENTO_CANCELAVEIS_NA_DESATIVACAO,
-        data_vencimento__gte=timezone.localdate(),
+    ).filter(
+        Q(data_vencimento__gte=hoje)
+        | Q(tipo__in=TIPOS_PAGAMENTO_SEMANAIS, competencia_fim__gte=hoje)
     ).update(status='cancelado', recorrente=False)
 
 
@@ -323,8 +334,32 @@ class PagamentoColaborador(models.Model):
     def __str__(self):
         return f'{self.get_tipo_display()} - {self.colaborador} - {self.competencia:%d/%m/%Y}'
 
+    def normalizar_datas_semanais(self):
+        if self.tipo not in TIPOS_PAGAMENTO_SEMANAIS:
+            return
+        referencia = self.competencia or self.data_vencimento or self.data_pagamento
+        if referencia:
+            segunda, domingo = periodo_semanal(referencia)
+            self.competencia = segunda
+            self.competencia_fim = domingo
+            self.data_vencimento = segunda
+        if self.data_pagamento:
+            self.data_pagamento = periodo_semanal(self.data_pagamento)[0]
+        self.recorrente = True
+
+    def save(self, *args, **kwargs):
+        self.normalizar_datas_semanais()
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and self.tipo in TIPOS_PAGAMENTO_SEMANAIS:
+            kwargs['update_fields'] = set(update_fields) | {
+                'competencia', 'competencia_fim', 'data_vencimento',
+                'data_pagamento', 'recorrente',
+            }
+        return super().save(*args, **kwargs)
+
     def clean(self):
         super().clean()
+        self.normalizar_datas_semanais()
         if self.competencia_fim and self.competencia and self.competencia_fim < self.competencia:
             raise ValidationError({
                 'competencia_fim': 'O fim da competência não pode ser anterior ao início.'

@@ -1,5 +1,8 @@
 from django import forms
-from .models import Colaborador, PagamentoColaborador
+from .models import (
+    Colaborador, PagamentoColaborador, TIPOS_PAGAMENTO_SEMANAIS,
+    periodo_semanal,
+)
 from core.validators import MAX_REQUEST_UPLOAD_SIZE, validate_document_upload
 
 class ColaboradorForm(forms.ModelForm):
@@ -175,6 +178,15 @@ class PagamentoColaboradorForm(forms.ModelForm):
             cleaned_data['data_pagamento'] = None
         competencia = cleaned_data.get('competencia')
         competencia_fim = cleaned_data.get('competencia_fim')
+        if tipo in TIPOS_PAGAMENTO_SEMANAIS and competencia:
+            segunda, domingo = periodo_semanal(competencia)
+            cleaned_data['competencia'] = segunda
+            cleaned_data['competencia_fim'] = domingo
+            cleaned_data['data_vencimento'] = segunda
+            if data_pagamento:
+                cleaned_data['data_pagamento'] = periodo_semanal(data_pagamento)[0]
+            competencia = segunda
+            competencia_fim = domingo
         if competencia and not competencia_fim:
             cleaned_data['competencia_fim'] = competencia
         if competencia and competencia_fim and competencia_fim < competencia:
@@ -182,5 +194,5 @@ class PagamentoColaboradorForm(forms.ModelForm):
                 'competencia_fim',
                 'O fim da competência não pode ser anterior ao início.',
             )
-        cleaned_data['recorrente'] = tipo in {'vale_transporte', 'ajuda_custo'}
+        cleaned_data['recorrente'] = tipo in TIPOS_PAGAMENTO_SEMANAIS
         return cleaned_data

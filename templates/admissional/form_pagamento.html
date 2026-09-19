@@ -29,6 +29,7 @@
         {{ field }}
         {% if field.name == 'competencia' %}<small class="form-help">Informe o início exato do período considerado.</small>{% endif %}
         {% if field.name == 'competencia_fim' %}<small class="form-help">A competência pode variar de uma data até outra.</small>{% endif %}
+        {% if field.name == 'data_vencimento' %}<small class="form-help">Para VT e ajuda de custo, o vencimento é ajustado automaticamente para segunda-feira.</small>{% endif %}
         {% if field.name == 'recorrente' %}<small class="form-help">Use para VT ou ajuda de custo semanal. Ao pagar, a semana seguinte será criada automaticamente.</small>{% endif %}
         {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
       </div>
@@ -47,13 +48,26 @@
   const recorrente = document.getElementById('id_recorrente');
   const inicio = document.getElementById('id_competencia');
   const fim = document.getElementById('id_competencia_fim');
+  const vencimento = document.getElementById('id_data_vencimento');
   const resumo = document.getElementById('resumo-colaborador');
   const baseUrl = "{% url 'resumo_colaborador_pagamento' 0 %}";
 
   function atualizarRecorrencia() {
     if (!tipo || !recorrente) return;
-    recorrente.checked = tipo.value === 'vale_transporte' || tipo.value === 'ajuda_custo';
+    const semanal = tipo.value === 'vale_transporte' || tipo.value === 'ajuda_custo';
+    recorrente.checked = semanal;
     recorrente.disabled = true;
+    if (semanal && inicio && inicio.value) {
+      const data = new Date(inicio.value + 'T12:00:00');
+      const diasAteSegunda = (data.getDay() + 6) % 7;
+      data.setDate(data.getDate() - diasAteSegunda);
+      const segunda = data.toISOString().slice(0, 10);
+      const domingoData = new Date(data);
+      domingoData.setDate(domingoData.getDate() + 6);
+      inicio.value = segunda;
+      fim.value = domingoData.toISOString().slice(0, 10);
+      if (vencimento) vencimento.value = segunda;
+    }
   }
 
   async function atualizarResumo() {
@@ -80,6 +94,7 @@
   [colaborador, inicio, fim].forEach(function (campo) {
     if (campo) campo.addEventListener('change', atualizarResumo);
   });
+  if (inicio) inicio.addEventListener('change', atualizarRecorrencia);
   if (tipo) tipo.addEventListener('change', atualizarRecorrencia);
   atualizarRecorrencia();
   atualizarResumo();
