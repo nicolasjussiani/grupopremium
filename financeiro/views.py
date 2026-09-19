@@ -42,7 +42,7 @@ def painel_financeiro(request):
     folha_mes = PagamentoColaborador.objects.filter(
         Q(data_pagamento__range=(mes_atual, fim_mes))
         | Q(data_pagamento__isnull=True, data_vencimento__range=(mes_atual, fim_mes))
-    )
+    ).exclude(status='cancelado')
     resumo_folha = folha_mes.aggregate(
         total=Sum('valor'),
         pago=Sum('valor', filter=Q(status='pago')),

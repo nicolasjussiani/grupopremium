@@ -8,6 +8,27 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.contrib.contenttypes.fields import GenericRelation
+from django.utils import timezone
+
+
+TIPOS_PAGAMENTO_CANCELAVEIS_NA_DESATIVACAO = {
+    'salario',
+    'salario_beneficios',
+    'vale_transporte',
+    'ajuda_custo',
+    'prestacao_servico',
+    'freelancer',
+}
+
+
+def cancelar_pagamentos_futuros(colaborador_ids):
+    """Retira da folha os pagamentos futuros gerados para pessoas desativadas."""
+    return PagamentoColaborador.objects.filter(
+        colaborador_id__in=colaborador_ids,
+        status='pendente',
+        tipo__in=TIPOS_PAGAMENTO_CANCELAVEIS_NA_DESATIVACAO,
+        data_vencimento__gte=timezone.localdate(),
+    ).update(status='cancelado', recorrente=False)
 
 
 class ColaboradorQuerySet(models.QuerySet):
@@ -41,7 +62,11 @@ class ColaboradorQuerySet(models.QuerySet):
 
     def delete(self):
         """Desativa em massa sem remover pessoas ou seus relacionamentos."""
-        quantidade = self.exclude(status='inativo').update(status='inativo')
+        colaboradores = self.exclude(status='inativo')
+        ids = list(colaboradores.values_list('pk', flat=True))
+        quantidade = colaboradores.update(status='inativo')
+        if ids:
+            cancelar_pagamentos_futuros(ids)
         return quantidade, {self.model._meta.label: quantidade}
 
 
@@ -144,6 +169,21 @@ class Colaborador(models.Model):
 
     objects = ColaboradorQuerySet.as_manager()
 
+    STATUS_SEM_PAGAMENTO = {'inativo', 'desligado'}
+
+    def save(self, *args, **kwargs):
+        status_anterior = None
+        if self.pk:
+            status_anterior = type(self).objects.filter(pk=self.pk).values_list(
+                'status', flat=True
+            ).first()
+        super().save(*args, **kwargs)
+        if (
+            self.status in self.STATUS_SEM_PAGAMENTO
+            and status_anterior not in self.STATUS_SEM_PAGAMENTO
+        ):
+            cancelar_pagamentos_futuros([self.pk])
+
     def delete(self, using=None, keep_parents=False):
         """Protege o historico: excluir um colaborador significa desativa-lo."""
         self.status = 'inativo'
@@ -222,6 +262,7 @@ class PagamentoColaborador(models.Model):
     STATUS = [
         ('pendente', 'Pendente'),
         ('pago', 'Pago'),
+        ('cancelado', 'Cancelado por inativação'),
     ]
 
     colaborador = models.ForeignKey(
@@ -294,6 +335,13 @@ class PagamentoColaborador(models.Model):
             })
         if not self.colaborador_id:
             return
+        if (
+            self.colaborador.status in Colaborador.STATUS_SEM_PAGAMENTO
+            and self.status != 'cancelado'
+        ):
+            raise ValidationError({
+                'colaborador': 'Não é possível criar pagamentos para um colaborador inativo.'
+            })
         tipo_contrato = self.colaborador.tipo_contrato
         if self.tipo == 'vale_transporte' and tipo_contrato != 'clt':
             raise ValidationError({
@@ -310,9 +358,14 @@ class PagamentoColaborador(models.Model):
 
     def criar_proxima_recorrencia(self, usuario=None):
         """Gera uma única parcela da semana seguinte, sem duplicar registros."""
-        if not self.recorrente or self.status != 'pago' or self.tipo not in {
+        if (
+            self.colaborador.status in Colaborador.STATUS_SEM_PAGAMENTO
+            or not self.recorrente
+            or self.status != 'pago'
+            or self.tipo not in {
             'vale_transporte', 'ajuda_custo',
-        }:
+            }
+        ):
             return None, False
         proximo_inicio = self.competencia + timedelta(days=7)
         existente = PagamentoColaborador.objects.filter(

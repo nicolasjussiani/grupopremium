@@ -344,6 +344,7 @@ def lista_pagamentos_colaboradores(request):
         pagamentos = pagamentos.filter(status=status_filter)
     else:
         status_filter = ''
+        pagamentos = pagamentos.exclude(status='cancelado')
 
     tipo_filter = request.GET.get('tipo', '').strip()
     tipos_validos = {valor for valor, _ in PagamentoColaborador.TIPOS}
@@ -411,7 +412,7 @@ def visao_beneficios_colaboradores(request):
     pagamentos = _pagamentos_no_periodo(
         PagamentoColaborador.objects.filter(
             tipo__in=['vale_transporte', 'ajuda_custo']
-        ).select_related('colaborador'),
+        ).exclude(status='cancelado').select_related('colaborador'),
         data_inicio,
         data_fim,
     )
@@ -564,7 +565,9 @@ def marcar_pagamento_como_pago(request, pk):
     pagamento = get_object_or_404(
         PagamentoColaborador.objects.select_for_update(), pk=pk
     )
-    if pagamento.status == 'pago':
+    if pagamento.status == 'cancelado':
+        messages.error(request, 'Pagamento cancelado porque o colaborador está inativo.')
+    elif pagamento.status == 'pago':
         messages.info(request, 'Este pagamento já estava marcado como pago.')
     else:
         pagamento.status = 'pago'
@@ -724,7 +727,11 @@ def excluir_colaborador(request, pk):
         # Desativacao logica: preserva cadastro, documentos e todo o historico.
         colaborador.status = 'inativo'
         colaborador.save(update_fields=['status'])
-        messages.success(request, f'Colaborador {nome} desativado com sucesso. Nenhum dado foi excluído.')
+        messages.success(
+            request,
+            f'Colaborador {nome} desativado com sucesso. Os próximos pagamentos '
+            'recorrentes saíram da folha; nenhum histórico foi excluído.'
+        )
         return redirect(f"{reverse('lista_colaboradores')}?status=inativo")
     return render(request, 'admissional/excluir_colaborador.html', {'colaborador': colaborador})
 

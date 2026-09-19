@@ -41,7 +41,7 @@ class CadastrosGeraisTests(TestCase):
         })
 
         self.assertRedirects(response, reverse('cadastros_gerais'))
-        unidade = Unidade.objects.get()
+        unidade = Unidade.objects.get(nome='Filial Santos')
         self.assertEqual(unidade.codigo, f'UNI-{unidade.pk:06d}')
         self.assertEqual(unidade.estado, 'SP')
 

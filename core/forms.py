@@ -24,7 +24,9 @@ class RevisaoPagamentoImportadoForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['colaborador'].queryset = Colaborador.objects.all().order_by('nome')
+        self.fields['colaborador'].queryset = Colaborador.objects.exclude(
+            status__in=Colaborador.STATUS_SEM_PAGAMENTO
+        ).order_by('nome')
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-control'
 

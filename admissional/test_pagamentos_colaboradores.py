@@ -69,6 +69,32 @@ class PagamentosColaboradoresTest(TestCase):
         self.assertIsNone(pagamento.data_pagamento)
         self.assertEqual(pagamento.criado_por, self.user)
 
+    def test_colaborador_inativo_nao_pode_receber_novo_pagamento(self):
+        self.colaborador.status = 'inativo'
+        self.colaborador.save(update_fields=['status'])
+
+        form = PagamentoColaboradorForm(data=self.dados_pagamento())
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('colaborador', form.errors)
+
+    def test_lista_padrao_nao_exibe_pagamento_cancelado(self):
+        hoje = timezone.localdate()
+        pagamento = PagamentoColaborador.objects.create(
+            colaborador=self.colaborador, tipo='salario', competencia=hoje,
+            valor=Decimal('2000.00'), data_vencimento=hoje,
+        )
+        self.colaborador.status = 'inativo'
+        self.colaborador.save(update_fields=['status'])
+
+        response = self.client.get(reverse('lista_pagamentos_colaboradores'), {
+            'data_inicio': hoje.isoformat(), 'data_fim': hoje.isoformat(),
+        })
+
+        pagamento.refresh_from_db()
+        self.assertEqual(pagamento.status, 'cancelado')
+        self.assertNotContains(response, self.colaborador.nome)
+
     def test_pagamento_pago_exige_data(self):
         form = PagamentoColaboradorForm(data=self.dados_pagamento(status='pago'))
 

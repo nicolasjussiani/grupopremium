@@ -187,7 +187,12 @@ def registrar_documento(user, key, nome_original, content_type, categoria_solici
     colaborador = None
     if categoria in {'pagamento_colaborador', 'reembolso'}:
         indicado = nome_indicado(caminho, subcategoria)
-        colaborador = localizar_colaborador(beneficiario or indicado, list(Colaborador.objects.all()))[0]
+        colaboradores_pagaveis = Colaborador.objects.exclude(
+            status__in=Colaborador.STATUS_SEM_PAGAMENTO
+        )
+        colaborador = localizar_colaborador(
+            beneficiario or indicado, list(colaboradores_pagaveis)
+        )[0]
         subcategoria = classificar_pagamento_regra(subcategoria, data_pagamento, valor, colaborador)
     metadados = {
         'origem_assistente': True,

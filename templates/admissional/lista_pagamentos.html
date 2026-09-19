@@ -67,7 +67,7 @@
         <td><span class="badge {% if pagamento.faltas_periodo %}badge-danger{% else %}badge-success{% endif %}">{{ pagamento.faltas_periodo }}</span></td>
         <td>{{ pagamento.data_vencimento|date:"d/m/Y" }}</td>
         <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
-        <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
+        <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% elif pagamento.status == 'cancelado' %}badge-danger{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
         <td>{{ pagamento.data_pagamento|date:"d/m/Y"|default:"—" }}</td>
         <td>
           {% with comprovante=pagamento.arquivos_importados.first %}

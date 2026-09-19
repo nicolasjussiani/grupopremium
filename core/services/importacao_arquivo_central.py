@@ -352,7 +352,9 @@ class ImportadorArquivoCentral:
         self.usuario = usuario
         self.dry_run = dry_run
         self.progresso = progresso or (lambda mensagem: None)
-        self.colaboradores = list(Colaborador.objects.all())
+        self.colaboradores = list(Colaborador.objects.exclude(
+            status__in=Colaborador.STATUS_SEM_PAGAMENTO
+        ))
         self._hashes_dry_run = set()
         self._arquivos_por_hash = {}
         self._caminhos_origem = set()

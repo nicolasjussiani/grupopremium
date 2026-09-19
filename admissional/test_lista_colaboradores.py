@@ -3,8 +3,9 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
-from .models import Colaborador, DocumentoColaborador
+from .models import Colaborador, DocumentoColaborador, PagamentoColaborador
 
 
 class ListaColaboradoresContratoTest(TestCase):
@@ -68,6 +69,63 @@ class ListaColaboradoresContratoTest(TestCase):
         self.assertEqual(colaborador.status, 'inativo')
         self.assertTrue(Colaborador.objects.filter(pk=colaborador.pk).exists())
         self.assertTrue(DocumentoColaborador.objects.filter(pk=documento.pk).exists())
+
+    def test_desativar_cancela_pendentes_e_preserva_pagamentos_realizados(self):
+        hoje = timezone.localdate()
+        colaborador = Colaborador.objects.create(
+            nome='Pessoa com Folha', status='ativo'
+        )
+        pendente = PagamentoColaborador.objects.create(
+            colaborador=colaborador, tipo='salario', competencia=hoje,
+            valor='2000.00', data_vencimento=hoje, recorrente=True,
+        )
+        vale_transporte = PagamentoColaborador.objects.create(
+            colaborador=colaborador, tipo='vale_transporte', competencia=hoje,
+            valor='80.00', data_vencimento=hoje, recorrente=True,
+        )
+        prestacao = PagamentoColaborador.objects.create(
+            colaborador=colaborador, tipo='prestacao_servico', competencia=hoje,
+            valor='1800.00', data_vencimento=hoje,
+        )
+        pago = PagamentoColaborador.objects.create(
+            colaborador=colaborador, tipo='salario', competencia=hoje,
+            valor='2000.00', data_vencimento=hoje, status='pago',
+            data_pagamento=hoje,
+        )
+
+        self.client.post(reverse('excluir_colaborador', args=[colaborador.pk]))
+
+        pendente.refresh_from_db()
+        vale_transporte.refresh_from_db()
+        prestacao.refresh_from_db()
+        pago.refresh_from_db()
+        self.assertEqual(pendente.status, 'cancelado')
+        self.assertFalse(pendente.recorrente)
+        self.assertEqual(vale_transporte.status, 'cancelado')
+        self.assertFalse(vale_transporte.recorrente)
+        self.assertEqual(prestacao.status, 'cancelado')
+        self.assertEqual(pago.status, 'pago')
+
+    def test_desativar_preserva_pendencias_antigas_e_outros_tipos(self):
+        hoje = timezone.localdate()
+        colaborador = Colaborador.objects.create(
+            nome='Pessoa com Histórico', status='ativo'
+        )
+        antigo = PagamentoColaborador.objects.create(
+            colaborador=colaborador, tipo='salario', competencia=hoje,
+            valor='2000.00', data_vencimento=hoje - timezone.timedelta(days=1),
+        )
+        reembolso = PagamentoColaborador.objects.create(
+            colaborador=colaborador, tipo='reembolso', competencia=hoje,
+            valor='150.00', data_vencimento=hoje + timezone.timedelta(days=1),
+        )
+
+        self.client.post(reverse('excluir_colaborador', args=[colaborador.pk]))
+
+        antigo.refresh_from_db()
+        reembolso.refresh_from_db()
+        self.assertEqual(antigo.status, 'pendente')
+        self.assertEqual(reembolso.status, 'pendente')
 
     def test_lista_permite_consultar_inativos_e_reativar(self):
         inativo = Colaborador.objects.create(
