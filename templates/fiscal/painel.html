@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Base Fiscal | ERP Grupo PremiumBR{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Base Fiscal</h1>
+    <p>Importação, conciliação e processamento da folha mensal.</p>
+  </div>
+  <a href="{% url 'painel_financeiro' %}" class="btn btn-secondary">Voltar ao Financeiro</a>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><div class="card-title">Importar planilha da Fiscal</div></div>
+  <form method="post" action="{% url 'importar_folha_fiscal' %}" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div style="display:grid;grid-template-columns:minmax(180px,240px) minmax(280px,1fr);gap:16px;align-items:end;">
+      {% for field in form %}
+      <div class="form-group" style="margin:0;">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+        {% for error in field.errors %}<div style="color:var(--danger);font-size:.8rem;">{{ error }}</div>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px;align-items:center;">
+      <button class="btn btn-mod6" type="submit">Importar e conciliar</button>
+      <small style="color:var(--text-muted);">A importação não altera salários cadastrais nem cria colaboradores.</small>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-header"><div class="card-title">Lotes importados</div><span class="badge badge-info">{{ folhas|length }}</span></div>
+  <div class="table-wrap" style="border:none;">
+    <table>
+      <thead><tr><th>Competência</th><th>Versão</th><th>Folha</th><th>Benefícios</th><th>Pendências</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for folha in folhas %}
+        <tr>
+          <td>{{ folha.competencia|date:"m/Y" }}</td>
+          <td>v{{ folha.versao }}</td>
+          <td>{{ folha.total_itens }}</td>
+          <td>{{ folha.quantidade_beneficios }}</td>
+          <td>{{ folha.itens_revisar|add:folha.beneficios_revisar }}</td>
+          <td><span class="badge {% if folha.status == 'processada' %}badge-success{% elif folha.status == 'revisao' %}badge-warning{% else %}badge-info{% endif %}">{{ folha.get_status_display }}</span></td>
+          <td><a href="{% url 'detalhe_folha_fiscal' folha.pk %}" class="btn btn-sm btn-secondary">Abrir</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Nenhuma planilha Fiscal importada.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

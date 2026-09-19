@@ -97,6 +97,7 @@ INSTALLED_APPS = [
     'sesmet',
     'compras',
     'financeiro',
+    'fiscal',
     'manutencao',
 ]
 

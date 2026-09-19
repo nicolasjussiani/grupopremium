@@ -17,6 +17,7 @@ from core.models import (
     PerfilUsuario, Unidade,
 )
 from financeiro.models import DocumentoFinanceiro, LancamentoERP
+from fiscal.models import FolhaFiscal
 from manutencao.models import Ativo, RegistroManutencao
 from recrutamento.models import Candidato, Talento, Vaga
 from sesmet.models import (
@@ -234,6 +235,14 @@ class FullSiteRouteTests(TestCase):
             motivo_revisao='Teste integral do site',
             importado_por=cls.user,
         )
+        cls.folha_fiscal = FolhaFiscal.objects.create(
+            competencia=date.today().replace(day=1),
+            titulo='Folha Fiscal de teste',
+            arquivo_origem=cls.arquivo_importado,
+            hash_origem='b' * 64,
+            status='revisao',
+            importado_por=cls.user,
+        )
 
     def setUp(self):
         self.client.force_login(self.user)
@@ -362,6 +371,10 @@ class FullSiteRouteTests(TestCase):
             ('validar_lancamento', (self.lancamento.pk,), 200),
             ('download_pdf_financeiro', (self.documento_financeiro.pk,), 200),
             ('extrair_ocr_documento', (), 400),
+            ('painel_fiscal', (), 200),
+            ('importar_folha_fiscal', (), 405),
+            ('detalhe_folha_fiscal', (self.folha_fiscal.pk,), 200),
+            ('processar_folha_fiscal', (self.folha_fiscal.pk,), 405),
             ('painel_manutencao', (), 200),
             ('lista_ativos', (), 200),
             ('novo_ativo', (), 200),
@@ -472,6 +485,8 @@ class FullSiteRouteTests(TestCase):
             ('editar_equipamento', (self.equipamento.pk,)),
             ('entrada_documento', ()),
             ('extrair_ocr_documento', ()),
+            ('importar_folha_fiscal', ()),
+            ('processar_folha_fiscal', (self.folha_fiscal.pk,)),
             ('auditoria_documento', (self.documento_financeiro.pk,)),
             ('lancar_erp', (self.documento_financeiro.pk,)),
             ('validar_lancamento', (self.lancamento.pk,)),
