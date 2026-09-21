@@ -377,7 +377,12 @@ def _resumo_pendencias_pagamentos(queryset, inicio, fim):
         numero_semana = min(((vencimento.day - 1) // 7) + 1, 4)
         chave_mes = (vencimento.year, vencimento.month)
         chave_semana = (*chave_mes, numero_semana)
-        for destino in (mensais[chave_mes], semanais[chave_semana], totais):
+        for destino in (mensais[chave_mes], totais):
+            destino[item['tipo']] += valor
+            destino['total'] += valor
+            destino['quantidade'] += quantidade
+        if item['tipo'] != 'salario':
+            destino = semanais[chave_semana]
             destino[item['tipo']] += valor
             destino['total'] += valor
             destino['quantidade'] += quantidade

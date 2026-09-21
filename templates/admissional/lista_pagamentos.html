@@ -83,7 +83,7 @@
       <span class="badge badge-warning">{{ resumo_pendencias.quantidade }} lançamento{{ resumo_pendencias.quantidade|pluralize:"s" }}</span>
     </div>
     <div class="kpi-grid pending-kpis">
-      <div class="kpi-card"><div class="kpi-label">Salários pendentes</div><div class="kpi-value">R$ {{ resumo_pendencias.salario|floatformat:2 }}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Salário mensal pendente</div><div class="kpi-value">R$ {{ resumo_pendencias.salario|floatformat:2 }}</div></div>
       <div class="kpi-card"><div class="kpi-label">VT pendente</div><div class="kpi-value">R$ {{ resumo_pendencias.vale_transporte|floatformat:2 }}</div></div>
       <div class="kpi-card"><div class="kpi-label">Ajuda de custo pendente</div><div class="kpi-value">R$ {{ resumo_pendencias.ajuda_custo|floatformat:2 }}</div></div>
       <div class="kpi-card"><div class="kpi-label">Total do período</div><div class="kpi-value">R$ {{ resumo_pendencias.total|floatformat:2 }}</div></div>
@@ -112,16 +112,15 @@
     </article>
 
     <article class="card pending-panel">
-      <div class="card-header"><div><div class="card-title">Pendentes por semana</div><small style="color:var(--text-muted);">1ª: dias 1–7 · 2ª: 8–14 · 3ª: 15–21 · 4ª: 22 ao fim do mês</small></div></div>
+      <div class="card-header"><div><div class="card-title">VT e ajuda de custo por semana</div><small style="color:var(--text-muted);">O salário é mensal e aparece somente no consolidado por mês. 1ª: dias 1–7 · 2ª: 8–14 · 3ª: 15–21 · 4ª: 22 ao fim.</small></div></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Semana</th><th>Período</th><th>Salário</th><th>VT</th><th>Ajuda</th><th>Total</th></tr></thead>
+          <thead><tr><th>Semana</th><th>Período</th><th>VT</th><th>Ajuda</th><th>Total semanal</th></tr></thead>
           <tbody>
             {% for linha in resumo_pendencias.semanais %}
             <tr>
               <td class="pending-period"><strong>{{ linha.numero }}ª semana</strong><br><small>{{ linha.mes|date:"m/Y" }}</small></td>
               <td class="pending-period">{{ linha.inicio|date:"d/m" }} a {{ linha.fim|date:"d/m" }}</td>
-              <td>R$ {{ linha.salario|floatformat:2 }}</td>
               <td>R$ {{ linha.vale_transporte|floatformat:2 }}</td>
               <td>R$ {{ linha.ajuda_custo|floatformat:2 }}</td>
               <td class="pending-total">R$ {{ linha.total|floatformat:2 }}</td>

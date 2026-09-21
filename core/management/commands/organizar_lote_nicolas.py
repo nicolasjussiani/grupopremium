@@ -28,7 +28,7 @@ REVISOES = {
     '8725f0dd-eb65-4ece-8703-9e8ac81a5db7.jpg': ('documento_financeiro', 'transporte', 'financeiro', 'Corrida de aplicativo', '27.15', '2026-09-16', '99 Tecnologia Ltda'),
     '919a16e6-81a1-4e33-af65-303b0fd831d3.jpg': ('pagamento_colaborador', 'distrato', 'rh', 'Pagamento de verbas rescisórias', '1634.00', '2026-09-18', 'Andre Silva Ataide'),
     '9d70aa75-1428-479d-9cce-02f0d71c163e.jpg': ('documento_financeiro', 'diaria_externa', 'financeiro', 'Uma diária e meia - unidade Vamos SJP', '195.00', '2026-09-15', '68.741.298 Bianca Vitoria Rosa'),
-    '9e9fa3fb-4e49-4352-87a5-fad04d0246fc.jpg': ('pagamento_colaborador', 'salario', 'rh', 'Adiantamento salarial a descontar', '100.00', '2026-09-18', 'Luis Carlos Antonio da Silva'),
+    '9e9fa3fb-4e49-4352-87a5-fad04d0246fc.jpg': ('pagamento_colaborador', 'adiantamento', 'rh', 'Adiantamento salarial a descontar', '100.00', '2026-09-18', 'Luis Carlos Antonio da Silva'),
     'a4459230-5ba3-4825-af19-146a899c0269.jpg': ('pagamento_colaborador', 'freelancer', 'rh', 'Pagamento de freelancer - unidade Vamos Recife', '130.00', '2026-09-16', 'Wallace Santos da Silva'),
     'a49ea2ac-b87b-43c8-b2da-05c3791d524f.jpg': ('reembolso', 'servicos', 'financeiro', 'Reembolso por serviços', '375.00', '2026-09-18', 'Cesar Daniel da Silva'),
     'a69b860f-56c4-4398-92b1-5ec472d17cf4.jpg': ('documento_financeiro', 'transporte', 'financeiro', 'Corrida de aplicativo', '29.40', '2026-09-16', '99 Tecnologia Ltda'),
@@ -48,7 +48,7 @@ REVISOES = {
 PAGAMENTOS = {
     '4e84af0b-13e9-4cb5-a004-e0a70610dda6.jpg': ('CRISTIANO APARECIDO PENA', 'reembolso'),
     '919a16e6-81a1-4e33-af65-303b0fd831d3.jpg': ('ANDRE SILVA ATAIDE', 'distrato'),
-    '9e9fa3fb-4e49-4352-87a5-fad04d0246fc.jpg': ('LUIS CARLOS ANTONIO DA SILVA', 'salario'),
+    '9e9fa3fb-4e49-4352-87a5-fad04d0246fc.jpg': ('LUIS CARLOS ANTONIO DA SILVA', 'adiantamento'),
     'a4459230-5ba3-4825-af19-146a899c0269.jpg': ('WALLACE SANTOS DA SILVA', 'freelancer'),
     'dbd1f2eb-21db-4334-b7f9-13fbfe1a32cd.jpg': ('BRENDON GABRIEL SANTOS OLIVEIRA', 'reembolso'),
     'df6b50e7-7af0-4858-ae1c-471648478155.jpg': ('URSULA FIDELIS TIAGO SBRAGIA', 'auxilio_telefonia'),
@@ -136,7 +136,7 @@ def _vincular_pagamento(arquivo, colaborador, tipo, valor, data_pagamento, usuar
     else:
         mensal = tipo in {
             'salario', 'salario_beneficios', 'prestacao_servico',
-            'freelancer', 'distrato', 'auxilio_telefonia',
+            'freelancer', 'distrato', 'auxilio_telefonia', 'adiantamento',
         }
         competencia = data_pagamento.replace(day=1) if mensal else data_pagamento
         competencia_fim = (

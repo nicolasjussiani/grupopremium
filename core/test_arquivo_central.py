@@ -94,6 +94,15 @@ class ExtracaoArquivoCentralTest(TestCase):
             'ajuda_custo',
         )
 
+    def test_regra_preserva_adiantamento_clt_fora_da_data_de_salario(self):
+        colaborador = Colaborador(tipo_contrato='clt')
+        self.assertEqual(
+            classificar_pagamento_regra(
+                'adiantamento', date(2026, 9, 18), Decimal('100.00'), colaborador
+            ),
+            'adiantamento',
+        )
+
 
 class ImportacaoArquivoCentralTest(TestCase):
     def setUp(self):

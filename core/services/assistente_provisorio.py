@@ -121,7 +121,10 @@ def _vincular_pagamento_automatico(
         return None
 
     competencia = data_pagamento
-    if tipo in {'salario', 'salario_beneficios', 'prestacao_servico', 'freelancer', 'distrato'}:
+    if tipo in {
+        'salario', 'salario_beneficios', 'prestacao_servico',
+        'freelancer', 'distrato', 'adiantamento',
+    }:
         competencia = data_pagamento.replace(day=1)
     competencia_fim = (
         competencia + timedelta(days=6)

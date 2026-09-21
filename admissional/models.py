@@ -412,6 +412,11 @@ class PagamentoColaborador(models.Model):
                 ),
                 name='admissional_um_valor_por_competencia',
             ),
+            models.UniqueConstraint(
+                fields=['colaborador', 'competencia'],
+                condition=Q(tipo='salario') & ~Q(status='cancelado'),
+                name='admissional_um_salario_por_competencia',
+            ),
         ]
 
     def __str__(self):

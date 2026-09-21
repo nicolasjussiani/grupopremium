@@ -578,6 +578,11 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
             regime__in=['clt', 'pj', 'supervisor', 'administrativo']
         ).exclude(colaborador_id=None).values_list('colaborador_id', flat=True)
     )
+    salarios_programados = set(
+        PagamentoColaborador.objects.exclude(status='cancelado').filter(
+            tipo='salario'
+        ).values_list('colaborador_id', 'competencia')
+    )
 
     def chave_pagamento(payment):
         payment.normalizar_datas_semanais()
@@ -644,6 +649,16 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
                     valor=value,
                 )
         if not payment:
+            chave_salario = (item.colaborador_id, folha.competencia)
+            if tipo_pagamento == 'salario' and chave_salario in salarios_programados:
+                item.problemas = [
+                    *item.problemas,
+                    'Já existe um salário para esta pessoa nesta competência.',
+                ]
+                item.status_conciliacao = 'revisar'
+                invalid_items.append(item)
+                skipped += 1
+                continue
             payment = PagamentoColaborador(
                 identificador_transacao=transaction_id,
                 colaborador=item.colaborador,
@@ -683,6 +698,8 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
             chaves_novas.add(chave)
             payments_to_create.append(payment)
             existing_payments[transaction_id] = payment
+            if tipo_pagamento == 'salario':
+                salarios_programados.add(chave_salario)
         elif payment.pk:
             campos_atualizados = []
             if (

@@ -205,6 +205,31 @@ class FiscalIntegrationTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.pagamento, existente)
 
+    def test_segundo_salario_da_competencia_vai_para_revisao(self):
+        PagamentoColaborador.objects.create(
+            colaborador=self.collaborator,
+            tipo='salario',
+            competencia=date(2026, 9, 1),
+            competencia_fim=date(2026, 9, 30),
+            valor=Decimal('2000.00'),
+            data_vencimento=date(2026, 9, 10),
+            status='pago',
+            data_pagamento=date(2026, 9, 10),
+        )
+        folha, _ = self._import()
+
+        created, skipped = gerar_pagamentos_fiscais(folha, self.user)
+
+        self.assertEqual(created, 4)
+        self.assertEqual(skipped, 1)
+        self.assertEqual(
+            PagamentoColaborador.objects.filter(tipo='salario').count(), 1
+        )
+        item = folha.itens.get()
+        item.refresh_from_db()
+        self.assertEqual(item.status_conciliacao, 'revisar')
+        self.assertIn('já existe um salário', ' '.join(item.problemas).lower())
+
     def test_salario_abaixo_de_150_e_classificado_como_freelancer(self):
         folha, _ = importar_folha_xlsx(
             content=build_test_workbook(salary=100, execute=100),

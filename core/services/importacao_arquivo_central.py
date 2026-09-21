@@ -145,7 +145,7 @@ def classificar_pagamento_regra(subcategoria, data_pagamento, valor, colaborador
         return (
             'prestacao_servico'
             if colaborador and colaborador.tipo_contrato == 'pj'
-            else 'salario'
+            else 'adiantamento'
         )
     if subcategoria == 'vale_transporte' and colaborador and colaborador.tipo_contrato == 'pj':
         return 'ajuda_custo'
@@ -604,7 +604,7 @@ class ImportadorArquivoCentral:
                 data_pagamento.replace(day=1)
                 if analise['subcategoria'] in {
                     'salario', 'salario_beneficios', 'prestacao_servico',
-                    'freelancer', 'distrato', 'auxilio_telefonia',
+                    'freelancer', 'distrato', 'auxilio_telefonia', 'adiantamento',
                 }
                 else data_pagamento
             )
@@ -612,7 +612,7 @@ class ImportadorArquivoCentral:
                 competencia.replace(day=monthrange(competencia.year, competencia.month)[1])
                 if competencia.day == 1 and analise['subcategoria'] in {
                     'salario', 'salario_beneficios', 'prestacao_servico',
-                    'freelancer', 'distrato', 'auxilio_telefonia',
+                    'freelancer', 'distrato', 'auxilio_telefonia', 'adiantamento',
                 }
                 else competencia + (
                     timedelta(days=6)

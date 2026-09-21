@@ -427,12 +427,29 @@ class PagamentosColaboradoresTest(TestCase):
         self.assertEqual(resumo['quantidade'], 4)
         self.assertEqual(len(resumo['mensais']), 1)
         self.assertEqual(len(resumo['semanais']), 4)
-        self.assertEqual(resumo['semanais'][0]['salario'], Decimal('2000.00'))
         self.assertEqual(resumo['semanais'][0]['vale_transporte'], Decimal('80.00'))
+        self.assertEqual(resumo['semanais'][0]['total'], Decimal('80.00'))
         self.assertEqual(resumo['semanais'][1]['vale_transporte'], Decimal('90.00'))
         self.assertEqual(resumo['semanais'][2]['ajuda_custo'], Decimal('75.00'))
-        self.assertContains(response, 'Pendentes por semana')
+        self.assertContains(response, 'VT e ajuda de custo por semana')
         self.assertContains(response, 'Pendentes por mês')
+
+    def test_rejeita_segundo_salario_na_mesma_competencia(self):
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='salario',
+            competencia=date(2026, 9, 1),
+            valor=Decimal('2000.00'),
+            data_vencimento=date(2026, 9, 10),
+        )
+
+        form = PagamentoColaboradorForm(data=self.dados_pagamento(
+            valor='500,00',
+            data_vencimento='2026-09-30',
+        ))
+
+        self.assertFalse(form.is_valid())
+        self.assertEqual(PagamentoColaborador.objects.count(), 1)
 
     def test_freelancer_calcula_total_por_dias_e_diaria(self):
         self.colaborador.categoria_trabalho = 'freelancer'

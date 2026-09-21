@@ -313,7 +313,10 @@ def _vincular_pagamento(arquivo, usuario, metadados, caminho):
     identificador = metadados.get('identificador_transacao') or f'storage:{arquivo.sha256}'
     pagamento = PagamentoColaborador.objects.filter(identificador_transacao=identificador).first()
     if not pagamento:
-        mensal = tipo in {'salario', 'salario_beneficios', 'prestacao_servico', 'freelancer', 'distrato', 'auxilio_telefonia'}
+        mensal = tipo in {
+            'salario', 'salario_beneficios', 'prestacao_servico',
+            'freelancer', 'distrato', 'auxilio_telefonia', 'adiantamento',
+        }
         competencia = data_pagamento.replace(day=1) if mensal else data_pagamento
         competencia_fim = (
             competencia.replace(day=monthrange(competencia.year, competencia.month)[1])
