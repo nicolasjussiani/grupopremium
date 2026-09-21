@@ -61,6 +61,11 @@ def normalizar_e_retirar_duplicados(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    # PostgreSQL não permite criar o índice parcial enquanto as atualizações
+    # desta migração ainda têm eventos de gatilho pendentes na mesma transação.
+    # Cada etapa precisa ser confirmada antes de criar a restrição final.
+    atomic = False
+
     dependencies = [
         ('admissional', '0021_alter_pagamentocolaborador_tipo_auxilio_telefonia'),
     ]
