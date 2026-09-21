@@ -1,9 +1,12 @@
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.db import OperationalError, connection
 from django.test import Client, TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -562,6 +565,62 @@ class PagamentosColaboradoresTest(TestCase):
 
 
 class PresencaNaoDefinidaTest(TestCase):
+    def test_reenvio_nao_regrava_e_atualizacao_preserva_registro(self):
+        dados = {
+            'data': '2026-09-18',
+            f'colaborador_{self.colaborador.pk}': '1',
+            f'status_{self.colaborador.pk}': 'presente',
+        }
+        self.assertEqual(self.client.post(reverse('controle_presenca'), dados).status_code, 302)
+        original = PresencaDiaria.objects.get(colaborador=self.colaborador)
+        with patch('admissional.views.PresencaDiaria.objects.bulk_create') as gravar:
+            self.client.post(reverse('controle_presenca'), dados)
+            gravar.assert_not_called()
+        dados[f'status_{self.colaborador.pk}'] = 'folga'
+        self.client.post(reverse('controle_presenca'), dados)
+        atual = PresencaDiaria.objects.get(colaborador=self.colaborador)
+        self.assertEqual(atual.pk, original.pk)
+        self.assertEqual(atual.criado_em, original.criado_em)
+        self.assertEqual(atual.status, 'folga')
+        self.assertGreaterEqual(atual.atualizado_em, original.atualizado_em)
+
+    def test_lista_grande_grava_em_lote(self):
+        colaboradores = Colaborador.objects.bulk_create([
+            Colaborador(nome=f'Colaborador {i}', status='ativo') for i in range(40)
+        ])
+        dados = {'data': '2026-09-18'}
+        for colaborador in colaboradores:
+            dados[f'colaborador_{colaborador.pk}'] = '1'
+            dados[f'status_{colaborador.pk}'] = 'presente'
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.post(reverse('controle_presenca'), dados)
+        self.assertEqual(response.status_code, 302)
+        escritas = [q['sql'] for q in queries if
+                    q['sql'].startswith(('INSERT', 'UPDATE'))
+                    and 'admissional_presencadiaria' in q['sql']]
+        self.assertEqual(len(escritas), 1)
+        self.assertEqual(PresencaDiaria.objects.count(), 40)
+
+    def test_timeout_desfaz_lote_e_mantem_marcacoes_na_tela(self):
+        def falhar(*args, **kwargs):
+            PresencaDiaria.objects.create(
+                colaborador=self.colaborador, data='2026-09-18', status='presente',
+            )
+            raise OperationalError('lock timeout')
+
+        with patch('admissional.views.PresencaDiaria.objects.bulk_create', side_effect=falhar):
+            with self.assertLogs('admissional.views', level='ERROR'):
+                response = self.client.post(reverse('controle_presenca'), {
+                    'data': '2026-09-18',
+                    f'colaborador_{self.colaborador.pk}': '1',
+                    f'status_{self.colaborador.pk}': 'presente',
+                    f'obs_{self.colaborador.pk}': 'Turno da manhã',
+                })
+        self.assertContains(response, 'Suas marcações foram mantidas', status_code=503)
+        self.assertEqual(response.context['presencas'][0].status, 'presente')
+        self.assertEqual(response.context['presencas'][0].observacao, 'Turno da manhã')
+        self.assertFalse(PresencaDiaria.objects.exists())
+
     def test_filtros_exportacao_e_salvamento_limitados_a_selecao(self):
         alvo = Colaborador.objects.create(
             nome='Ana Filtro', status='ativo', unidade='Santos',

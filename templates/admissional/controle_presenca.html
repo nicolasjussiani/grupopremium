@@ -41,7 +41,7 @@
   </form>
 </div>
 
-<form method="post">
+<form method="post" id="form-presenca">
     {% csrf_token %}
     <input type="hidden" name="data" value="{{ data_selecionada|date:'Y-m-d' }}">
     {% for campo, valor in filtros.items %}<input type="hidden" name="{{ campo }}" value="{{ valor }}">{% endfor %}
@@ -92,4 +92,26 @@
         </div>
     </div>
 </form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const form = document.getElementById('form-presenca');
+  const button = form.querySelector('button[type="submit"]');
+  const label = button.textContent;
+  let saving = false;
+  form.addEventListener('submit', (event) => {
+    if (saving) { event.preventDefault(); return; }
+    saving = true;
+    button.disabled = true;
+    button.textContent = 'Salvando presenças…';
+  });
+  window.addEventListener('pageshow', () => {
+    saving = false;
+    button.disabled = false;
+    button.textContent = label;
+  });
+})();
+</script>
 {% endblock %}

@@ -2,6 +2,7 @@
 from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
+import logging
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -21,7 +22,7 @@ from core.access import access_required, user_has_access
 from core.validators import validate_document_upload
 from core.direct_uploads import assign_direct_upload, verify_direct_upload
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import OperationalError, connection, transaction
 from django.db.models import Count, Q, Sum
 from django.http import Http404, JsonResponse
 from django.utils.text import get_valid_filename
@@ -1056,7 +1057,6 @@ def _lista_presenca_filtrada(data, filtros):
 
 @login_required
 @access_required(permission='admissional.change_presencadiaria', profiles=('rh',))
-@transaction.atomic
 def controle_presenca(request):
     from datetime import datetime
     data_str = request.GET.get('data') or request.POST.get('data')
@@ -1071,28 +1071,46 @@ def controle_presenca(request):
         data_selecionada = timezone.now().date()
         
     presencas = _lista_presenca_filtrada(data_selecionada, filtros)
+    response_status = 200
     if request.method == 'POST':
         status_validos = {choice[0] for choice in PresencaDiaria.STATUS_CHOICES}
-        colaboradores_validos = {p.colaborador_id for p in presencas}
-        for key, value in request.POST.items():
-            if key.startswith('colaborador_'):
-                try:
-                    colab_pk = int(key.split('_')[1])
-                except (ValueError, IndexError):
-                    continue
-                status = request.POST.get(f'status_{colab_pk}')
-                obs = request.POST.get(f'obs_{colab_pk}', '')
-                if colab_pk not in colaboradores_validos or status not in status_validos:
-                    continue
-                
-                PresencaDiaria.objects.update_or_create(
-                    colaborador_id=colab_pk,
-                    data=data_selecionada,
-                    defaults={'status': status, 'observacao': obs}
-                )
-        messages.success(request, f'Presenças salvas com sucesso para o dia {data_selecionada.strftime("%d/%m/%Y")}!')
-        query = urlencode({'data': data_selecionada.isoformat(), **filtros})
-        return redirect(f'{request.path}?{query}')
+        alteradas = []
+        for presenca in presencas:
+            colab_pk = presenca.colaborador_id
+            status = request.POST.get(f'status_{colab_pk}')
+            obs = request.POST.get(f'obs_{colab_pk}', '')
+            if f'colaborador_{colab_pk}' not in request.POST or status not in status_validos:
+                continue
+            if (presenca.status, presenca.observacao) == (status, obs):
+                continue
+            presenca.status, presenca.observacao = status, obs
+            # Fresh objects let the unique (colaborador, data) key resolve races
+            # without replacing primary keys or original creation timestamps.
+            alteradas.append(PresencaDiaria(
+                colaborador_id=colab_pk, data=data_selecionada,
+                status=status, observacao=obs,
+            ))
+        try:
+            if alteradas:
+                with transaction.atomic():
+                    if connection.vendor == 'postgresql':
+                        with connection.cursor() as cursor:
+                            cursor.execute("SET LOCAL lock_timeout = '3s'")
+                    PresencaDiaria.objects.bulk_create(
+                        sorted(alteradas, key=lambda p: p.colaborador_id),
+                        update_conflicts=True,
+                        unique_fields=['colaborador', 'data'],
+                        update_fields=['status', 'observacao', 'atualizado_em'],
+                    )
+        except OperationalError:
+            logging.getLogger(__name__).exception('Falha ao salvar presencas')
+            response_status = 503
+            messages.error(request, 'Não foi possível salvar: o banco está ocupado. '
+                           'Suas marcações foram mantidas nesta tela. Tente salvar novamente em instantes.')
+        else:
+            messages.success(request, f'Presenças salvas com sucesso para o dia {data_selecionada.strftime("%d/%m/%Y")}!')
+            query = urlencode({'data': data_selecionada.isoformat(), **filtros})
+            return redirect(f'{request.path}?{query}')
 
     total_nao_definidos = sum(p.status == 'indefinido' for p in presencas)
         
@@ -1108,7 +1126,7 @@ def controle_presenca(request):
         'total_nao_definidos': total_nao_definidos,
         'total_definidos': len(presencas) - total_nao_definidos,
         'total_colaboradores_presenca': len(presencas),
-    })
+    }, status=response_status)
 
 @login_required
 @access_required(permission='admissional.change_presencadiaria', profiles=('rh',))

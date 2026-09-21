@@ -6,11 +6,11 @@ import os
 import sys
 from urllib.parse import urlsplit
 
-import dj_database_url
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 
 from core.storage_endpoints import normalize_supabase_s3_endpoint
+from core.database_config import database_config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNNING_TESTS = 'test' in sys.argv
@@ -148,11 +148,7 @@ if not db_url and not DEBUG:
 
 if db_url:
     DATABASES = {
-        'default': dj_database_url.config(
-            default=db_url,
-            conn_max_age=0,
-            ssl_require=True,
-        )
+        'default': database_config(db_url, serverless=IS_SERVERLESS)
     }
 else:
     DATABASES = {
