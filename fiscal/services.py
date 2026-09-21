@@ -57,7 +57,7 @@ def excel_date(value):
         return None
     if isinstance(value, (date, datetime)):
         return value.date() if isinstance(value, datetime) else value
-    text = str(value).strip()
+    text = re.sub(r'[/.-]+', '/', str(value).strip())
     try:
         serial = float(text)
     except ValueError:
@@ -71,6 +71,25 @@ def excel_date(value):
                 return datetime.strptime(text, fmt).date()
             except ValueError:
                 continue
+        partes = text.split('/')
+        if len(partes) == 3 and all(parte.isdigit() for parte in partes):
+            dia, mes, ano_fonte = partes
+            ano_atual = date.today().year
+            candidatos = []
+            for ano in range(ano_atual - 8, ano_atual + 2):
+                ano_texto = str(ano)
+                distancia = _distancia_edicao_curta(ano_fonte, ano_texto)
+                if distancia == 1:
+                    try:
+                        candidatos.append(
+                            (abs(ano - ano_atual), datetime.strptime(
+                                f'{dia}/{mes}/{ano_texto}', '%d/%m/%Y'
+                            ).date())
+                        )
+                    except ValueError:
+                        pass
+            if candidatos:
+                return min(candidatos, key=lambda item: item[0])[1]
         return None
     if serial <= 0:
         return None
@@ -78,6 +97,18 @@ def excel_date(value):
         return date(1899, 12, 30) + timedelta(days=int(serial))
     except (OverflowError, ValueError):
         return None
+
+
+def _distancia_edicao_curta(a, b):
+    """Distancia Levenshtein pequena para reparar somente um digito do ano."""
+    if a == b:
+        return 0
+    if abs(len(a) - len(b)) > 1:
+        return 2
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b))
+    curto, longo = (a, b) if len(a) < len(b) else (b, a)
+    return 1 if any(longo[:i] + longo[i + 1:] == curto for i in range(len(longo))) else 2
 
 
 class XlsxReader:
@@ -262,7 +293,7 @@ def _match_collaborator(
 
 def _date_with_issue(raw, label, issues):
     parsed = excel_date(raw)
-    if raw not in (None, '') and not parsed:
+    if normalizar_texto(raw) not in {'', '-', '/', 'N/A', 'NA'} and not parsed:
         issues.append(f'{label} inválida: {raw}.')
     return parsed
 
@@ -278,7 +309,7 @@ def _formula_issues(cells, headers):
 
 @transaction.atomic
 def importar_folha_xlsx(
-    *, content, filename, competencia, usuario=None, include_rescisoes=True
+    *, content, filename, competencia, usuario=None, include_rescisoes=False
 ):
     if len(content) > 10 * 1024 * 1024:
         raise ValidationError('A planilha excede o limite de 10 MB.')
@@ -295,6 +326,7 @@ def importar_folha_xlsx(
         archive = ArquivoImportado(
             categoria='planilha',
             subcategoria='folha_fiscal',
+            area='fiscal',
             nome_original=filename[:255],
             sha256=digest,
             tamanho=len(content),
@@ -373,12 +405,23 @@ def importar_folha_xlsx(
             planned = decimal_value(_value(cells, headers, 'SALARIO PLANEJADO', 'A RECEBER PLANEJADO'))
             execute = decimal_value(_value(cells, headers, 'SALARIO A EXECUTAR', 'A RECEBER', 'TOTAL SALARIO'))
             salary = decimal_value(_value(cells, headers, 'SALARIO', 'DIARIA/SALARIO'))
+            daily_rate = decimal_value(
+                _value(cells, headers, 'VALOR DO DIA (R$)', 'VALOR DIA', 'DIARIA')
+            )
+            days_worked = decimal_value(
+                _value(cells, headers, 'DIAS TRABALHADOS', 'QTD SEMANA')
+            )
             effective_regime = regime
             if normalized_sheet == 'ATIVOS':
                 clt_value = normalizar_texto(_value(cells, headers, 'CLT'))
                 effective_regime = 'clt' if clt_value in {'SIM', 'CLT'} else 'pj'
             if effective_regime in {'clt', 'pj'} and salary and 0 < salary < 150:
                 effective_regime = 'freelancer'
+            if effective_regime == 'freelancer':
+                if not daily_rate and salary and salary > 0:
+                    daily_rate = salary
+                if execute is None and planned is None and daily_rate and days_worked:
+                    execute = (daily_rate * days_worked).quantize(Decimal('0.01'))
             if effective_regime == 'freelancer' and collaborator and collaborator.categoria_trabalho != 'freelancer':
                 freelancer_collaborator_ids.add(collaborator.pk)
             if execute is None and regime in {'supervisor', 'administrativo'}:
@@ -401,8 +444,8 @@ def importar_folha_xlsx(
                 data_inicio=start,
                 data_termino=end,
                 salario_base=salary,
-                valor_dia=decimal_value(_value(cells, headers, 'VALOR DO DIA (R$)', 'VALOR DIA', 'DIARIA')),
-                dias_trabalhados=decimal_value(_value(cells, headers, 'DIAS TRABALHADOS', 'QTD SEMANA')),
+                valor_dia=daily_rate,
+                dias_trabalhados=days_worked,
                 bonificacao=decimal_value(_value(cells, headers, 'BONIFICAÇÃO')) or 0,
                 faltas=decimal_value(_value(cells, headers, 'FALTAS', 'FALTA')) or 0,
                 descontos=decimal_value(_value(cells, headers, 'DESCONTOS', 'DESCONTAR')) or 0,
@@ -528,6 +571,29 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
     installment_links = []
     invalid_items = []
     invalid_benefits = {}
+    pagamentos_reutilizados = set()
+    chaves_novas = set()
+
+    def chave_pagamento(payment):
+        payment.normalizar_datas_semanais()
+        return (
+            payment.colaborador_id,
+            payment.tipo,
+            payment.competencia,
+            payment.data_vencimento,
+            payment.valor,
+        )
+
+    def pagamento_compativel(**filtros):
+        candidatos = PagamentoColaborador.objects.filter(
+            item_fiscal__isnull=True,
+            parcela_fiscal__isnull=True,
+            **filtros,
+        ).exclude(pk__in=pagamentos_reutilizados).order_by('pk')
+        pagamento = candidatos.first()
+        if pagamento:
+            pagamentos_reutilizados.add(pagamento.pk)
+        return pagamento
 
     for item in folha.itens.select_related('colaborador', 'pagamento'):
         value = item.valor_para_pagamento
@@ -537,6 +603,20 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
         transaction_id = f'fiscal:{folha.pk}:item:{item.pk}'
         payment = existing_payments.get(transaction_id)
         if not payment:
+            tipo_pagamento = type_by_regime[item.regime]
+            filtros_existente = {
+                'colaborador': item.colaborador,
+                'tipo': tipo_pagamento,
+                'valor': value,
+                'status': 'pago' if item.status_fonte == 'pago' else 'pendente',
+            }
+            if item.status_fonte == 'pago' and item.data_pagamento_fonte:
+                filtros_existente['data_pagamento'] = item.data_pagamento_fonte
+            else:
+                filtros_existente['competencia'] = folha.competencia
+                filtros_existente['data_vencimento'] = _month_end(folha.competencia)
+            payment = pagamento_compativel(**filtros_existente)
+        if not payment:
             payment = PagamentoColaborador(
                 identificador_transacao=transaction_id,
                 colaborador=item.colaborador,
@@ -544,6 +624,11 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
                 competencia=folha.competencia,
                 competencia_fim=_month_end(folha.competencia),
                 valor=value,
+                dias_trabalhados=(
+                    item.dias_trabalhados if item.regime == 'freelancer' else None
+                ),
+                valor_diaria=(item.valor_dia if item.regime == 'freelancer' else None),
+                chave_pix=item.pix,
                 data_vencimento=item.data_pagamento_fonte or _month_end(folha.competencia),
                 status='pago' if item.status_fonte == 'pago' else 'pendente',
                 data_pagamento=item.data_pagamento_fonte,
@@ -558,8 +643,40 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
                 invalid_items.append(item)
                 skipped += 1
                 continue
+            chave = chave_pagamento(payment)
+            if chave in chaves_novas:
+                item.problemas = [
+                    *item.problemas,
+                    'Lançamento duplicado para a mesma pessoa, data, tipo e valor.',
+                ]
+                item.status_conciliacao = 'revisar'
+                invalid_items.append(item)
+                skipped += 1
+                continue
+            chaves_novas.add(chave)
             payments_to_create.append(payment)
             existing_payments[transaction_id] = payment
+        elif payment.pk:
+            campos_atualizados = []
+            if (
+                item.regime == 'freelancer'
+                and payment.dias_trabalhados is None
+                and item.dias_trabalhados is not None
+            ):
+                payment.dias_trabalhados = item.dias_trabalhados
+                campos_atualizados.append('dias_trabalhados')
+            if (
+                item.regime == 'freelancer'
+                and payment.valor_diaria is None
+                and item.valor_dia is not None
+            ):
+                payment.valor_diaria = item.valor_dia
+                campos_atualizados.append('valor_diaria')
+            if not payment.chave_pix and item.pix:
+                payment.chave_pix = item.pix
+                campos_atualizados.append('chave_pix')
+            if campos_atualizados:
+                payment.save(update_fields=[*campos_atualizados, 'atualizado_em'])
         item_links.append((item, payment))
 
     for installment in folha.parcelas_beneficio.select_related('beneficio__colaborador', 'pagamento'):
@@ -568,8 +685,18 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
             skipped += 1
             continue
         start = folha.competencia + timedelta(days=(installment.semana - 1) * 7)
+        start = start - timedelta(days=start.weekday())
         transaction_id = f'fiscal:{folha.pk}:beneficio:{installment.pk}'
         payment = existing_payments.get(transaction_id)
+        if not payment:
+            payment = pagamento_compativel(
+                colaborador=benefit.colaborador,
+                tipo=benefit.tipo,
+                valor=installment.valor,
+                competencia=start,
+                data_vencimento=start,
+                status='pago' if benefit.status_fonte == 'pago' else 'pendente',
+            )
         if not payment:
             payment = PagamentoColaborador(
                 identificador_transacao=transaction_id,
@@ -578,6 +705,7 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
                 competencia=start,
                 competencia_fim=start + timedelta(days=6),
                 valor=installment.valor,
+                chave_pix=benefit.pix,
                 data_vencimento=start,
                 status='pago' if benefit.status_fonte == 'pago' else 'pendente',
                 observacao=f'Importado da folha Fiscal {folha.competencia:%m/%Y}, semana {installment.semana}.',
@@ -592,8 +720,23 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
                     invalid_benefits[benefit.pk] = benefit
                 skipped += 1
                 continue
+            chave = chave_pagamento(payment)
+            if chave in chaves_novas:
+                if benefit.pk not in invalid_benefits:
+                    benefit.problemas = [
+                        *benefit.problemas,
+                        'Benefício duplicado para a mesma pessoa e semana.',
+                    ]
+                    benefit.status_conciliacao = 'revisar'
+                    invalid_benefits[benefit.pk] = benefit
+                skipped += 1
+                continue
+            chaves_novas.add(chave)
             payments_to_create.append(payment)
             existing_payments[transaction_id] = payment
+        elif payment.pk and not payment.chave_pix and benefit.pix:
+            payment.chave_pix = benefit.pix
+            payment.save(update_fields=['chave_pix', 'atualizado_em'])
         installment_links.append((installment, payment))
 
     if payments_to_create:

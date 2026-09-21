@@ -1,0 +1,124 @@
+<style>
+  .dash-ai {
+    --ai-panel: #1b1d22;
+    --ai-border: rgba(255,255,255,.11);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 28px;
+    padding: clamp(38px,6vw,72px) 24px 30px;
+    border-radius: 22px;
+    color: #f7f8fb;
+    background:
+      radial-gradient(ellipse 58% 72% at 50% 36%, rgba(36,76,186,.52) 0%, rgba(16,31,79,.34) 48%, transparent 78%),
+      linear-gradient(145deg,#090a0e 0%,#0b0e17 54%,#090b10 100%);
+    box-shadow: 0 18px 46px rgba(7,20,38,.20);
+  }
+  .dash-ai__hero { width:min(920px,100%); margin:0 auto; text-align:center; }
+  .dash-ai__status { display:inline-flex; align-items:center; gap:8px; margin-bottom:18px; color:#c5d4ff; font-size:.7rem; font-weight:750; letter-spacing:.06em; text-transform:uppercase; }
+  .dash-ai__status::before { content:""; width:7px; height:7px; border-radius:50%; background:#5d95ff; box-shadow:0 0 0 5px rgba(93,149,255,.13); }
+  .dash-ai__title { max-width:820px; margin:0 auto 28px; color:#f4f5f8; font-size:clamp(1.85rem,4vw,3.1rem); font-weight:400; line-height:1.14; letter-spacing:-.035em; text-wrap:balance; }
+  .dash-ai__composer { display:flex; align-items:flex-end; gap:10px; padding:12px 13px; border:1px solid var(--ai-border); border-radius:28px; background:rgba(28,30,34,.97); box-shadow:0 24px 65px rgba(0,13,55,.34); transition:border-color .2s ease,box-shadow .2s ease; }
+  .dash-ai__composer:focus-within { border-color:rgba(91,143,255,.62); box-shadow:0 26px 72px rgba(0,23,91,.45),0 0 0 3px rgba(79,140,255,.10); }
+  .dash-ai__icon, .dash-ai__send { width:42px; height:42px; flex:0 0 42px; display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:50%; color:#fff; cursor:pointer; }
+  .dash-ai__icon { color:#d8dbe2; background:transparent; }
+  .dash-ai__icon:hover, .dash-ai__icon[aria-expanded="true"] { background:rgba(255,255,255,.09); }
+  .dash-ai__send { background:linear-gradient(145deg,#5c96ff,#376fdf); box-shadow:0 8px 22px rgba(54,111,223,.35); }
+  .dash-ai__icon svg { width:24px; height:24px; }.dash-ai__send svg { width:19px; height:19px; }
+  .dash-ai__input { min-width:0; min-height:42px; max-height:140px; flex:1; padding:10px 4px 7px; overflow-y:auto; border:0; outline:0; resize:none; color:#f7f8fb; background:transparent; font:inherit; font-size:1rem; line-height:1.45; }
+  .dash-ai__input::placeholder { color:#aeb2bc; opacity:1; }
+  .dash-ai__suggestions { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:15px; }
+  .dash-ai__suggestion { padding:8px 12px; border:1px solid rgba(255,255,255,.09); border-radius:999px; color:#b8bfce; background:rgba(255,255,255,.035); font:inherit; font-size:.73rem; cursor:pointer; }
+  .dash-ai__suggestion:hover { color:#fff; border-color:rgba(103,150,255,.34); background:rgba(70,111,202,.13); }
+  .dash-ai__answer { margin-top:20px; padding:19px 21px; border:1px solid rgba(107,149,255,.22); border-radius:17px; color:#e9ecf4; background:rgba(16,20,31,.9); text-align:left; white-space:pre-wrap; line-height:1.6; }
+  .dash-ai__answer-label { margin-bottom:9px; color:#8fb3ff; font-size:.7rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+  .dash-ai__route { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-top:14px; padding-top:13px; border-top:1px solid rgba(255,255,255,.09); color:#bac2d2; font-size:.8rem; }
+  .dash-ai__route a { color:#9bbaff; font-weight:750; }
+  .dash-ai__upload { width:min(920px,100%); margin:17px auto 0; padding:19px; border:1px solid var(--ai-border); border-radius:18px; background:rgba(18,21,29,.97); text-align:left; }
+  .dash-ai__upload[hidden] { display:none; }
+  .dash-ai__upload-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+  .dash-ai__upload-head h2 { margin:0; color:#f4f6fb; font-size:.98rem; }.dash-ai__upload-head p { margin:5px 0 0; color:#a9afbd; font-size:.73rem; }
+  .dash-ai__close { border:0; color:#aeb5c3; background:transparent; font-size:1.35rem; cursor:pointer; }
+  .dash-ai__upload-form { display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr) auto; gap:12px; align-items:end; margin-top:16px; }
+  .dash-ai__field label { display:block; margin-bottom:7px; color:#cbd1dd; font-size:.7rem; font-weight:700; }
+  .dash-ai__field select, .dash-ai__field input[type="file"] { width:100%; min-height:44px; padding:9px 11px; border:1px solid rgba(255,255,255,.11); border-radius:11px; color:#e9ecf3; background:#22252b; font:inherit; font-size:.76rem; }
+  .dash-ai__field select option { color:#111827; background:#fff; }
+  .dash-ai__upload-button { min-height:44px; padding:0 17px; border:0; border-radius:11px; color:#fff; background:#3975e6; font-weight:800; cursor:pointer; }
+  .dash-ai__result { margin-top:13px; padding:13px; border-radius:11px; color:#dce3f2; background:rgba(70,111,202,.14); font-size:.78rem; line-height:1.55; }
+  .dash-ai__result a { color:#9bbaff; font-weight:750; }
+  @media (max-width:760px) {
+    .dash-ai { padding:38px 14px 22px; border-radius:17px; }
+    .dash-ai__upload-form { grid-template-columns:1fr; }.dash-ai__upload-button { width:100%; }
+  }
+  @media (max-width:520px) {
+    .dash-ai { margin-right:-3px; margin-left:-3px; padding-right:10px; padding-left:10px; }
+    .dash-ai__title { font-size:clamp(1.65rem,8vw,2.25rem); }.dash-ai__composer { gap:4px; padding:9px; border-radius:23px; }
+    .dash-ai__icon,.dash-ai__send { width:40px; height:40px; flex-basis:40px; }.dash-ai__input { font-size:.9rem; }
+    .dash-ai__suggestion { padding:7px 9px; font-size:.66rem; }.dash-ai__answer,.dash-ai__upload { padding:15px; }
+  }
+</style>
+
+<section class="dash-ai" id="assistente-dashboard" aria-labelledby="assistente-dashboard-titulo">
+  <div class="dash-ai__hero">
+    <div class="dash-ai__status">Inteligência do ERP</div>
+    <h1 class="dash-ai__title" id="assistente-dashboard-titulo">Olá, {{ request.user.get_full_name|default:request.user.username }}. No que você está pensando?</h1>
+    <form method="post" action="{% url 'dashboard' %}#assistente-dashboard" id="dash-ai-question-form">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="perguntar_ia">
+      <div class="dash-ai__composer">
+        <button class="dash-ai__icon" id="dash-ai-upload-toggle" type="button" aria-label="Anexar documento" aria-controls="dash-ai-upload" aria-expanded="{% if arquivo_atual_ia %}true{% else %}false{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+        </button>
+        <textarea class="dash-ai__input" id="pergunta-ia" name="pergunta" rows="1" maxlength="500" required aria-label="Pergunte à inteligência do ERP" placeholder="Pergunte sobre o sistema...">{{ pergunta_ia }}</textarea>
+        <button class="dash-ai__send" type="submit" aria-label="Enviar pergunta">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 14-7-4 14-3-6-7-1Z" stroke-linejoin="round"/><path d="m12 13 7-8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </form>
+    <div class="dash-ai__suggestions" aria-label="Sugestões de perguntas">
+      <button class="dash-ai__suggestion" type="button" data-ai-question="Quais pagamentos estão pendentes?">Pagamentos pendentes</button>
+      <button class="dash-ai__suggestion" type="button" data-ai-question="Como cadastrar um novo colaborador?">Novo colaborador</button>
+      <button class="dash-ai__suggestion" type="button" data-ai-question="Quais EPIs estão próximos do vencimento?">Prazo dos EPIs</button>
+      <button class="dash-ai__suggestion" type="button" data-ai-question="Onde acompanho as aprovações?">Aprovações</button>
+    </div>
+    {% if resposta_ia %}
+    <div class="dash-ai__answer" role="status">
+      <div class="dash-ai__answer-label">Resposta da assistente</div>
+      {{ resposta_ia }}
+      {% if processo_recomendado %}<div class="dash-ai__route"><span><strong>Caminho:</strong> {{ processo_recomendado.directory }}</span><a href="{{ processo_recomendado.url }}">Abrir tela indicada →</a></div>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <section class="dash-ai__upload" id="dash-ai-upload" {% if not arquivo_atual_ia %}hidden{% endif %}>
+    <div class="dash-ai__upload-head">
+      <div><h2>Ler e organizar documento</h2><p>PDF, PNG ou JPG de até 50 MB, enviado diretamente ao storage.</p></div>
+      <button class="dash-ai__close" id="dash-ai-upload-close" type="button" aria-label="Fechar envio">×</button>
+    </div>
+    <form method="post" action="{% url 'dashboard' %}#assistente-dashboard" enctype="multipart/form-data" class="dash-ai__upload-form">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="documento_ia">
+      <div class="dash-ai__field"><label for="categoria-ia">Destino sugerido</label><select id="categoria-ia" name="categoria"><option value="">Identificar automaticamente</option>{% for value, label in categorias_ia %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="dash-ai__field"><label for="assistente-documento">Escolher documento</label><input id="assistente-documento" type="file" name="assistente_documento" accept="application/pdf,image/png,image/jpeg" required></div>
+      <button class="dash-ai__upload-button" type="submit">Enviar e processar</button>
+    </form>
+    {% if arquivo_atual_ia %}
+    <div class="dash-ai__result"><strong>{{ arquivo_atual_ia.nome_original }}</strong><br>Categoria: {{ arquivo_atual_ia.get_categoria_display }} · Situação: {{ arquivo_atual_ia.get_status_display }}{% if arquivo_atual_ia.motivo_revisao %}<br>{{ arquivo_atual_ia.motivo_revisao }}{% endif %}<br><a href="{% url 'baixar_arquivo_importado' arquivo_atual_ia.pk %}" target="_blank" rel="noopener">Abrir documento</a></div>
+    {% endif %}
+  </section>
+</section>
+
+<script>
+(function () {
+  const textarea = document.getElementById('pergunta-ia');
+  const form = document.getElementById('dash-ai-question-form');
+  const panel = document.getElementById('dash-ai-upload');
+  const toggle = document.getElementById('dash-ai-upload-toggle');
+  const close = document.getElementById('dash-ai-upload-close');
+  function resize() { if (textarea) { textarea.style.height = 'auto'; textarea.style.height = Math.min(textarea.scrollHeight, 140) + 'px'; } }
+  function showPanel(open) { if (!panel || !toggle) return; panel.hidden = !open; toggle.setAttribute('aria-expanded', open ? 'true' : 'false'); if (open) panel.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  if (textarea) { resize(); textarea.addEventListener('input', resize); textarea.addEventListener('keydown', function (event) { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); form.requestSubmit(); } }); }
+  if (toggle) toggle.addEventListener('click', function () { showPanel(panel.hidden); });
+  if (close) close.addEventListener('click', function () { showPanel(false); });
+  document.querySelectorAll('[data-ai-question]').forEach(function (button) { button.addEventListener('click', function () { textarea.value = button.dataset.aiQuestion; resize(); textarea.focus(); }); });
+}());
+</script>

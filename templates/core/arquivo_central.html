@@ -11,6 +11,8 @@
 
 <div class="kpi-grid" style="margin-bottom:20px;">
   <div class="kpi-card"><div class="kpi-label">Arquivos únicos</div><div class="kpi-value">{{ total_arquivos }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Caminhos de origem</div><div class="kpi-value">{{ total_origens }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Exibidos pelo filtro</div><div class="kpi-value">{{ total_filtrados }}</div></div>
   <div class="kpi-card"><div class="kpi-label">Vinculados</div><div class="kpi-value">{{ total_vinculados }}</div></div>
   <div class="kpi-card"><div class="kpi-label">Precisam de revisão</div><div class="kpi-value">{{ total_revisar }}</div></div>
 </div>
@@ -35,20 +37,44 @@
         {% for value, label in status_choices %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
     </div>
+    <div style="min-width:190px;">
+      <label for="area-arquivo">Área responsável</label>
+      <select id="area-arquivo" class="form-control" name="area">
+        <option value="">Todas</option>
+        {% for value, label in area_choices %}<option value="{{ value }}" {% if area_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div style="min-width:190px;">
+      <label for="origem-arquivo">Pasta de origem</label>
+      <select id="origem-arquivo" class="form-control" name="origem">
+        <option value="">Todas</option>
+        {% for value in origem_choices %}<option value="{{ value }}" {% if origem_filter == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+      </select>
+    </div>
+    <div style="min-width:155px;">
+      <label for="data-inicio-arquivo">Data inicial</label>
+      <input id="data-inicio-arquivo" class="form-control" type="date" name="data_inicio" value="{{ data_inicio_filter }}">
+    </div>
+    <div style="min-width:155px;">
+      <label for="data-fim-arquivo">Data final</label>
+      <input id="data-fim-arquivo" class="form-control" type="date" name="data_fim" value="{{ data_fim_filter }}">
+    </div>
     <button type="submit" class="btn btn-mod6">Pesquisar</button>
-    {% if query or categoria_filter or status_filter %}<a href="{% url 'arquivo_central' %}" class="btn">Limpar</a>{% endif %}
+    {% if query or categoria_filter or status_filter or area_filter or origem_filter or data_inicio_filter or data_fim_filter %}<a href="{% url 'arquivo_central' %}" class="btn">Limpar</a>{% endif %}
   </form>
 </div>
 
 {% if arquivos %}
 <div class="table-wrap">
   <table>
-    <thead><tr><th>Arquivo</th><th>Categoria</th><th>Origem</th><th>Dados identificados</th><th>Situação</th><th>Ação</th></tr></thead>
+    <thead><tr><th>Data</th><th>Arquivo</th><th>Área / categoria</th><th>Vínculo</th><th>Origem</th><th>Dados identificados</th><th>Situação</th><th>Ação</th></tr></thead>
     <tbody>
       {% for arquivo in arquivos %}
       <tr>
+        <td style="white-space:nowrap;"><strong>{{ arquivo.data_documento|date:"d/m/Y"|default:"—" }}</strong></td>
         <td><strong>{{ arquivo.nome_original }}</strong><div style="font-size:.72rem;color:var(--text-muted);">{{ arquivo.tamanho|filesizeformat }}</div></td>
-        <td>{{ arquivo.get_categoria_display }}{% if arquivo.subcategoria %}<div style="font-size:.72rem;color:var(--text-muted);">{{ arquivo.subcategoria }}</div>{% endif %}</td>
+        <td><strong>{{ arquivo.get_area_display }}</strong><div style="font-size:.72rem;color:var(--text-muted);">{{ arquivo.get_categoria_display }}{% if arquivo.subcategoria %} · {{ arquivo.subcategoria }}{% endif %}</div></td>
+        <td>{% if arquivo.vinculo_url %}<a href="{{ arquivo.vinculo_url }}">{{ arquivo.vinculo_label }}</a>{% elif arquivo.vinculo_label %}{{ arquivo.vinculo_label }}{% else %}<span style="color:var(--text-muted);">Sem vínculo</span>{% endif %}</td>
         <td style="max-width:360px;word-break:break-word;">{% with origem=arquivo.origens.first %}{{ origem.caminho_relativo|default:"—" }}{% endwith %}</td>
         <td>
           {% if arquivo.metadados.beneficiario %}<div>{{ arquivo.metadados.beneficiario }}</div>{% endif %}
@@ -58,7 +84,8 @@
         </td>
         <td><span class="badge {% if arquivo.status == 'vinculado' %}badge-success{% elif arquivo.status == 'revisar' or arquivo.status == 'erro' %}badge-danger{% else %}badge-info{% endif %}">{{ arquivo.get_status_display }}</span>{% if arquivo.motivo_revisao %}<div style="font-size:.72rem;color:var(--text-muted);max-width:260px;">{{ arquivo.motivo_revisao }}</div>{% endif %}</td>
         <td>
-          <a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-outline" target="_blank">Abrir</a>
+          <a href="{% url 'detalhe_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-mod6">Visualizar</a>
+          <a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-outline" target="_blank" rel="noopener">Arquivo</a>
           {% if arquivo.status == 'revisar' and arquivo.categoria == 'pagamento_colaborador' or arquivo.status == 'revisar' and arquivo.categoria == 'reembolso' %}<a href="{% url 'revisar_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-mod6">Revisar</a>{% endif %}
         </td>
       </tr>
@@ -69,9 +96,9 @@
 
 {% if page.paginator.num_pages > 1 %}
 <div style="display:flex;justify-content:center;gap:12px;align-items:center;margin-top:20px;">
-  {% if page.has_previous %}<a class="btn btn-sm" href="?q={{ query|urlencode }}&amp;categoria={{ categoria_filter }}&amp;status={{ status_filter }}&amp;page={{ page.previous_page_number }}">Anterior</a>{% endif %}
+  {% if page.has_previous %}<a class="btn btn-sm" href="?q={{ query|urlencode }}&amp;categoria={{ categoria_filter }}&amp;status={{ status_filter }}&amp;area={{ area_filter }}&amp;origem={{ origem_filter|urlencode }}&amp;data_inicio={{ data_inicio_filter }}&amp;data_fim={{ data_fim_filter }}&amp;page={{ page.previous_page_number }}">Anterior</a>{% endif %}
   <span style="color:var(--text-muted);">Página {{ page.number }} de {{ page.paginator.num_pages }}</span>
-  {% if page.has_next %}<a class="btn btn-sm" href="?q={{ query|urlencode }}&amp;categoria={{ categoria_filter }}&amp;status={{ status_filter }}&amp;page={{ page.next_page_number }}">Próxima</a>{% endif %}
+  {% if page.has_next %}<a class="btn btn-sm" href="?q={{ query|urlencode }}&amp;categoria={{ categoria_filter }}&amp;status={{ status_filter }}&amp;area={{ area_filter }}&amp;origem={{ origem_filter|urlencode }}&amp;data_inicio={{ data_inicio_filter }}&amp;data_fim={{ data_fim_filter }}&amp;page={{ page.next_page_number }}">Próxima</a>{% endif %}
 </div>
 {% endif %}
 {% else %}

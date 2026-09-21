@@ -6,8 +6,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from admissional.forms import ColaboradorForm
-from admissional.models import Colaborador, DocumentoColaborador
-from core.models import PerfilUsuario
+from admissional.models import Colaborador, DocumentoColaborador, PagamentoColaborador
+from core.models import ArquivoImportado, PerfilUsuario
 
 
 class DocumentoColaboradorTests(TestCase):
@@ -79,3 +79,41 @@ class DocumentoColaboradorTests(TestCase):
             response, reverse('documentos_colaborador', args=[self.colaborador.pk])
         )
         self.assertFalse(DocumentoColaborador.objects.filter(pk=documento.pk).exists())
+
+    def test_financeiro_visualiza_documentos_e_comprovantes_sem_poder_anexar(self):
+        financeiro = User.objects.create_user('financeiro-documentos', password='senha')
+        PerfilUsuario.objects.create(usuario=financeiro, perfil='financeiro')
+        self.colaborador.anexo_cpf = 'colaboradores/docs/cpf.pdf'
+        self.colaborador.save(update_fields=['anexo_cpf'])
+        pagamento = PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='salario',
+            competencia=date(2026, 9, 1),
+            valor='1500.00',
+            data_vencimento=date(2026, 9, 30),
+            status='pago',
+            data_pagamento=date(2026, 9, 5),
+        )
+        arquivo = ArquivoImportado.objects.create(
+            categoria='pagamento_colaborador',
+            subcategoria='salario',
+            nome_original='comprovante.pdf',
+            arquivo='arquivo_central/comprovante.pdf',
+            sha256='f' * 64,
+            tamanho=10,
+            status='vinculado',
+        )
+        arquivo.content_object = pagamento
+        arquivo.save()
+        self.client.force_login(financeiro)
+
+        url = reverse('documentos_colaborador', args=[self.colaborador.pk])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Documentos cadastrais')
+        self.assertContains(response, 'CPF/CNPJ — frente')
+        self.assertContains(response, 'Comprovantes de pagamento')
+        self.assertContains(response, 'comprovante.pdf')
+        self.assertNotContains(response, 'Anexar documento')
+        self.assertEqual(self.client.post(url, {}).status_code, 403)

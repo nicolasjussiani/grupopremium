@@ -13,7 +13,7 @@
   <div id="resumo-colaborador" class="alert alert-info" style="display:none;margin-bottom:18px;">
     <strong id="resumo-nome"></strong>
     <span id="resumo-detalhes"></span>
-    <strong id="resumo-faltas" style="margin-left:8px;"></strong>
+    <strong id="resumo-dias" style="margin-left:8px;"></strong>
   </div>
   <form method="post">
     {% csrf_token %}
@@ -22,7 +22,7 @@
     {% endif %}
     <div class="collaborator-fields-grid">
       {% for field in form %}
-      <div class="form-group {% if field.name == 'observacao' %}field-span-2{% endif %}">
+      <div id="grupo-{{ field.name }}" class="form-group {% if field.name == 'observacao' %}field-span-2{% endif %}">
         <label class="form-label" for="{{ field.id_for_label }}">
           {{ field.label }}{% if field.field.required %} <span class="required">*</span>{% endif %}
         </label>
@@ -31,6 +31,9 @@
         {% if field.name == 'competencia_fim' %}<small class="form-help">A competência pode variar de uma data até outra.</small>{% endif %}
         {% if field.name == 'data_vencimento' %}<small class="form-help">Para VT e ajuda de custo, o vencimento é ajustado automaticamente para segunda-feira.</small>{% endif %}
         {% if field.name == 'recorrente' %}<small class="form-help">Use para VT ou ajuda de custo semanal. Ao pagar, a semana seguinte será criada automaticamente.</small>{% endif %}
+        {% if field.name == 'dias_trabalhados' %}<small class="form-help">Para freelancer, informe quantos dias foram efetivamente trabalhados.</small>{% endif %}
+        {% if field.name == 'valor_diaria' %}<small class="form-help">O total do freelancer será calculado automaticamente: dias × diária.</small>{% endif %}
+        {% if field.name == 'chave_pix' %}<small class="form-help">Informe a chave usada neste pagamento, sem presumir que seja o CPF.</small>{% endif %}
         {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
       </div>
       {% endfor %}
@@ -49,6 +52,9 @@
   const inicio = document.getElementById('id_competencia');
   const fim = document.getElementById('id_competencia_fim');
   const vencimento = document.getElementById('id_data_vencimento');
+  const diasTrabalhados = document.getElementById('id_dias_trabalhados');
+  const valorDiaria = document.getElementById('id_valor_diaria');
+  const valor = document.getElementById('id_valor');
   const resumo = document.getElementById('resumo-colaborador');
   const baseUrl = "{% url 'resumo_colaborador_pagamento' 0 %}";
 
@@ -70,6 +76,28 @@
     }
   }
 
+  function numero(campo) {
+    if (!campo || !campo.value) return NaN;
+    const bruto = campo.value.trim();
+    return Number(bruto.includes(',') ? bruto.replace(/\./g, '').replace(',', '.') : bruto);
+  }
+
+  function atualizarFreelancer() {
+    const freelancer = tipo && tipo.value === 'freelancer';
+    ['grupo-dias_trabalhados', 'grupo-valor_diaria'].forEach(function (id) {
+      const grupo = document.getElementById(id);
+      if (grupo) grupo.style.display = freelancer ? '' : 'none';
+    });
+    if (valor) valor.readOnly = freelancer;
+    if (freelancer) {
+      const dias = numero(diasTrabalhados);
+      const diaria = numero(valorDiaria);
+      if (Number.isFinite(dias) && Number.isFinite(diaria)) {
+        valor.value = (dias * diaria).toFixed(2).replace('.', ',');
+      }
+    }
+  }
+
   async function atualizarResumo() {
     if (!colaborador || !colaborador.value) {
       resumo.style.display = 'none';
@@ -85,7 +113,10 @@
       const dados = await resposta.json();
       document.getElementById('resumo-nome').textContent = dados.nome + ' — ';
       document.getElementById('resumo-detalhes').textContent = dados.categoria + ' · ' + dados.tipo_contrato + ' · ' + dados.periodo;
-      document.getElementById('resumo-faltas').textContent = dados.faltas + (dados.faltas === 1 ? ' falta' : ' faltas');
+      const textoDias = dados.dias_trabalhados === null
+        ? 'dias trabalhados não definidos'
+        : dados.dias_trabalhados + (dados.dias_trabalhados === 1 ? ' dia trabalhado' : ' dias trabalhados');
+      document.getElementById('resumo-dias').textContent = textoDias;
       resumo.style.display = 'block';
     } catch (erro) {
       resumo.style.display = 'none';
@@ -95,8 +126,15 @@
     if (campo) campo.addEventListener('change', atualizarResumo);
   });
   if (inicio) inicio.addEventListener('change', atualizarRecorrencia);
-  if (tipo) tipo.addEventListener('change', atualizarRecorrencia);
+  if (tipo) tipo.addEventListener('change', function () {
+    atualizarRecorrencia();
+    atualizarFreelancer();
+  });
+  [diasTrabalhados, valorDiaria].forEach(function (campo) {
+    if (campo) campo.addEventListener('input', atualizarFreelancer);
+  });
   atualizarRecorrencia();
+  atualizarFreelancer();
   atualizarResumo();
 })();
 </script>

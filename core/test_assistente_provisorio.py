@@ -24,10 +24,14 @@ class AssistenteProvisorioTests(TestCase):
 
     def test_tela_e_pergunta_nao_criam_registros(self):
         response = self.client.get(reverse('assistente_erp'))
-        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(
+            response,
+            f'{reverse("dashboard")}#assistente-dashboard',
+            fetch_redirect_response=False,
+        )
         antes = ArquivoImportado.objects.count()
-        response = self.client.post(reverse('assistente_erp'), {
-            'acao': 'perguntar',
+        response = self.client.post(reverse('dashboard'), {
+            'acao': 'perguntar_ia',
             'pergunta': 'Pode alterar e aprovar por mim?',
         })
         self.assertEqual(response.status_code, 200)

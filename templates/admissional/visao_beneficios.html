@@ -30,14 +30,15 @@
 <div style="margin-bottom:20px;"><a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn btn-outline">← Voltar para folha</a></div>
 {% if pagamentos %}
 <div class="table-wrap"><table>
-  <thead><tr><th>Colaborador</th><th>Unidade</th><th>Benefício</th><th>Competência</th><th>Valor</th><th>Faltas</th><th>Situação</th></tr></thead>
+  <thead><tr><th>Colaborador</th><th>Unidade</th><th>Benefício</th><th>Competência</th><th>Valor</th><th>Dias trabalhados</th><th>Chave PIX</th><th>Situação</th></tr></thead>
   <tbody>{% for pagamento in pagamentos %}<tr>
     <td><strong>{{ pagamento.colaborador.nome }}</strong><br><small>{{ pagamento.colaborador.get_tipo_contrato_display }}</small></td>
     <td>{{ pagamento.colaborador.unidade|default:"—" }}</td>
     <td>{{ pagamento.get_tipo_display }}{% if pagamento.recorrente %}<br><span class="badge badge-info">Recorrente</span>{% endif %}</td>
     <td>{{ pagamento.competencia|date:"d/m/Y" }} a {{ pagamento.fim_competencia|date:"d/m/Y" }}</td>
     <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
-    <td><span class="badge {% if pagamento.faltas_periodo %}badge-danger{% else %}badge-success{% endif %}">{{ pagamento.faltas_periodo }}</span></td>
+    <td>{% if pagamento.dias_trabalhados_exibicao is not None %}<span class="badge badge-success">{{ pagamento.dias_trabalhados_exibicao|floatformat:-2 }}</span>{% else %}<span class="badge badge-warning">Não definido</span>{% endif %}</td>
+    <td style="max-width:190px;overflow-wrap:anywhere;">{{ pagamento.chave_pix_exibicao|default:"Não informado" }}</td>
     <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
   </tr>{% endfor %}</tbody>
 </table></div>

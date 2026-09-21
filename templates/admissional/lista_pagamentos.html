@@ -6,7 +6,7 @@
 {% block content %}
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
   <h1 class="mod-title">💵 Folha de Pagamento</h1>
-  <div class="mod-desc">Acompanhe salários, benefícios, faltas e a confirmação de cada pagamento.</div>
+  <div class="mod-desc">Acompanhe somente a equipe atual, os dias trabalhados, o PIX e a confirmação de cada pagamento.</div>
 </div>
 
 <div class="kpi-grid" style="margin-bottom:20px;">
@@ -57,14 +57,15 @@
 {% if pagamentos %}
 <div class="table-wrap">
   <table>
-    <thead><tr><th>Colaborador</th><th>Tipo</th><th>Competência</th><th>Faltas</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Data do pagamento</th><th>Comprovante</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Colaborador</th><th>Tipo</th><th>Competência</th><th>Dias trabalhados</th><th>Chave PIX</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Data do pagamento</th><th>Comprovante</th><th>Ações</th></tr></thead>
     <tbody>
       {% for pagamento in pagamentos %}
       <tr>
-        <td><strong>{{ pagamento.colaborador.nome|default:"Não informado" }}</strong><div style="font-size:.74rem;color:var(--text-muted);">{{ pagamento.colaborador.unidade }} · {{ pagamento.colaborador.get_categoria_trabalho_display }}</div></td>
+        <td><strong><a href="{% url 'documentos_colaborador' pagamento.colaborador.pk %}">{{ pagamento.colaborador.nome|default:"Não informado" }}</a></strong><div style="font-size:.74rem;color:var(--text-muted);">{{ pagamento.colaborador.unidade }} · {{ pagamento.colaborador.get_categoria_trabalho_display }}</div></td>
         <td>{{ pagamento.get_tipo_display }}</td>
         <td>{{ pagamento.competencia|date:"d/m/Y" }}{% if pagamento.fim_competencia != pagamento.competencia %}<br><small>até {{ pagamento.fim_competencia|date:"d/m/Y" }}</small>{% endif %}{% if pagamento.recorrente %}<br><span class="badge badge-info">Recorrente</span>{% endif %}</td>
-        <td><span class="badge {% if pagamento.faltas_periodo %}badge-danger{% else %}badge-success{% endif %}">{{ pagamento.faltas_periodo }}</span></td>
+        <td>{% if pagamento.dias_trabalhados_exibicao is not None %}<span class="badge badge-success">{{ pagamento.dias_trabalhados_exibicao|floatformat:-2 }}</span>{% else %}<span class="badge badge-warning">Não definido</span>{% endif %}{% if pagamento.tipo == 'freelancer' and pagamento.valor_diaria %}<br><small>R$ {{ pagamento.valor_diaria|floatformat:2 }} por dia</small>{% endif %}</td>
+        <td style="max-width:190px;overflow-wrap:anywhere;">{{ pagamento.chave_pix_exibicao|default:"Não informado" }}</td>
         <td>{{ pagamento.data_vencimento|date:"d/m/Y" }}</td>
         <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
         <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% elif pagamento.status == 'cancelado' %}badge-danger{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
@@ -79,6 +80,9 @@
             {% if pagamento.status == 'pendente' %}
             <form method="post" action="{% url 'marcar_pagamento_como_pago' pagamento.pk %}" style="display:inline;" onsubmit="return confirm('Confirmar que este pagamento foi realizado hoje?');">
               {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Marcar como pago</button>
+            </form>
+            <form method="post" action="{% url 'retirar_pagamento_folha' pagamento.pk %}" style="display:inline;" onsubmit="return confirm('Retirar este lançamento da folha? O histórico será preservado.');">
+              {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline">Retirar da folha</button>
             </form>
             {% endif %}
             <a href="{% url 'editar_pagamento_colaborador' pagamento.pk %}" class="btn btn-sm btn-outline">Editar</a>

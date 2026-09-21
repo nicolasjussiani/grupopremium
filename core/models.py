@@ -72,10 +72,23 @@ class ArquivoImportado(models.Model):
     CATEGORIAS = [
         ('pagamento_colaborador', 'Pagamento de colaborador'),
         ('nota_fiscal', 'Nota fiscal'),
+        ('documento_financeiro', 'Documento financeiro'),
+        ('documento_trabalhista', 'Documento trabalhista'),
         ('pedido', 'Pedido'),
         ('reembolso', 'Reembolso'),
         ('planilha', 'Planilha'),
         ('outro', 'Outro'),
+    ]
+    AREAS = [
+        ('rh', 'RH / Departamento Pessoal'),
+        ('recrutamento', 'Recrutamento e Seleção'),
+        ('financeiro', 'Financeiro'),
+        ('fiscal', 'Fiscal'),
+        ('compras', 'Compras'),
+        ('sesmet', 'SESMET / Segurança do Trabalho'),
+        ('manutencao', 'Manutenção / Patrimônio'),
+        ('administrativo', 'Administrativo'),
+        ('geral', 'Arquivo geral'),
     ]
     STATUS = [
         ('arquivado', 'Arquivado'),
@@ -86,6 +99,7 @@ class ArquivoImportado(models.Model):
 
     categoria = models.CharField(max_length=40, choices=CATEGORIAS)
     subcategoria = models.CharField(max_length=60, blank=True)
+    area = models.CharField(max_length=20, choices=AREAS, default='geral', db_index=True)
     nome_original = models.CharField(max_length=255)
     arquivo = models.FileField(upload_to='arquivo_central/%Y/%m/', max_length=500)
     sha256 = models.CharField(max_length=64, unique=True)
@@ -94,6 +108,15 @@ class ArquivoImportado(models.Model):
     status = models.CharField(max_length=20, choices=STATUS, default='arquivado')
     motivo_revisao = models.TextField(blank=True)
     metadados = models.JSONField(default=dict, blank=True)
+    data_documento = models.DateField(
+        null=True, blank=True, db_index=True,
+        verbose_name='Data do documento',
+    )
+    texto_extraido = models.TextField(blank=True, editable=False)
+    processado_em = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        verbose_name='Processado em',
+    )
     content_type = models.ForeignKey(
         ContentType, on_delete=models.SET_NULL, null=True, blank=True,
     )

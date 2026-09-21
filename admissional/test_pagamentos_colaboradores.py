@@ -95,6 +95,30 @@ class PagamentosColaboradoresTest(TestCase):
         self.assertEqual(pagamento.status, 'cancelado')
         self.assertNotContains(response, self.colaborador.nome)
 
+    def test_pagamento_pago_de_desligado_nao_entra_na_folha_nem_dashboard(self):
+        hoje = timezone.localdate()
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='salario',
+            competencia=hoje.replace(day=1),
+            valor=Decimal('2000.00'),
+            data_vencimento=hoje,
+            status='pago',
+            data_pagamento=hoje,
+        )
+        self.colaborador.status = 'desligado'
+        self.colaborador.save(update_fields=['status'])
+
+        folha = self.client.get(reverse('lista_pagamentos_colaboradores'), {
+            'data_inicio': hoje.replace(day=1).isoformat(),
+            'data_fim': hoje.isoformat(),
+        })
+        financeiro = self.client.get(reverse('painel_financeiro'))
+
+        self.assertNotContains(folha, self.colaborador.nome)
+        self.assertEqual(financeiro.context['folha_mes_quantidade'], 0)
+        self.assertEqual(financeiro.context['folha_mes_total'], 0)
+
     def test_pagamento_pago_exige_data(self):
         form = PagamentoColaboradorForm(data=self.dados_pagamento(status='pago'))
 
@@ -197,7 +221,7 @@ class PagamentosColaboradoresTest(TestCase):
         pagamento = form.save()
         self.assertIsNone(pagamento.data_pagamento)
 
-    def test_permite_parcelas_na_mesma_competencia(self):
+    def test_rejeita_lancamento_exatamente_duplicado(self):
         PagamentoColaborador.objects.create(
             colaborador=self.colaborador,
             tipo='salario',
@@ -207,9 +231,8 @@ class PagamentosColaboradoresTest(TestCase):
         )
         form = PagamentoColaboradorForm(data=self.dados_pagamento())
 
-        self.assertTrue(form.is_valid(), form.errors)
-        form.save()
-        self.assertEqual(PagamentoColaborador.objects.count(), 2)
+        self.assertFalse(form.is_valid())
+        self.assertEqual(PagamentoColaborador.objects.count(), 1)
 
     def test_marca_vt_como_pago_na_segunda_da_semana(self):
         pagamento = PagamentoColaborador.objects.create(
@@ -249,10 +272,15 @@ class PagamentosColaboradoresTest(TestCase):
         self.assertEqual(proximo.status, 'pendente')
         self.assertTrue(proximo.recorrente)
 
-    def test_lista_mostra_faltas_do_periodo(self):
+    def test_lista_mostra_dias_trabalhados_do_periodo(self):
         PresencaDiaria.objects.create(
             colaborador=self.colaborador,
             data=date(2026, 9, 10),
+            status='presente',
+        )
+        PresencaDiaria.objects.create(
+            colaborador=self.colaborador,
+            data=date(2026, 9, 11),
             status='falta',
         )
         PagamentoColaborador.objects.create(
@@ -268,7 +296,71 @@ class PagamentosColaboradoresTest(TestCase):
         })
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['pagamentos'][0].faltas_periodo, 1)
+        self.assertEqual(response.context['pagamentos'][0].dias_trabalhados_exibicao, 1)
+        self.assertContains(response, 'Dias trabalhados')
+        self.assertNotContains(response, '>Faltas<')
+
+    def test_lista_sem_presenca_mostra_nao_definido(self):
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='salario',
+            competencia=date(2026, 9, 1),
+            valor=Decimal('2000.00'),
+            data_vencimento=date(2026, 9, 5),
+        )
+
+        response = self.client.get(reverse('lista_pagamentos_colaboradores'), {
+            'data_inicio': '2026-09-01', 'data_fim': '2026-09-30',
+        })
+
+        self.assertContains(response, 'Não definido')
+
+    def test_freelancer_calcula_total_por_dias_e_diaria(self):
+        self.colaborador.categoria_trabalho = 'freelancer'
+        self.colaborador.save(update_fields=['categoria_trabalho'])
+        form = PagamentoColaboradorForm(data=self.dados_pagamento(
+            tipo='freelancer',
+            valor='',
+            dias_trabalhados='7',
+            valor_diaria='150,00',
+            chave_pix='fulano@example.com',
+        ))
+
+        self.assertTrue(form.is_valid(), form.errors)
+        pagamento = form.save()
+        self.assertEqual(pagamento.valor, Decimal('1050.00'))
+        self.assertEqual(pagamento.chave_pix, 'fulano@example.com')
+
+    def test_retirar_pagamento_pendente_preserva_historico(self):
+        pagamento = PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='vale_transporte',
+            competencia=date(2026, 9, 7),
+            valor=Decimal('80.00'),
+            data_vencimento=date(2026, 9, 7),
+            recorrente=True,
+        )
+
+        response = self.client.post(reverse('retirar_pagamento_folha', args=[pagamento.pk]))
+
+        self.assertRedirects(response, reverse('lista_pagamentos_colaboradores'))
+        pagamento.refresh_from_db()
+        self.assertEqual(pagamento.status, 'cancelado')
+        self.assertFalse(pagamento.recorrente)
+        self.assertTrue(PagamentoColaborador.objects.filter(pk=pagamento.pk).exists())
+
+    def test_retirar_pagamento_nao_aceita_get(self):
+        pagamento = PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='salario',
+            competencia=date(2026, 9, 1),
+            valor=Decimal('2000.00'),
+            data_vencimento=date(2026, 9, 5),
+        )
+
+        response = self.client.get(reverse('retirar_pagamento_folha', args=[pagamento.pk]))
+
+        self.assertEqual(response.status_code, 405)
 
     def test_visao_de_beneficios_exclui_salario(self):
         PagamentoColaborador.objects.create(

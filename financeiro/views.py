@@ -17,7 +17,8 @@ from core.validators import validate_document_upload
 from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.utils.text import get_valid_filename
-from admissional.models import PagamentoColaborador
+from admissional.models import Colaborador, PagamentoColaborador
+from core.models import ArquivoImportado
 
 
 logger = logging.getLogger(__name__)
@@ -42,15 +43,20 @@ def painel_financeiro(request):
     folha_mes = PagamentoColaborador.objects.filter(
         Q(data_pagamento__range=(mes_atual, fim_mes))
         | Q(data_pagamento__isnull=True, data_vencimento__range=(mes_atual, fim_mes))
-    ).exclude(status='cancelado')
+    ).exclude(status='cancelado').exclude(
+        colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO
+    )
     resumo_folha = folha_mes.aggregate(
         total=Sum('valor'),
         pago=Sum('valor', filter=Q(status='pago')),
         pendente=Sum('valor', filter=Q(status='pendente')),
         beneficios=Sum(
-            'valor', filter=Q(tipo__in=['vale_transporte', 'ajuda_custo'])
+            'valor', filter=Q(tipo__in=['vale_transporte', 'ajuda_custo', 'auxilio_telefonia'])
         ),
     )
+    arquivos_area = ArquivoImportado.objects.filter(
+        area__in=('financeiro', 'fiscal')
+    ).prefetch_related('origens').order_by('-criado_em', '-pk')
     
     dashboard_budget = []
     try:
@@ -92,6 +98,8 @@ def painel_financeiro(request):
         'folha_mes_pago': resumo_folha['pago'] or 0,
         'folha_mes_pendente': resumo_folha['pendente'] or 0,
         'folha_mes_beneficios': resumo_folha['beneficios'] or 0,
+        'arquivos_area': arquivos_area[:12],
+        'total_arquivos_area': arquivos_area.count(),
     })
 
 

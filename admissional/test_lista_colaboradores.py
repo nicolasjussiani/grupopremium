@@ -88,10 +88,11 @@ class ListaColaboradoresContratoTest(TestCase):
             colaborador=colaborador, tipo='prestacao_servico', competencia=proxima_segunda,
             valor='1800.00', data_vencimento=proxima_segunda,
         )
+        data_historica = hoje - timezone.timedelta(days=1)
         pago = PagamentoColaborador.objects.create(
-            colaborador=colaborador, tipo='salario', competencia=hoje,
-            valor='2000.00', data_vencimento=hoje, status='pago',
-            data_pagamento=hoje,
+            colaborador=colaborador, tipo='salario', competencia=data_historica,
+            valor='2000.00', data_vencimento=data_historica, status='pago',
+            data_pagamento=data_historica,
         )
 
         self.client.post(reverse('excluir_colaborador', args=[colaborador.pk]))

@@ -12,16 +12,17 @@ from .models import (
     PagamentoColaborador, PresencaDiaria,
 )
 from .forms import ColaboradorForm, PagamentoColaboradorForm
-from core.models import Notificacao
+from core.models import ArquivoImportado, Notificacao
+from django.contrib.contenttypes.models import ContentType
 from sesmet.models import IntegracaoSeguranca, RegistroEPI, OrdemServico
 from django.contrib.auth.models import User
 from core.access import access_required, user_has_access
 from core.validators import validate_document_upload
 from core.direct_uploads import assign_direct_upload, verify_direct_upload
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Count, Q, Sum
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.utils.text import get_valid_filename
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -279,6 +280,11 @@ def lista_colaboradores(request):
             permission='admissional.change_colaborador',
             profiles=('rh', 'sesmet'),
         ),
+        'can_view_documentos': user_has_access(
+            request.user,
+            permission='admissional.view_colaborador',
+            profiles=('rh', 'sesmet', 'financeiro', 'gestor'),
+        ),
         'can_delete_colaborador': user_has_access(
             request.user,
             permission='admissional.delete_colaborador',
@@ -310,20 +316,38 @@ def _pagamentos_no_periodo(queryset, inicio, fim):
     )
 
 
-def _anexar_faltas(pagamentos, inicio, fim):
+def _anexar_dias_trabalhados(pagamentos, inicio, fim):
     pagamentos = list(pagamentos)
     ids = {pagamento.colaborador_id for pagamento in pagamentos}
-    faltas = dict(
+    presencas = {
+        item['colaborador_id']: item
+        for item in (
         PresencaDiaria.objects.filter(
             colaborador_id__in=ids,
             data__range=(inicio, fim),
-            status='falta',
-        ).values('colaborador_id').annotate(total=Count('pk')).values_list(
-            'colaborador_id', 'total'
+        ).values('colaborador_id').annotate(
+            total_registros=Count('pk'),
+            total_presentes=Count('pk', filter=Q(status='presente')),
         )
-    )
+        )
+    }
     for pagamento in pagamentos:
-        pagamento.faltas_periodo = faltas.get(pagamento.colaborador_id, 0)
+        pix = pagamento.chave_pix
+        dias = pagamento.dias_trabalhados
+        item_fiscal = getattr(pagamento, 'item_fiscal', None)
+        if item_fiscal is not None:
+            if dias is None:
+                dias = item_fiscal.dias_trabalhados
+            if not pix:
+                pix = item_fiscal.pix
+        parcela_fiscal = getattr(pagamento, 'parcela_fiscal', None)
+        if not pix and parcela_fiscal is not None:
+            pix = parcela_fiscal.beneficio.pix
+        if dias is None:
+            resumo = presencas.get(pagamento.colaborador_id)
+            dias = resumo['total_presentes'] if resumo else None
+        pagamento.dias_trabalhados_exibicao = dias
+        pagamento.chave_pix_exibicao = pix
     return pagamentos
 
 
@@ -334,8 +358,11 @@ def _anexar_faltas(pagamentos, inicio, fim):
 )
 def lista_pagamentos_colaboradores(request):
     pagamentos = PagamentoColaborador.objects.select_related(
-        'colaborador', 'criado_por'
+        'colaborador', 'criado_por', 'item_fiscal', 'parcela_fiscal__beneficio'
     ).prefetch_related('arquivos_importados')
+    pagamentos = pagamentos.exclude(
+        colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO
+    )
     data_inicio, data_fim = _periodo_pagamentos(request)
     pagamentos = _pagamentos_no_periodo(pagamentos, data_inicio, data_fim)
     status_filter = request.GET.get('status', '').strip()
@@ -370,7 +397,7 @@ def lista_pagamentos_colaboradores(request):
 
     totais = pagamentos.values('status').annotate(total=Sum('valor'))
     totais_status = {item['status']: item['total'] for item in totais}
-    pagamentos = _anexar_faltas(pagamentos, data_inicio, data_fim)
+    pagamentos = _anexar_dias_trabalhados(pagamentos, data_inicio, data_fim)
     return render(request, 'admissional/lista_pagamentos.html', {
         'pagamentos': pagamentos,
         'query': query,
@@ -411,8 +438,14 @@ def visao_beneficios_colaboradores(request):
     data_inicio, data_fim = _periodo_pagamentos(request)
     pagamentos = _pagamentos_no_periodo(
         PagamentoColaborador.objects.filter(
-            tipo__in=['vale_transporte', 'ajuda_custo']
-        ).exclude(status='cancelado').select_related('colaborador'),
+            tipo__in=['vale_transporte', 'ajuda_custo', 'auxilio_telefonia']
+        ).exclude(
+            status='cancelado'
+        ).exclude(
+            colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO
+        ).select_related(
+            'colaborador', 'item_fiscal', 'parcela_fiscal__beneficio'
+        ),
         data_inicio,
         data_fim,
     )
@@ -432,8 +465,10 @@ def visao_beneficios_colaboradores(request):
     }
     total_geral = pagamentos.aggregate(total=Sum('valor'))['total'] or 0
     pessoas = pagamentos.values('colaborador_id').distinct().count()
-    pagamentos = _anexar_faltas(pagamentos, data_inicio, data_fim)
-    unidades = Colaborador.objects.exclude(unidade='').order_by('unidade').values_list(
+    pagamentos = _anexar_dias_trabalhados(pagamentos, data_inicio, data_fim)
+    unidades = Colaborador.objects.exclude(
+        status__in=Colaborador.STATUS_SEM_PAGAMENTO
+    ).exclude(unidade='').order_by('unidade').values_list(
         'unidade', flat=True
     ).distinct()
     return render(request, 'admissional/visao_beneficios.html', {
@@ -458,16 +493,16 @@ def visao_beneficios_colaboradores(request):
 def resumo_colaborador_pagamento(request, pk):
     colaborador = get_object_or_404(Colaborador, pk=pk)
     inicio, fim = _periodo_pagamentos(request)
-    faltas = PresencaDiaria.objects.filter(
+    presencas = PresencaDiaria.objects.filter(
         colaborador=colaborador,
         data__range=(inicio, fim),
-        status='falta',
-    ).count()
+    )
+    dias_trabalhados = presencas.filter(status='presente').count()
     return JsonResponse({
         'nome': colaborador.nome,
         'categoria': colaborador.get_categoria_trabalho_display(),
         'tipo_contrato': colaborador.get_tipo_contrato_display(),
-        'faltas': faltas,
+        'dias_trabalhados': dias_trabalhados if presencas.exists() else None,
         'periodo': f'{inicio:%d/%m/%Y} a {fim:%d/%m/%Y}',
     })
 
@@ -566,7 +601,7 @@ def marcar_pagamento_como_pago(request, pk):
         PagamentoColaborador.objects.select_for_update(), pk=pk
     )
     if pagamento.status == 'cancelado':
-        messages.error(request, 'Pagamento cancelado porque o colaborador está inativo.')
+        messages.error(request, 'Este lançamento foi retirado da folha e não pode ser pago.')
     elif pagamento.status == 'pago':
         messages.info(request, 'Este pagamento já estava marcado como pago.')
     else:
@@ -578,6 +613,32 @@ def marcar_pagamento_como_pago(request, pk):
         if recorrencia_criada:
             mensagem += ' A próxima semana foi gerada automaticamente.'
         messages.success(request, mensagem)
+    return redirect('lista_pagamentos_colaboradores')
+
+
+@login_required
+@require_POST
+@access_required(
+    permission='admissional.change_pagamentocolaborador',
+    profiles=('rh', 'financeiro', 'gestor'),
+)
+@transaction.atomic
+def retirar_pagamento_folha(request, pk):
+    pagamento = get_object_or_404(
+        PagamentoColaborador.objects.select_for_update(), pk=pk
+    )
+    if pagamento.status == 'pago':
+        messages.error(
+            request,
+            'Pagamento já realizado não pode ser retirado da folha. Use uma correção auditável.',
+        )
+    elif pagamento.status == 'cancelado':
+        messages.info(request, 'Este lançamento já estava fora da folha.')
+    else:
+        pagamento.status = 'cancelado'
+        pagamento.recorrente = False
+        pagamento.save(update_fields=['status', 'recorrente', 'atualizado_em'])
+        messages.success(request, 'Lançamento retirado da folha sem apagar o histórico.')
     return redirect('lista_pagamentos_colaboradores')
 
 @login_required
@@ -642,11 +703,21 @@ def editar_colaborador(request, pk):
 
 
 @login_required
-@access_required(permission='admissional.change_colaborador', profiles=('rh', 'sesmet', 'gestor'))
+@access_required(
+    permission='admissional.view_colaborador',
+    profiles=('rh', 'sesmet', 'financeiro', 'gestor'),
+)
 @transaction.atomic
 def documentos_colaborador(request, pk):
     colaborador = get_object_or_404(Colaborador, pk=pk)
+    pode_editar_documentos = user_has_access(
+        request.user,
+        permission='admissional.change_colaborador',
+        profiles=('rh', 'sesmet', 'gestor'),
+    )
     if request.method == 'POST':
+        if not pode_editar_documentos:
+            raise PermissionDenied
         tipo = request.POST.get('tipo', '').strip()
         descricao = request.POST.get('descricao', '').strip()[:255]
         data_texto = request.POST.get('data_referencia', '').strip()
@@ -690,15 +761,94 @@ def documentos_colaborador(request, pk):
                 return redirect('documentos_colaborador', pk=colaborador.pk)
 
     documentos = colaborador.documentos_arquivo.select_related('enviado_por')
+    campos_anexo = (
+        ('anexo_cpf', 'CPF/CNPJ — frente'),
+        ('anexo_cpf_verso', 'CPF/CNPJ — verso'),
+        ('anexo_rg', 'RG — frente'),
+        ('anexo_rg_verso', 'RG — verso'),
+        ('anexo_pis', 'PIS/PASEP — frente'),
+        ('anexo_pis_verso', 'PIS/PASEP — verso'),
+        ('anexo_ctps', 'CTPS — frente'),
+        ('anexo_ctps_verso', 'CTPS — verso'),
+        ('anexo_titulo', 'Título de eleitor — frente'),
+        ('anexo_titulo_verso', 'Título de eleitor — verso'),
+        ('anexo_reservista', 'Reservista — frente'),
+        ('anexo_reservista_verso', 'Reservista — verso'),
+        ('anexo_aso', 'ASO'),
+    )
+    anexos_cadastrais = [
+        {'campo': campo, 'label': label, 'arquivo': getattr(colaborador, campo)}
+        for campo, label in campos_anexo
+        if getattr(colaborador, campo)
+    ]
+    pode_ver_pagamentos = user_has_access(
+        request.user,
+        permission='admissional.view_pagamentocolaborador',
+        profiles=('rh', 'financeiro', 'gestor'),
+    )
+    pagamentos_documentados = []
+    arquivos_central_colaborador = []
+    if pode_ver_pagamentos:
+        pagamentos_documentados = colaborador.pagamentos.filter(
+            arquivos_importados__isnull=False
+        ).prefetch_related('arquivos_importados').distinct()
+        arquivos_central_colaborador = ArquivoImportado.objects.filter(
+            content_type=ContentType.objects.get_for_model(Colaborador),
+            object_id=colaborador.pk,
+        ).prefetch_related('origens')
+
+    pode_ver_fiscal = user_has_access(
+        request.user,
+        permission='fiscal.view_folhafiscal',
+        profiles=('financeiro', 'gestor'),
+    )
+    folhas_fiscais = []
+    if pode_ver_fiscal:
+        from fiscal.models import FolhaFiscal
+        folhas_fiscais = FolhaFiscal.objects.filter(
+            Q(itens__colaborador=colaborador)
+            | Q(beneficios__colaborador=colaborador)
+        ).select_related('arquivo_origem').distinct()
     return render(request, 'admissional/documentos_colaborador.html', {
         'colaborador': colaborador,
         'documentos': documentos,
+        'anexos_cadastrais': anexos_cadastrais,
+        'pagamentos_documentados': pagamentos_documentados,
+        'arquivos_central_colaborador': arquivos_central_colaborador,
+        'folhas_fiscais': folhas_fiscais,
         'tipos_documento': DocumentoColaborador.TIPOS,
+        'pode_editar_documentos': pode_editar_documentos,
+        'pode_ver_pagamentos': pode_ver_pagamentos,
+        'pode_ver_fiscal': pode_ver_fiscal,
     })
 
 
 @login_required
-@access_required(permission='admissional.change_colaborador', profiles=('rh', 'sesmet', 'gestor'))
+@access_required(
+    permission='admissional.view_colaborador',
+    profiles=('rh', 'sesmet', 'financeiro', 'gestor'),
+)
+def baixar_anexo_colaborador(request, pk, campo):
+    campos_permitidos = {
+        'anexo_cpf', 'anexo_cpf_verso', 'anexo_rg', 'anexo_rg_verso',
+        'anexo_pis', 'anexo_pis_verso', 'anexo_ctps', 'anexo_ctps_verso',
+        'anexo_titulo', 'anexo_titulo_verso', 'anexo_reservista',
+        'anexo_reservista_verso', 'anexo_aso',
+    }
+    if campo not in campos_permitidos:
+        raise Http404
+    colaborador = get_object_or_404(Colaborador, pk=pk)
+    arquivo = getattr(colaborador, campo)
+    if not arquivo:
+        raise Http404
+    return redirect(arquivo.url)
+
+
+@login_required
+@access_required(
+    permission='admissional.view_colaborador',
+    profiles=('rh', 'sesmet', 'financeiro', 'gestor'),
+)
 def baixar_documento_colaborador(request, pk, documento_pk):
     documento = get_object_or_404(
         DocumentoColaborador, pk=documento_pk, colaborador_id=pk

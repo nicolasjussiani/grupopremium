@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}{{ arquivo.nome_original }} — Arquivo Central{% endblock %}
+{% block nav_arquivo_central %}active{% endblock %}
+{% block topbar_title %}Visualização de documento{% endblock %}
+{% block extra_css %}
+<style>
+  .arquivo-detalhe-layout { display:grid;grid-template-columns:minmax(0,2fr) minmax(300px,1fr);gap:20px;align-items:start; }
+  @media (max-width: 900px) { .arquivo-detalhe-layout { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-6" style="margin-bottom:20px;">
+  <h1 class="mod-title" style="word-break:break-word;">{{ arquivo.nome_original }}</h1>
+  <div class="mod-desc">{{ arquivo.get_area_display }} · {{ arquivo.get_categoria_display }} · enviado em {{ arquivo.criado_em|date:"d/m/Y H:i" }}</div>
+</div>
+
+<div class="arquivo-detalhe-layout">
+  <div class="card" style="padding:16px;min-height:520px;">
+    <div class="card-header" style="padding:0 0 14px;">
+      <div class="card-title">Pré-visualização</div>
+      {% if arquivo_url %}<a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Abrir original</a>{% endif %}
+    </div>
+    {% if not arquivo_url %}
+      <div class="empty-state"><p>O arquivo não está disponível no armazenamento.</p></div>
+    {% elif preview.kind == 'pdf' %}
+      <iframe src="{{ arquivo_url }}" title="{{ arquivo.nome_original }}" style="width:100%;height:75vh;min-height:620px;border:1px solid var(--border);border-radius:8px;background:white;"></iframe>
+    {% elif preview.kind == 'image' %}
+      <div style="text-align:center;overflow:auto;"><img src="{{ arquivo_url }}" alt="{{ arquivo.nome_original }}" style="max-width:100%;height:auto;border-radius:8px;"></div>
+    {% elif preview.kind == 'text' %}
+      <pre style="white-space:pre-wrap;word-break:break-word;max-height:75vh;overflow:auto;background:var(--bg-base);padding:16px;border-radius:8px;">{{ preview.text }}</pre>
+    {% elif preview.kind == 'docx' %}
+      <div style="max-height:75vh;overflow:auto;background:white;color:#1f2937;padding:32px;border:1px solid var(--border);border-radius:8px;">
+        {% for paragrafo in preview.paragraphs %}<p style="margin:0 0 10px;">{{ paragrafo }}</p>{% empty %}<p>Nenhum texto foi encontrado no documento.</p>{% endfor %}
+      </div>
+    {% elif preview.kind == 'xlsx' %}
+      <div style="max-height:75vh;overflow:auto;">
+        {% for sheet in preview.sheets %}
+          <h3 style="margin:18px 0 8px;">{{ sheet.name }}</h3>
+          <div class="table-wrap"><table><tbody>{% for row in sheet.rows %}<tr>{% for value in row %}<td>{{ value|default:"—" }}</td>{% endfor %}</tr>{% empty %}<tr><td>Planilha vazia.</td></tr>{% endfor %}</tbody></table></div>
+        {% empty %}<div class="empty-state"><p>Nenhuma planilha legível foi encontrada.</p></div>{% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state"><p>{% if preview.error %}{{ preview.error }}{% else %}Este formato deve ser aberto no aplicativo correspondente.{% endif %}</p><a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank" rel="noopener" class="btn btn-mod6">Abrir arquivo</a></div>
+    {% endif %}
+  </div>
+
+  <div style="display:grid;gap:16px;">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Organização</div></div>
+      <div style="display:grid;gap:10px;font-size:.86rem;">
+        <div><strong>Área:</strong> {{ arquivo.get_area_display }}</div>
+        <div><strong>Categoria:</strong> {{ arquivo.get_categoria_display }}</div>
+        <div><strong>Tipo:</strong> {{ arquivo.subcategoria|default:"—" }}</div>
+        <div><strong>Situação:</strong> <span class="badge {% if arquivo.status == 'vinculado' %}badge-success{% elif arquivo.status == 'revisar' or arquivo.status == 'erro' %}badge-danger{% else %}badge-info{% endif %}">{{ arquivo.get_status_display }}</span></div>
+        {% if arquivo.vinculo_label %}<div><strong>Vínculo:</strong> {% if arquivo.vinculo_url %}<a href="{{ arquivo.vinculo_url }}">{{ arquivo.vinculo_label }}</a>{% else %}{{ arquivo.vinculo_label }}{% endif %}</div>{% endif %}
+        {% if arquivo.motivo_revisao %}<div class="alert alert-error" style="margin:4px 0 0;">{{ arquivo.motivo_revisao }}</div>{% endif %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Arquivo e datas</div></div>
+      <div style="display:grid;gap:9px;font-size:.82rem;word-break:break-word;">
+        <div><strong>Tamanho:</strong> {{ arquivo.tamanho|filesizeformat }}</div>
+        <div><strong>Formato:</strong> {{ arquivo.mime_type|default:"—" }}</div>
+        <div><strong>Hash SHA-256:</strong> <span style="font-family:monospace;">{{ arquivo.sha256 }}</span></div>
+        <div><strong>Importado:</strong> {{ arquivo.criado_em|date:"d/m/Y H:i:s" }}</div>
+        <div><strong>Data do documento:</strong> {{ arquivo.data_documento|date:"d/m/Y"|default:"—" }}</div>
+        <div><strong>Processado:</strong> {{ arquivo.processado_em|date:"d/m/Y H:i:s"|default:"—" }}</div>
+        <div><strong>Atualizado:</strong> {{ arquivo.atualizado_em|date:"d/m/Y H:i:s" }}</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Origens encontradas</div></div>
+      <div style="display:grid;gap:12px;">
+        {% for origem in arquivo.origens.all %}
+          <div style="padding-bottom:10px;border-bottom:1px solid var(--border);word-break:break-word;font-size:.8rem;">
+            <strong>{{ origem.pasta_raiz|default:"Pasta importada" }}</strong><br>{{ origem.caminho_relativo }}
+            <div style="color:var(--text-muted);margin-top:4px;">Modificado em {{ origem.modificado_em|date:"d/m/Y H:i:s"|default:"—" }}</div>
+          </div>
+        {% empty %}<span style="color:var(--text-muted);">Origem não registrada.</span>{% endfor %}
+      </div>
+    </div>
+    {% if arquivo.metadados %}
+    <div class="card">
+      <div class="card-header"><div class="card-title">Dados identificados</div></div>
+      <div style="display:grid;gap:8px;font-size:.82rem;">
+        {% for chave, valor in arquivo.metadados.items %}<div><strong>{{ chave }}:</strong> {{ valor }}</div>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    <a href="{% url 'arquivo_central' %}" class="btn btn-outline">Voltar ao Arquivo Central</a>
+  </div>
+</div>
+{% endblock %}

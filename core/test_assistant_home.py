@@ -19,7 +19,7 @@ class AssistantHomeTests(TestCase):
         response = self.client.get(reverse('dashboard'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'O que iremos fazer hoje?')
+        self.assertContains(response, 'No que você está pensando?')
         self.assertContains(response, 'Financeiro &gt; Base Fiscal')
         self.assertContains(response, reverse('painel_fiscal'))
         self.assertNotContains(response, 'SESMET &gt; Registrar entrega de EPI')
@@ -34,7 +34,7 @@ class AssistantHomeTests(TestCase):
         })
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Orientação da IA')
+        self.assertContains(response, 'Resposta da assistente')
         self.assertContains(response, 'Cadastre dados pessoais')
         self.assertContains(response, 'Admissional &gt; Colaboradores &gt; Novo colaborador')
         self.assertContains(response, reverse('novo_colaborador'))
@@ -48,12 +48,19 @@ class AssistantHomeTests(TestCase):
         recommendation = recommend_process(user, 'Preciso criar uma requisição de material')
         self.assertEqual(recommendation['key'], 'compras')
 
-    def test_assistente_completo_tambem_mostra_diretorios(self):
+    def test_link_antigo_redireciona_e_dashboard_mostra_diretorios(self):
         user = self._user('gestor-home', 'gestor')
         self.client.force_login(user)
 
-        response = self.client.post(reverse('assistente_erp'), {
-            'acao': 'perguntar',
+        legacy_response = self.client.get(reverse('assistente_erp'))
+        self.assertRedirects(
+            legacy_response,
+            f'{reverse("dashboard")}#assistente-dashboard',
+            fetch_redirect_response=False,
+        )
+
+        response = self.client.post(reverse('dashboard'), {
+            'acao': 'perguntar_ia',
             'pergunta': 'Onde importo a planilha fiscal?',
         })
 

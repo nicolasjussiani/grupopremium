@@ -1,10 +1,22 @@
+from unittest.mock import patch
+
 from django.contrib.auth.models import Group, User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from core.models import PerfilUsuario
 from financeiro.models import AuditoriaItem, DocumentoFinanceiro, LancamentoERP
+from financeiro.services.ocr_service import extrair_dados_documento
+
+
+class LeituraProvisoriaDocumentoTests(SimpleTestCase):
+    @patch.dict('os.environ', {}, clear=True)
+    def test_sem_chave_api_usa_modo_local(self):
+        dados = extrair_dados_documento(b'\x89PNG\r\n\x1a\n', 'image/png')
+        self.assertEqual(dados['_modo'], 'local')
+        self.assertIn('chave da IA', dados['_aviso'])
+        self.assertEqual(dados['produtos'], [])
 
 
 class EntradaDocumentoOpcionalTests(TestCase):

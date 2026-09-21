@@ -54,6 +54,27 @@ class ExtracaoArquivoCentralTest(TestCase):
         self.assertEqual(categoria, 'pagamento_colaborador')
         self.assertEqual(subcategoria, 'vale_transporte')
 
+    def test_classifica_auxilio_telefonia_na_area_de_pagamentos(self):
+        categoria, subcategoria = classificar(Path(
+            'AUXILIO TELEFONIA/SETEMBRO/AUXILIO TELEFONIA - AMERICANA.pdf'
+        ))
+        self.assertEqual(categoria, 'pagamento_colaborador')
+        self.assertEqual(subcategoria, 'auxilio_telefonia')
+
+    def test_classifica_documentos_do_lote_de_lancamento(self):
+        self.assertEqual(
+            classificar(Path('COMPROVANTES PARA LANÇAMENTO/NF PREMIUMBR.pdf')),
+            ('nota_fiscal', 'nota_fiscal'),
+        )
+        self.assertEqual(
+            classificar(Path('COMPROVANTES PARA LANÇAMENTO/GUIA DE FGTS DIA 18-09-2026.pdf')),
+            ('documento_trabalhista', 'fgts'),
+        )
+        self.assertEqual(
+            classificar(Path('COMPROVANTES PARA LANÇAMENTO/arquivo-generico.jpg')),
+            ('documento_financeiro', 'comprovante'),
+        )
+
     def test_regra_classifica_valor_alto_no_inicio_do_mes_como_salario(self):
         self.assertEqual(
             classificar_pagamento_regra(
@@ -147,6 +168,25 @@ class ImportacaoArquivoCentralTest(TestCase):
         cliente.force_login(self.user)
         response = cliente.get(reverse('arquivo_central'))
         self.assertEqual(response.status_code, 200)
+
+    def test_superusuario_visualiza_detalhe_do_arquivo(self):
+        arquivo = ArquivoImportado.objects.create(
+            categoria='nota_fiscal',
+            subcategoria='nota_fiscal',
+            area='fiscal',
+            nome_original='nota.pdf',
+            arquivo=SimpleUploadedFile('nota.pdf', b'%PDF-teste'),
+            sha256='b' * 64,
+            tamanho=10,
+        )
+        cliente = Client()
+        cliente.force_login(self.user)
+
+        response = cliente.get(reverse('detalhe_arquivo_importado', args=[arquivo.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Pré-visualização')
+        self.assertContains(response, 'Fiscal')
 
     def test_revisao_manual_vincula_pagamento(self):
         arquivo = ArquivoImportado.objects.create(

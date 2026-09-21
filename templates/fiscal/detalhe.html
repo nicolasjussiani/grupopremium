@@ -8,6 +8,7 @@
   </div>
   <div style="display:flex;gap:10px;">
     <a href="{% url 'painel_fiscal' %}" class="btn btn-secondary">Voltar</a>
+    <a href="{% url 'baixar_arquivo_importado' folha.arquivo_origem.pk %}" target="_blank" rel="noopener" class="btn btn-outline">Planilha original</a>
     <form method="post" action="{% url 'processar_folha_fiscal' folha.pk %}" onsubmit="return confirm('Gerar pagamentos somente para registros conciliados e sem pendências?');">
       {% csrf_token %}<button type="submit" class="btn btn-mod6">Gerar pagamentos</button>
     </form>
@@ -17,8 +18,8 @@
 <div class="kpi-grid" style="margin-bottom:20px;">
   <div class="kpi-card"><div class="kpi-label">Registros de folha</div><div class="kpi-value">{{ itens|length }}</div></div>
   <div class="kpi-card"><div class="kpi-label">Beneficiários</div><div class="kpi-value">{{ beneficios|length }}</div></div>
-  <div class="kpi-card"><div class="kpi-label">Total executado</div><div class="kpi-value">R$ {{ folha.total_executado|floatformat:2 }}</div></div>
-  <div class="kpi-card"><div class="kpi-label">Total benefícios</div><div class="kpi-value">R$ {{ folha.total_beneficios|floatformat:2 }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Total executado — equipe atual</div><div class="kpi-value">R$ {{ total_executado_atual|floatformat:2 }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Total benefícios — equipe atual</div><div class="kpi-value">R$ {{ total_beneficios_atual|floatformat:2 }}</div></div>
   <div class="kpi-card"><div class="kpi-label">Pendências</div><div class="kpi-value">{{ pendencias }}</div></div>
 </div>
 
@@ -28,7 +29,7 @@
   <div class="card-header"><div class="card-title">Folha por pessoa</div></div>
   <div class="table-wrap" style="border:none;max-height:620px;overflow:auto;">
     <table>
-      <thead><tr><th>Aba/Linha</th><th>Colaborador</th><th>Regime</th><th>Contrato</th><th>Executar</th><th>Situação fonte</th><th>Conciliação</th><th>Pagamento</th></tr></thead>
+      <thead><tr><th>Aba/Linha</th><th>Colaborador</th><th>Regime</th><th>Contrato</th><th>Dias trabalhados</th><th>Valor/dia</th><th>Chave PIX</th><th>Executar</th><th>Situação fonte</th><th>Conciliação</th><th>Documentos e pagamento</th></tr></thead>
       <tbody>
       {% for item in itens %}
         <tr>
@@ -36,15 +37,23 @@
           <td><strong>{{ item.nome_fonte }}</strong>{% if item.colaborador %}<br><small>{{ item.colaborador.nome }}</small>{% endif %}</td>
           <td>{{ item.get_regime_display }}</td>
           <td>{{ item.contrato|default:"—" }}{% if item.unidade %}<br><small>{{ item.unidade }}</small>{% endif %}</td>
+          <td>{{ item.dias_trabalhados|floatformat:-2|default:"Não definido" }}</td>
+          <td>{% if item.valor_dia is not None %}R$ {{ item.valor_dia|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td style="max-width:190px;overflow-wrap:anywhere;">{{ item.pix|default:"Não informado" }}</td>
           <td>{% if item.valor_para_pagamento %}R$ {{ item.valor_para_pagamento|floatformat:2 }}{% else %}—{% endif %}</td>
           <td><span class="badge {% if item.status_fonte == 'pago' %}badge-success{% else %}badge-warning{% endif %}">{{ item.get_status_fonte_display }}</span></td>
           <td>
             <span class="badge {% if item.status_conciliacao == 'conciliado' %}badge-success{% else %}badge-danger{% endif %}">{{ item.get_status_conciliacao_display }}</span>
             {% if item.problemas %}<br><small style="color:var(--danger);">{{ item.problemas|join:" " }}</small>{% endif %}
           </td>
-          <td>{% if item.pagamento %}<a href="{% url 'editar_pagamento_colaborador' item.pagamento.pk %}">#{{ item.pagamento.pk }}</a>{% else %}—{% endif %}</td>
+          <td>
+            {% if item.colaborador %}<a href="{% url 'documentos_colaborador' item.colaborador.pk %}" class="btn btn-sm btn-outline">Arquivos</a>{% endif %}
+            {% if item.pagamento %}<a href="{% url 'editar_pagamento_colaborador' item.pagamento.pk %}" class="btn btn-sm btn-outline">Pagamento #{{ item.pagamento.pk }}</a>{% endif %}
+            {% if item.pagamento %}{% with comprovante=item.pagamento.arquivos_importados.first %}{% if comprovante %}<a href="{% url 'baixar_arquivo_importado' comprovante.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-mod6">Comprovante</a>{% endif %}{% endwith %}{% endif %}
+            {% if not item.colaborador and not item.pagamento %}—{% endif %}
+          </td>
         </tr>
-      {% empty %}<tr><td colspan="8">Nenhum item encontrado.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="11">Nenhum item encontrado.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
@@ -54,7 +63,7 @@
   <div class="card-header"><div class="card-title">Vale-transporte e ajuda de custo por semana</div></div>
   <div class="table-wrap" style="border:none;max-height:620px;overflow:auto;">
     <table>
-      <thead><tr><th>Linha</th><th>Colaborador</th><th>Tipo</th><th>Contrato/Base</th><th>Semanas</th><th>Situação</th><th>Conciliação</th></tr></thead>
+      <thead><tr><th>Linha</th><th>Colaborador</th><th>Tipo</th><th>Contrato/Base</th><th>Semanas e comprovantes</th><th>Situação</th><th>Conciliação</th></tr></thead>
       <tbody>
       {% for beneficio in beneficios %}
         <tr>
@@ -62,7 +71,14 @@
           <td><strong>{{ beneficio.nome_fonte }}</strong>{% if beneficio.colaborador %}<br><small>{{ beneficio.colaborador.nome }}</small>{% endif %}</td>
           <td>{{ beneficio.get_tipo_display }}</td>
           <td>{{ beneficio.contrato|default:"—" }}{% if beneficio.base %}<br><small>{{ beneficio.base }}</small>{% endif %}</td>
-          <td>{% for parcela in beneficio.parcelas.all %}S{{ parcela.semana }}: R$ {{ parcela.valor|floatformat:2 }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td>
+          <td>
+            {% for parcela in beneficio.parcelas.all %}
+              S{{ parcela.semana }}: R$ {{ parcela.valor|floatformat:2 }}
+              {% if parcela.pagamento %}{% with comprovante=parcela.pagamento.arquivos_importados.first %}{% if comprovante %}<a href="{% url 'baixar_arquivo_importado' comprovante.pk %}" target="_blank" rel="noopener">comprovante</a>{% endif %}{% endwith %}{% endif %}
+              {% if not forloop.last %}<br>{% endif %}
+            {% endfor %}
+            {% if beneficio.colaborador %}<br><a href="{% url 'documentos_colaborador' beneficio.colaborador.pk %}" class="btn btn-sm btn-outline">Arquivos do colaborador</a>{% endif %}
+          </td>
           <td><span class="badge {% if beneficio.status_fonte == 'pago' %}badge-success{% else %}badge-warning{% endif %}">{{ beneficio.get_status_fonte_display }}</span></td>
           <td><span class="badge {% if beneficio.status_conciliacao == 'conciliado' %}badge-success{% else %}badge-danger{% endif %}">{{ beneficio.get_status_conciliacao_display }}</span>{% if beneficio.problemas %}<br><small style="color:var(--danger);">{{ beneficio.problemas|join:" " }}</small>{% endif %}</td>
         </tr>

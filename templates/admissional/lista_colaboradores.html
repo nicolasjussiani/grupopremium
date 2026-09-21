@@ -87,6 +87,7 @@
         <th>Unidade</th>
         <th>Contrato</th>
         <th>Admissão</th>
+        <th>Desligamento</th>
         <th>Status</th>
         <th>Documentos</th>
         <th>EPIs</th>
@@ -108,6 +109,7 @@
           <span class="badge badge-info">{{ c.contrato|default:"Não informado" }}</span>
         </td>
         <td style="font-size:0.82rem;">{{ c.data_admissao|date:"d/m/Y" }}</td>
+        <td style="font-size:0.82rem;">{{ c.data_desligamento|date:"d/m/Y"|default:"—" }}</td>
         <td>
           <span class="badge {% if c.status == 'ativo' %}badge-success{% elif c.status == 'inativo' or c.status == 'desligado' %}badge-danger{% else %}badge-warning{% endif %}">{{ c.get_status_display }}</span>
         </td>
@@ -120,8 +122,10 @@
           {% endif %}
         </td>
         <td>
-          {% if can_edit_colaborador %}
+          {% if can_view_documentos %}
             <a href="{% url 'documentos_colaborador' c.pk %}" class="btn btn-sm btn-outline" title="Documentos">Arquivos</a>
+          {% endif %}
+          {% if can_edit_colaborador %}
             <a href="{% url 'editar_colaborador' c.pk %}" class="btn btn-sm btn-mod1" title="Editar">✏️</a>
           {% endif %}
           {% if can_add_pagamento %}
@@ -139,7 +143,7 @@
               {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Reativar</button>
             </form>
           {% endif %}
-          {% if not can_edit_colaborador and not can_delete_colaborador and not can_add_pagamento %}
+          {% if not can_view_documentos and not can_edit_colaborador and not can_delete_colaborador and not can_add_pagamento %}
             <span style="color:var(--text-muted);">—</span>
           {% endif %}
         </td>

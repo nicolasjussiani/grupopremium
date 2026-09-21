@@ -11,7 +11,7 @@ from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.template import loader
 from django.middleware.csrf import get_token
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
@@ -27,7 +27,7 @@ from django.views.csrf import csrf_failure as default_csrf_failure
 from core.access import user_has_access, user_is_executive
 from core.models import (
     AprovacaoRegistro, ArquivoImportado, Fornecedor, LogAtividade,
-    PerfilUsuario, Notificacao, Unidade,
+    OrigemArquivoImportado, PerfilUsuario, Notificacao, Unidade,
 )
 from core.forms import (
     FornecedorForm, RevisaoPagamentoImportadoForm, UnidadeForm, UsuarioERPForm,
@@ -37,6 +37,7 @@ from admissional.models import (
     Admissao, Colaborador, PagamentoColaborador, PresencaDiaria,
 )
 from core.services.importacao_arquivo_central import classificar_pagamento_regra
+from core.services.visualizacao_arquivo import preparar_preview
 from core.direct_uploads import verify_direct_upload
 from core.services.assistente_provisorio import (
     categorias_permitidas, registrar_documento, responder_pergunta,
@@ -52,18 +53,48 @@ from manutencao.models import RegistroManutencao
 logger = logging.getLogger(__name__)
 
 
+def _usuario_pode_ver_arquivo_central(user):
+    return user_has_access(
+        user,
+        permission='core.view_arquivoimportado',
+        profiles=('admin', 'rh', 'financeiro', 'gestor', 'compras', 'estoque_compras'),
+    )
+
+
+def _configurar_vinculo_arquivo(arquivo):
+    arquivo.vinculo_label = ''
+    arquivo.vinculo_url = ''
+    objeto = arquivo.content_object
+    if isinstance(objeto, PagamentoColaborador):
+        arquivo.vinculo_label = (
+            f'{objeto.colaborador.nome} · {objeto.get_tipo_display()} '
+            f'· {objeto.competencia:%m/%Y}'
+        )
+        arquivo.vinculo_url = reverse(
+            'documentos_colaborador', args=[objeto.colaborador_id]
+        )
+    elif isinstance(objeto, Colaborador):
+        arquivo.vinculo_label = f'Documentos de {objeto.nome}'
+        arquivo.vinculo_url = reverse('documentos_colaborador', args=[objeto.pk])
+    elif isinstance(objeto, DocumentoFinanceiro):
+        arquivo.vinculo_label = str(objeto)
+        arquivo.vinculo_url = reverse('detalhe_documento', args=[objeto.pk])
+    elif arquivo.content_type and arquivo.content_type.model == 'folhafiscal':
+        arquivo.vinculo_label = str(objeto) if objeto else 'Folha fiscal'
+        if objeto:
+            arquivo.vinculo_url = reverse('detalhe_folha_fiscal', args=[objeto.pk])
+
+
 @login_required
 def arquivo_central(request):
-    if not user_has_access(
-        request.user,
-        permission='core.view_arquivoimportado',
-        profiles=('admin', 'rh', 'financeiro', 'gestor'),
-    ):
+    if not _usuario_pode_ver_arquivo_central(request.user):
         raise PermissionDenied
 
     arquivos = ArquivoImportado.objects.select_related(
         'content_type'
-    ).prefetch_related('origens')
+    ).prefetch_related('origens').order_by(
+        F('data_documento').desc(nulls_last=True), '-criado_em', '-pk'
+    )
     categoria = request.GET.get('categoria', '').strip()
     categorias_validas = {value for value, _ in ArquivoImportado.CATEGORIAS}
     if categoria in categorias_validas:
@@ -76,38 +107,87 @@ def arquivo_central(request):
         arquivos = arquivos.filter(status=status)
     else:
         status = ''
+    area = request.GET.get('area', '').strip()
+    areas_validas = {value for value, _ in ArquivoImportado.AREAS}
+    if area in areas_validas:
+        arquivos = arquivos.filter(area=area)
+    else:
+        area = ''
+    origem = request.GET.get('origem', '').strip()[:255]
+    origens_validas = set(
+        OrigemArquivoImportado.objects.exclude(pasta_raiz='')
+        .values_list('pasta_raiz', flat=True).distinct()
+    )
+    if origem in origens_validas:
+        arquivos = arquivos.filter(origens__pasta_raiz=origem).distinct()
+    else:
+        origem = ''
     query = request.GET.get('q', '').strip()[:120]
     if query:
         arquivos = arquivos.filter(
             Q(nome_original__icontains=query)
             | Q(origens__caminho_relativo__icontains=query)
             | Q(subcategoria__icontains=query)
+            | Q(texto_extraido__icontains=query)
         ).distinct()
+    data_inicio = parse_date(request.GET.get('data_inicio', ''))
+    data_fim = parse_date(request.GET.get('data_fim', ''))
+    if data_inicio:
+        arquivos = arquivos.filter(data_documento__gte=data_inicio)
+    if data_fim:
+        arquivos = arquivos.filter(data_documento__lte=data_fim)
 
     paginator = Paginator(arquivos, 100)
     page = paginator.get_page(request.GET.get('page'))
+    for arquivo in page.object_list:
+        _configurar_vinculo_arquivo(arquivo)
     return render(request, 'core/arquivo_central.html', {
         'page': page,
         'arquivos': page.object_list,
         'query': query,
         'categoria_filter': categoria,
         'status_filter': status,
+        'area_filter': area,
+        'origem_filter': origem,
+        'data_inicio_filter': data_inicio.isoformat() if data_inicio else '',
+        'data_fim_filter': data_fim.isoformat() if data_fim else '',
         'categoria_choices': ArquivoImportado.CATEGORIAS,
         'status_choices': ArquivoImportado.STATUS,
+        'area_choices': ArquivoImportado.AREAS,
+        'origem_choices': sorted(origens_validas),
         'total_arquivos': ArquivoImportado.objects.count(),
+        'total_origens': OrigemArquivoImportado.objects.count(),
+        'total_filtrados': paginator.count,
         'total_revisar': ArquivoImportado.objects.filter(status='revisar').count(),
         'total_vinculados': ArquivoImportado.objects.filter(status='vinculado').count(),
     })
 
 
 @login_required
+def detalhe_arquivo_importado(request, pk):
+    if not _usuario_pode_ver_arquivo_central(request.user):
+        raise PermissionDenied
+    arquivo = get_object_or_404(
+        ArquivoImportado.objects.select_related('content_type', 'importado_por')
+        .prefetch_related('origens'),
+        pk=pk,
+    )
+    _configurar_vinculo_arquivo(arquivo)
+    try:
+        arquivo_url = arquivo.arquivo.url
+    except (OSError, ValueError):
+        arquivo_url = ''
+    return render(request, 'core/arquivo_central_detalhe.html', {
+        'arquivo': arquivo,
+        'arquivo_url': arquivo_url,
+        'preview': preparar_preview(arquivo),
+    })
+
+
+@login_required
 def baixar_arquivo_importado(request, pk):
     arquivo = get_object_or_404(ArquivoImportado, pk=pk)
-    if arquivo.importado_por_id != request.user.pk and not user_has_access(
-        request.user,
-        permission='core.view_arquivoimportado',
-        profiles=('admin', 'rh', 'financeiro', 'gestor'),
-    ):
+    if arquivo.importado_por_id != request.user.pk and not _usuario_pode_ver_arquivo_central(request.user):
         raise PermissionDenied
     return redirect(arquivo.arquivo.url)
 
@@ -274,17 +354,60 @@ def dashboard(request):
     pergunta_ia = ''
     resposta_ia = ''
     processo_recomendado = None
-    if request.method == 'POST' and request.POST.get('acao') == 'perguntar_ia':
-        pergunta_ia = request.POST.get('pergunta', '').strip()[:500]
-        if pergunta_ia:
-            resposta_ia = answer_with_process(
-                request.user,
-                pergunta_ia,
-                responder_pergunta(request.user, pergunta_ia),
-            )
-            processo_recomendado = recommend_process(request.user, pergunta_ia)
-        else:
-            resposta_ia = 'Conte o que você precisa fazer para eu indicar o processo e a tela correta.'
+    arquivo_atual_ia = None
+    if request.method == 'POST':
+        acao = request.POST.get('acao', '')
+        if acao == 'perguntar_ia':
+            pergunta_ia = request.POST.get('pergunta', '').strip()[:500]
+            if pergunta_ia:
+                resposta_ia = answer_with_process(
+                    request.user,
+                    pergunta_ia,
+                    responder_pergunta(request.user, pergunta_ia),
+                )
+                processo_recomendado = recommend_process(request.user, pergunta_ia)
+            else:
+                resposta_ia = 'Conte o que você precisa fazer para eu indicar o processo e a tela correta.'
+        elif acao == 'documento_ia':
+            try:
+                key = verify_direct_upload(request, 'assistente_documento', required=True)
+                nome = request.POST.get(
+                    'direct_upload_assistente_documento_original_name', 'documento'
+                ).strip()
+                from pathlib import Path
+                nome = Path(nome).name[:255] or 'documento'
+                extensao_real = Path(key).suffix.lower()
+                if Path(nome).suffix.lower() != extensao_real:
+                    nome = f'{Path(nome).stem[:220]}{extensao_real}'
+                tipos = {
+                    '.pdf': 'application/pdf', '.png': 'image/png',
+                    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                }
+                arquivo, criado = registrar_documento(
+                    request.user, key, nome, tipos.get(extensao_real, ''),
+                    request.POST.get('categoria', ''),
+                )
+                if criado:
+                    if arquivo.status == 'erro':
+                        messages.warning(request, arquivo.motivo_revisao)
+                    elif arquivo.status == 'vinculado':
+                        messages.success(request, 'Documento processado e vinculado automaticamente ao cadastro.')
+                    else:
+                        messages.success(request, 'Documento classificado e armazenado automaticamente.')
+                else:
+                    messages.info(request, 'Esse documento já estava registrado; mantivemos apenas uma cópia.')
+                return redirect(f'{reverse("dashboard")}?arquivo={arquivo.pk}#assistente-dashboard')
+            except ValidationError as exc:
+                messages.error(request, exc.messages[0])
+            except Exception:
+                logger.exception('Falha ao registrar documento pelo assistente no dashboard')
+                messages.error(request, 'Não foi possível analisar o documento. Tente novamente.')
+
+    arquivo_id = request.GET.get('arquivo', '')
+    if arquivo_id.isdigit():
+        arquivo_atual_ia = ArquivoImportado.objects.filter(
+            pk=int(arquivo_id), importado_por=request.user
+        ).first()
     is_visao_executiva = user_is_executive(request.user)
     pode_ver_documentos_pendentes = user_has_access(
         request.user,
@@ -450,6 +573,11 @@ def dashboard(request):
         'pergunta_ia': pergunta_ia,
         'resposta_ia': resposta_ia,
         'processo_recomendado': processo_recomendado,
+        'categorias_ia': [
+            item for item in ArquivoImportado.CATEGORIAS
+            if item[0] in categorias_permitidas(request.user)
+        ],
+        'arquivo_atual_ia': arquivo_atual_ia,
     })
     return render(request, 'dashboard.html', context)
 
@@ -462,73 +590,8 @@ def ajuda(request):
 
 @login_required
 def assistente_erp(request):
-    """Assistente provisoria: consulta local e ingestao automatica de documentos."""
-    from core.assistant_navigation import (
-        answer_with_process, processes_for_user, recommend_process,
-    )
-
-    resposta = ''
-    processo_recomendado = None
-    if request.method == 'POST':
-        acao = request.POST.get('acao', '')
-        if acao == 'perguntar':
-            pergunta = request.POST.get('pergunta', '').strip()[:500]
-            resposta = answer_with_process(
-                request.user,
-                pergunta,
-                responder_pergunta(request.user, pergunta),
-            )
-            processo_recomendado = recommend_process(request.user, pergunta)
-        elif acao == 'documento':
-            try:
-                key = verify_direct_upload(request, 'assistente_documento', required=True)
-                nome = request.POST.get(
-                    'direct_upload_assistente_documento_original_name', 'documento'
-                ).strip()
-                from pathlib import Path
-                nome = Path(nome).name[:255] or 'documento'
-                extensao_real = Path(key).suffix.lower()
-                if Path(nome).suffix.lower() != extensao_real:
-                    nome = f'{Path(nome).stem[:220]}{extensao_real}'
-                tipos = {'.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg'}
-                arquivo, criado = registrar_documento(
-                    request.user, key, nome, tipos.get(extensao_real, ''),
-                    request.POST.get('categoria', ''),
-                )
-                if criado:
-                    if arquivo.status == 'erro':
-                        messages.warning(request, arquivo.motivo_revisao)
-                    elif arquivo.status == 'vinculado':
-                        messages.success(request, 'Documento processado e vinculado automaticamente ao cadastro.')
-                    else:
-                        messages.success(request, 'Documento classificado e armazenado automaticamente.')
-                else:
-                    messages.info(request, 'Esse documento ja estava registrado; mantivemos apenas uma copia.')
-                return redirect(f'{reverse("assistente_erp")}?arquivo={arquivo.pk}')
-            except ValidationError as exc:
-                messages.error(request, exc.messages[0])
-            except Exception:
-                logger.exception('Falha ao registrar documento pelo assistente provisorio')
-                messages.error(request, 'Nao foi possivel analisar o documento. Tente novamente.')
-
-    permitidas = categorias_permitidas(request.user)
-    arquivo_id = request.GET.get('arquivo', '')
-    arquivo_atual = None
-    if arquivo_id.isdigit():
-        arquivo_atual = ArquivoImportado.objects.filter(
-            pk=int(arquivo_id), importado_por=request.user
-        ).first()
-    recentes = ArquivoImportado.objects.filter(importado_por=request.user)[:8]
-    return render(request, 'core/assistente_erp.html', {
-        'resposta': resposta,
-        'pergunta': request.POST.get('pergunta', '')[:500],
-        'categorias': [item for item in ArquivoImportado.CATEGORIAS if item[0] in permitidas],
-        'arquivos_recentes': recentes,
-        'arquivo_atual': arquivo_atual,
-        'ia_configurada': False,
-        'processos_assistente': processes_for_user(request.user),
-        'processo_recomendado': processo_recomendado,
-    })
+    """Mantém links antigos funcionando; a assistente agora vive no dashboard."""
+    return redirect(f'{reverse("dashboard")}#assistente-dashboard')
 
 
 @login_required

@@ -9,6 +9,15 @@
   <div class="mod-desc">Código {{ colaborador.pk|stringformat:"04d" }} · {{ colaborador.cargo }} · {{ colaborador.unidade }}</div>
 </div>
 
+<div class="kpi-grid" style="margin-bottom:20px;">
+  <div class="kpi-card"><div class="kpi-label">Documentos cadastrais</div><div class="kpi-value">{{ anexos_cadastrais|length }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Documentos adicionais</div><div class="kpi-value">{{ documentos|length }}</div></div>
+  {% if pode_ver_pagamentos %}<div class="kpi-card"><div class="kpi-label">Pagamentos com arquivo</div><div class="kpi-value">{{ pagamentos_documentados|length }}</div></div>{% endif %}
+  {% if pode_ver_pagamentos %}<div class="kpi-card"><div class="kpi-label">Outros documentos vinculados</div><div class="kpi-value">{{ arquivos_central_colaborador|length }}</div></div>{% endif %}
+  {% if pode_ver_fiscal %}<div class="kpi-card"><div class="kpi-label">Folhas fiscais vinculadas</div><div class="kpi-value">{{ folhas_fiscais|length }}</div></div>{% endif %}
+</div>
+
+{% if pode_editar_documentos %}
 <div class="card" style="margin-bottom:20px;">
   <div class="form-section-heading" style="margin-bottom:16px;">
     <span class="form-section-icon">01</span>
@@ -47,11 +56,35 @@
     </div>
   </form>
 </div>
+{% endif %}
 
-<div class="card">
+<div class="card" style="margin-bottom:20px;">
   <div class="form-section-heading" style="margin-bottom:16px;">
     <span class="form-section-icon">02</span>
-    <div><h2>Histórico de documentos</h2><p>Contratos e comprovantes permanecem separados por tipo e colaborador.</p></div>
+    <div><h2>Documentos cadastrais</h2><p>Arquivos anexados diretamente ao cadastro do colaborador.</p></div>
+  </div>
+  {% if anexos_cadastrais %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Documento</th><th>Arquivo armazenado</th><th>Ação</th></tr></thead>
+      <tbody>
+      {% for anexo in anexos_cadastrais %}
+        <tr>
+          <td><strong>{{ anexo.label }}</strong></td>
+          <td>{{ anexo.arquivo.name|default:"Arquivo armazenado" }}</td>
+          <td><a href="{% url 'baixar_anexo_colaborador' colaborador.pk anexo.campo %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Visualizar</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state"><p>Nenhum documento cadastral anexado.</p></div>{% endif %}
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="form-section-heading" style="margin-bottom:16px;">
+    <span class="form-section-icon">03</span>
+    <div><h2>Documentos adicionais</h2><p>Contratos, comprovantes e documentos enviados pelo RH ou SESMT.</p></div>
   </div>
   {% if documentos %}
   <div class="table-wrap">
@@ -66,10 +99,12 @@
           <td>{{ documento.criado_em|date:"d/m/Y H:i" }}</td>
           <td>{% if documento.enviado_por %}{{ documento.enviado_por.get_full_name|default:documento.enviado_por.username }}{% else %}Sistema{% endif %}</td>
           <td>
-            <a href="{% url 'baixar_documento_colaborador' colaborador.pk documento.pk %}" target="_blank" class="btn btn-sm btn-outline">Visualizar</a>
+            <a href="{% url 'baixar_documento_colaborador' colaborador.pk documento.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Visualizar</a>
+            {% if pode_editar_documentos %}
             <form method="post" action="{% url 'excluir_documento_colaborador' colaborador.pk documento.pk %}" style="display:inline;" onsubmit="return confirm('Remover este documento?');">
               {% csrf_token %}<button type="submit" class="btn btn-sm btn-danger">Excluir</button>
             </form>
+            {% endif %}
           </td>
         </tr>
       {% endfor %}
@@ -78,9 +113,95 @@
   </div>
   {% else %}<div class="empty-state"><p>Nenhum documento adicional anexado.</p></div>{% endif %}
 </div>
+
+{% if pode_ver_pagamentos %}
+{% if arquivos_central_colaborador %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="form-section-heading" style="margin-bottom:16px;">
+    <span class="form-section-icon">04</span>
+    <div><h2>Documentos vinculados pelo Arquivo Central</h2><p>Documentos trabalhistas e outros arquivos associados diretamente a este colaborador.</p></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Arquivo</th><th>Categoria</th><th>Origem</th><th>Data do arquivo</th><th>Ação</th></tr></thead>
+      <tbody>
+      {% for arquivo in arquivos_central_colaborador %}
+        <tr>
+          <td><strong>{{ arquivo.nome_original }}</strong></td>
+          <td>{{ arquivo.get_categoria_display }}{% if arquivo.subcategoria %}<div style="font-size:.72rem;color:var(--text-muted);">{{ arquivo.subcategoria }}</div>{% endif %}</td>
+          <td style="max-width:360px;word-break:break-word;">{% with origem=arquivo.origens.first %}{{ origem.caminho_relativo|default:"—" }}{% endwith %}</td>
+          <td>{% with origem=arquivo.origens.first %}{{ origem.modificado_em|date:"d/m/Y H:i"|default:arquivo.criado_em|date:"d/m/Y H:i" }}{% endwith %}</td>
+          <td><a href="{% url 'detalhe_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-outline">Visualizar</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="form-section-heading" style="margin-bottom:16px;">
+    <span class="form-section-icon">04</span>
+    <div><h2>Comprovantes de pagamento</h2><p>Arquivos vinculados a salários, benefícios, prestações e distratos.</p></div>
+  </div>
+  {% if pagamentos_documentados %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tipo</th><th>Competência</th><th>Valor</th><th>Pagamento</th><th>Comprovantes</th></tr></thead>
+      <tbody>
+      {% for pagamento in pagamentos_documentados %}
+        <tr>
+          <td>{{ pagamento.get_tipo_display }}</td>
+          <td>{{ pagamento.competencia|date:"d/m/Y" }}</td>
+          <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
+          <td>{{ pagamento.data_pagamento|date:"d/m/Y"|default:"—" }}<br><span class="badge {% if pagamento.status == 'pago' %}badge-success{% elif pagamento.status == 'cancelado' %}badge-danger{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
+          <td>
+            {% for arquivo in pagamento.arquivos_importados.all %}
+              <a href="{% url 'detalhe_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-outline">{{ arquivo.nome_original|truncatechars:28 }}</a>{% if not forloop.last %}<br>{% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state"><p>Nenhum comprovante de pagamento vinculado.</p></div>{% endif %}
+</div>
+{% endif %}
+
+{% if pode_ver_fiscal %}
+<div class="card">
+  <div class="form-section-heading" style="margin-bottom:16px;">
+    <span class="form-section-icon">05</span>
+    <div><h2>Documentos fiscais</h2><p>Planilhas de folha em que o colaborador aparece.</p></div>
+  </div>
+  {% if folhas_fiscais %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Competência</th><th>Folha</th><th>Situação</th><th>Ações</th></tr></thead>
+      <tbody>
+      {% for folha in folhas_fiscais %}
+        <tr>
+          <td>{{ folha.competencia|date:"m/Y" }}</td>
+          <td>{{ folha.arquivo_origem.nome_original }}</td>
+          <td><span class="badge {% if folha.status == 'processada' or folha.status == 'pronta' %}badge-success{% else %}badge-warning{% endif %}">{{ folha.get_status_display }}</span></td>
+          <td>
+            <a href="{% url 'detalhe_folha_fiscal' folha.pk %}" class="btn btn-sm btn-mod6">Abrir folha</a>
+            <a href="{% url 'baixar_arquivo_importado' folha.arquivo_origem.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Planilha original</a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state"><p>Nenhuma folha fiscal vinculada a este colaborador.</p></div>{% endif %}
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
+{% if pode_editar_documentos %}
 <script>
 const tipoDocumento = document.getElementById('tipo-documento');
 const dataReferencia = document.getElementById('data-referencia');
@@ -95,4 +216,5 @@ arquivoColaborador.addEventListener('change', () => {
 });
 atualizarObrigatoriedadeData();
 </script>
+{% endif %}
 {% endblock %}

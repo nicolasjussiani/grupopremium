@@ -210,6 +210,13 @@ def registrar_documento(user, key, nome_original, content_type, categoria_solici
         motivo = 'Arquivo armazenado automaticamente; leitura visual sera ampliada quando a chave da IA for configurada.'
     arquivo = ArquivoImportado(
         categoria=categoria, subcategoria=subcategoria, nome_original=nome_original[:255],
+        area=(
+            'rh' if categoria == 'pagamento_colaborador'
+            else 'financeiro' if categoria == 'reembolso'
+            else 'fiscal' if categoria in {'nota_fiscal', 'planilha'}
+            else 'compras' if categoria == 'pedido'
+            else 'geral'
+        ),
         sha256=sha256, tamanho=tamanho, mime_type=(content_type or '')[:120],
         status='revisar' if eh_pagamento else 'arquivado',
         motivo_revisao=motivo, metadados=metadados,

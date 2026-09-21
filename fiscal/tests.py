@@ -1,6 +1,7 @@
 import io
 import zipfile
 from datetime import date
+from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -150,6 +151,7 @@ class FiscalIntegrationTests(TestCase):
         salary = PagamentoColaborador.objects.get(tipo='salario')
         self.assertEqual(salary.status, 'pago')
         self.assertEqual(salary.valor, 2100)
+        self.assertEqual(salary.chave_pix, '12345678900')
 
         created_again, _ = gerar_pagamentos_fiscais(folha, self.user)
         self.assertEqual(created_again, 0)
@@ -167,7 +169,11 @@ class FiscalIntegrationTests(TestCase):
         self.collaborator.refresh_from_db()
         self.assertEqual(self.collaborator.categoria_trabalho, 'freelancer')
         gerar_pagamentos_fiscais(folha, self.user)
-        self.assertEqual(item.colaborador.pagamentos.get(tipo='freelancer').valor, 100)
+        pagamento = item.colaborador.pagamentos.get(tipo='freelancer')
+        self.assertEqual(pagamento.valor, 100)
+        self.assertEqual(pagamento.dias_trabalhados, 30)
+        self.assertEqual(pagamento.valor_diaria, Decimal('66.67'))
+        self.assertEqual(pagamento.chave_pix, '12345678900')
 
     def test_colaborador_inativo_vai_para_revisao_sem_abortar_lote(self):
         self.collaborator.status = 'inativo'

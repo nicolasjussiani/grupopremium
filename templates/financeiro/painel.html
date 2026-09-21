@@ -38,6 +38,35 @@
   <a href="{% url 'entrada_documento' %}" class="btn btn-mod6">+ Novo Documento</a>
 </div>
 
+<div class="card" style="margin-top:20px;border-left:4px solid var(--mod6-yellow);">
+  <div class="card-header" style="gap:12px;flex-wrap:wrap;">
+    <div>
+      <div class="card-title">Documentos enviados ao Financeiro / Fiscal</div>
+      <div style="font-size:.8rem;color:var(--text-muted);">{{ total_arquivos_area }} arquivo(s) organizados no acervo central.</div>
+    </div>
+    <a href="{% url 'arquivo_central' %}?area=financeiro" class="btn btn-mod6">Ver acervo completo</a>
+  </div>
+  {% if arquivos_area %}
+  <div class="table-wrap" style="border:none;">
+    <table>
+      <thead><tr><th>Arquivo</th><th>Área</th><th>Categoria</th><th>Origem</th><th>Situação</th><th></th></tr></thead>
+      <tbody>
+      {% for arquivo in arquivos_area %}
+        <tr>
+          <td><strong>{{ arquivo.nome_original|truncatechars:42 }}</strong><div style="font-size:.72rem;color:var(--text-muted);">{{ arquivo.criado_em|date:"d/m/Y H:i" }}</div></td>
+          <td>{{ arquivo.get_area_display }}</td>
+          <td>{{ arquivo.get_categoria_display }}{% if arquivo.subcategoria %}<div style="font-size:.72rem;color:var(--text-muted);">{{ arquivo.subcategoria }}</div>{% endif %}</td>
+          <td style="max-width:300px;word-break:break-word;">{% with origem=arquivo.origens.first %}{{ origem.caminho_relativo|default:"—"|truncatechars:65 }}{% endwith %}</td>
+          <td><span class="badge {% if arquivo.status == 'vinculado' %}badge-success{% elif arquivo.status == 'revisar' %}badge-danger{% else %}badge-info{% endif %}">{{ arquivo.get_status_display }}</span></td>
+          <td><a href="{% url 'detalhe_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-outline">Visualizar</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state"><p>Nenhum documento de Financeiro / Fiscal foi importado.</p></div>{% endif %}
+</div>
+
 <div class="card" style="margin-top:20px;border-left:4px solid var(--mod6-blue);">
   <div class="card-header" style="gap:12px;flex-wrap:wrap;">
     <div>

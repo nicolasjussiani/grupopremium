@@ -126,6 +126,12 @@ class Colaborador(models.Model):
     contrato = models.CharField(max_length=200, blank=True, verbose_name='Contrato/Cliente')
     marca = models.CharField(max_length=20, choices=MARCAS, default='eco_premium', verbose_name='Marca')
     data_admissao = models.DateField(null=True, blank=True, verbose_name='Data de Admissão')
+    data_desligamento = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name='Data de Desligamento',
+    )
     status = models.CharField(max_length=20, choices=STATUS, default='ativo')
     pis_pasep = models.CharField(max_length=20, blank=True, verbose_name='PIS/PASEP')
     ctps = models.CharField(max_length=30, blank=True, verbose_name='CTPS')
@@ -211,6 +217,15 @@ class Colaborador(models.Model):
 
     def clean(self):
         super().clean()
+        if (
+            self.data_admissao
+            and self.data_desligamento
+            and self.data_desligamento < self.data_admissao
+        ):
+            raise ValidationError({
+                'data_desligamento':
+                    'A data de desligamento não pode ser anterior à admissão.'
+            })
         if self.tipo_contrato == 'pj' and (self.vale_transporte_semanal or 0) > 0:
             raise ValidationError({
                 'vale_transporte_semanal':
@@ -264,6 +279,7 @@ class PagamentoColaborador(models.Model):
         ('salario', 'Salário'),
         ('vale_transporte', 'Vale-transporte'),
         ('ajuda_custo', 'Ajuda de custo'),
+        ('auxilio_telefonia', 'Auxílio telefonia'),
         ('salario_beneficios', 'Salário e benefícios'),
         ('prestacao_servico', 'Prestação de serviços'),
         ('freelancer', 'Freelancer'),
@@ -273,7 +289,7 @@ class PagamentoColaborador(models.Model):
     STATUS = [
         ('pendente', 'Pendente'),
         ('pago', 'Pago'),
-        ('cancelado', 'Cancelado por inativação'),
+        ('cancelado', 'Cancelado / retirado da folha'),
     ]
 
     colaborador = models.ForeignKey(
@@ -292,6 +308,30 @@ class PagamentoColaborador(models.Model):
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    dias_trabalhados = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        verbose_name='Dias trabalhados',
+        help_text='Obrigatório para freelancer: quantidade de dias efetivamente trabalhados.',
+    )
+    valor_diaria = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        verbose_name='Valor da diária',
+        help_text='Obrigatório para freelancer. O total será dias trabalhados × diária.',
+    )
+    chave_pix = models.CharField(
+        max_length=180,
+        blank=True,
+        verbose_name='Chave PIX',
+        help_text='Chave utilizada para este pagamento.',
     )
     data_vencimento = models.DateField(verbose_name='Vencimento')
     status = models.CharField(max_length=10, choices=STATUS, default='pendente')
@@ -330,6 +370,16 @@ class PagamentoColaborador(models.Model):
             models.Index(fields=['status', 'data_vencimento']),
             models.Index(fields=['colaborador', 'competencia']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    'colaborador', 'tipo', 'competencia',
+                    'data_vencimento', 'valor',
+                ],
+                condition=~Q(status='cancelado'),
+                name='admissional_pagamento_ativo_sem_duplicidade',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.get_tipo_display()} - {self.colaborador} - {self.competencia:%d/%m/%Y}'
@@ -345,7 +395,7 @@ class PagamentoColaborador(models.Model):
             self.data_vencimento = segunda
         if self.data_pagamento:
             self.data_pagamento = periodo_semanal(self.data_pagamento)[0]
-        self.recorrente = True
+        self.recorrente = self.status != 'cancelado'
 
     def save(self, *args, **kwargs):
         self.normalizar_datas_semanais()
@@ -368,14 +418,39 @@ class PagamentoColaborador(models.Model):
             raise ValidationError({
                 'recorrente': 'A recorrência semanal é permitida apenas para VT ou ajuda de custo.'
             })
+        if bool(self.dias_trabalhados) != bool(self.valor_diaria):
+            raise ValidationError({
+                'dias_trabalhados': 'Informe os dias trabalhados e o valor da diária juntos.',
+                'valor_diaria': 'Informe os dias trabalhados e o valor da diária juntos.',
+            })
         if not self.colaborador_id:
             return
         if (
+            self.status != 'cancelado'
+            and self.competencia
+            and self.data_vencimento
+            and self.valor is not None
+            and type(self).objects.exclude(pk=self.pk).exclude(status='cancelado').filter(
+                colaborador_id=self.colaborador_id,
+                tipo=self.tipo,
+                competencia=self.competencia,
+                data_vencimento=self.data_vencimento,
+                valor=self.valor,
+            ).exists()
+        ):
+            raise ValidationError(
+                'Já existe um lançamento igual para esta pessoa, data, tipo e valor.'
+            )
+        if (
             self.colaborador.status in Colaborador.STATUS_SEM_PAGAMENTO
-            and self.status != 'cancelado'
+            and self.status not in {'pago', 'cancelado'}
+            and self.tipo != 'distrato'
         ):
             raise ValidationError({
-                'colaborador': 'Não é possível criar pagamentos para um colaborador inativo.'
+                'colaborador': (
+                    'Não é possível criar pagamentos regulares pendentes para '
+                    'um colaborador inativo.'
+                )
             })
         tipo_contrato = self.colaborador.tipo_contrato
         if self.tipo == 'vale_transporte' and tipo_contrato != 'clt':

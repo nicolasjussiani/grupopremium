@@ -52,7 +52,24 @@ def classificar(caminho_relativo):
     partes = caminho_relativo.parts
     topo = normalizar(partes[0]) if partes else ''
 
-    if topo in {'AGOSTO', 'SETEMBRO'} or topo.startswith('COMPROVANTE PAGAMENTO') or topo.startswith('COMPROVANTE SALARIO') or topo.startswith('COMPROVANTE VT'):
+    subcategoria = ''
+    if topo == 'AUXILIO TELEFONIA':
+        categoria, subcategoria = 'pagamento_colaborador', 'auxilio_telefonia'
+    elif topo.startswith('COMPROVANTES PARA LANCAMENTO'):
+        if (
+            re.search(r'\bNF\b|NOTA FISCAL', texto_nome)
+            or re.search(r'\bPREMIUMBR\s+\d+', texto_nome)
+        ):
+            categoria, subcategoria = 'nota_fiscal', 'nota_fiscal'
+        elif 'GUIA DE FGTS' in texto_nome:
+            categoria, subcategoria = 'documento_trabalhista', 'fgts'
+        elif 'TERMO DE RESCISAO' in texto_nome:
+            categoria, subcategoria = 'documento_trabalhista', 'rescisao'
+        elif 'BOLETO' in texto_nome:
+            categoria, subcategoria = 'documento_financeiro', 'boleto'
+        else:
+            categoria, subcategoria = 'documento_financeiro', 'comprovante'
+    elif topo in {'AGOSTO', 'SETEMBRO'} or topo.startswith('COMPROVANTE PAGAMENTO') or topo.startswith('COMPROVANTE SALARIO') or topo.startswith('COMPROVANTE VT'):
         categoria = 'pagamento_colaborador'
     elif 'REEMBOLSO' in topo:
         categoria = 'reembolso'
@@ -61,7 +78,9 @@ def classificar(caminho_relativo):
     else:
         categoria = 'outro'
 
-    if 'REEMBOLSO' in texto_nome or categoria == 'reembolso':
+    if subcategoria:
+        pass
+    elif 'REEMBOLSO' in texto_nome or categoria == 'reembolso':
         subcategoria = 'reembolso'
     elif 'SALARIO E VT' in texto_nome or 'SALARIO E BENEFICIO' in texto_nome:
         subcategoria = 'salario_beneficios'
@@ -90,9 +109,24 @@ def classificar(caminho_relativo):
     return categoria, subcategoria
 
 
+def area_responsavel(categoria, subcategoria=''):
+    if categoria in {'pagamento_colaborador', 'documento_trabalhista'}:
+        return 'rh'
+    if categoria in {'documento_financeiro', 'reembolso'}:
+        return 'financeiro'
+    if categoria in {'nota_fiscal', 'planilha'}:
+        return 'fiscal'
+    if categoria == 'pedido':
+        return 'compras'
+    return 'geral'
+
+
 def classificar_pagamento_regra(subcategoria, data_pagamento, valor, colaborador=None):
     """Aplica as regras de negócio sobre a classificação extraída do arquivo."""
-    tipos_preservados = {'freelancer', 'distrato', 'reembolso', 'prestacao_servico'}
+    tipos_preservados = {
+        'freelancer', 'distrato', 'reembolso', 'prestacao_servico',
+        'auxilio_telefonia',
+    }
     if subcategoria in tipos_preservados:
         return subcategoria
     if data_pagamento and valor is not None:
@@ -122,7 +156,7 @@ def classificar_pagamento_regra(subcategoria, data_pagamento, valor, colaborador
 
 def extrair_texto(caminho, categoria):
     extensao = caminho.suffix.lower()
-    if extensao == '.pdf' and categoria in {'pagamento_colaborador', 'reembolso'}:
+    if extensao == '.pdf':
         try:
             import pymupdf
             with pymupdf.open(caminho) as documento:
@@ -190,6 +224,12 @@ def extrair_data(texto, nome):
     data = _converter_data(valor)
     if data:
         return data
+    iso = re.search(r'\b(20\d{2}-\d{2}-\d{2})\b', nome)
+    if iso:
+        try:
+            return datetime.strptime(iso.group(1), '%Y-%m-%d').date()
+        except ValueError:
+            pass
     encontrado = re.search(r'(\d{2}[.\-]\d{2}[.\-](?:\d{2}|\d{4}))', nome)
     return _converter_data(encontrado.group(1)) if encontrado else None
 
@@ -200,6 +240,13 @@ def extrair_beneficiario(texto):
         r'Benefici[aá]rio final\s+([^\r\n]+)',
         r'Nome do favorecido\s+([^\r\n]+)',
         r'Favorecido\s+([^\r\n]+)',
+    ], texto)
+
+
+def extrair_nome_trabalhador(texto):
+    return _primeiro_grupo([
+        r'IDENTIFICA[CÇC][AÃA]O DO TRABALHADOR.*?\b11 Nome\s+([^\r\n]+)',
+        r'\b11 Nome\s+([^\r\n]+)',
     ], texto)
 
 
@@ -287,6 +334,8 @@ def analisar_arquivo(caminho, relativo, colaboradores):
     categoria, subcategoria = classificar(relativo)
     texto = extrair_texto(caminho, categoria)
     beneficiario = extrair_beneficiario(texto)
+    if not beneficiario and categoria == 'documento_trabalhista':
+        beneficiario = extrair_nome_trabalhador(texto)
     nome_arquivo = nome_indicado(relativo, subcategoria)
     unidade = relativo.parts[1] if len(relativo.parts) > 2 else ''
     valor = extrair_valor(texto)
@@ -332,11 +381,24 @@ def analisar_arquivo(caminho, relativo, colaboradores):
             motivos.append('Data do pagamento não identificada.')
         if not colaborador:
             motivos.append('Colaborador não identificado com segurança.')
+    elif categoria == 'documento_financeiro':
+        nome_generico = re.fullmatch(
+            r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}',
+            caminho.stem,
+            flags=re.IGNORECASE,
+        )
+        if nome_generico or caminho.name.lower().startswith('whatsapp image'):
+            motivos.append(
+                'Comprovante financeiro com nome genérico; revise a natureza e o vínculo.'
+            )
+        elif not texto and caminho.suffix.lower() == '.pdf':
+            motivos.append('Documento sem texto extraível; revise a classificação.')
 
     metadados = {chave: valor_meta for chave, valor_meta in metadados.items() if valor_meta not in ('', None)}
     return {
         'categoria': categoria,
         'subcategoria': subcategoria,
+        'area': area_responsavel(categoria, subcategoria),
         'metadados': metadados,
         'colaborador': colaborador,
         'valor': valor,
@@ -352,21 +414,19 @@ class ImportadorArquivoCentral:
         self.usuario = usuario
         self.dry_run = dry_run
         self.progresso = progresso or (lambda mensagem: None)
-        self.colaboradores = list(Colaborador.objects.exclude(
-            status__in=Colaborador.STATUS_SEM_PAGAMENTO
-        ))
+        # O acervo também contém comprovantes históricos e verbas pagas
+        # depois do desligamento. Por isso, colaboradores inativos/desligados
+        # continuam elegíveis para conciliação documental.
+        self.colaboradores = list(Colaborador.objects.all())
         self._hashes_dry_run = set()
-        self._arquivos_por_hash = {}
-        self._caminhos_origem = set()
-        if not dry_run:
-            self._arquivos_por_hash = dict(
-                ArquivoImportado.objects.values_list('sha256', 'pk')
+        self._arquivos_por_hash = dict(
+            ArquivoImportado.objects.values_list('sha256', 'pk')
+        )
+        self._caminhos_origem = set(
+            OrigemArquivoImportado.objects.values_list(
+                'caminho_relativo', flat=True
             )
-            self._caminhos_origem = set(
-                OrigemArquivoImportado.objects.values_list(
-                    'caminho_relativo', flat=True
-                )
-            )
+        )
         self.contadores = {
             'encontrados': 0,
             'novos': 0,
@@ -379,6 +439,7 @@ class ImportadorArquivoCentral:
             'erros': 0,
             'por_categoria': {},
             'por_subcategoria': {},
+            'por_area': {},
             'motivos_revisao': {},
         }
 
@@ -410,22 +471,11 @@ class ImportadorArquivoCentral:
     def _importar(self, caminho):
         relativo = caminho.relative_to(self.raiz)
         digest = sha256_arquivo(caminho)
-        if self.dry_run:
-            if digest in self._hashes_dry_run:
-                self.contadores['duplicados'] += 1
-                return
-            self._hashes_dry_run.add(digest)
-            analise = analisar_arquivo(caminho, relativo, self.colaboradores)
-            self._contabilizar_analise(analise)
-            self.contadores['novos'] += 1
-            if analise['motivos']:
-                self.contadores['revisar'] += 1
-            elif analise['categoria'] in {'pagamento_colaborador', 'reembolso'}:
-                self.contadores['pagamentos_criados'] += 1
-            return
         existente_id = self._arquivos_por_hash.get(digest)
         if existente_id:
             self.contadores['duplicados'] += 1
+            if self.dry_run:
+                return
             caminho_relativo = str(relativo)
             if caminho_relativo not in self._caminhos_origem:
                 _, criada = OrigemArquivoImportado.objects.get_or_create(
@@ -441,7 +491,19 @@ class ImportadorArquivoCentral:
                 self.contadores['origens_novas'] += int(criada)
                 self._caminhos_origem.add(caminho_relativo)
             return
-
+        if self.dry_run:
+            if digest in self._hashes_dry_run:
+                self.contadores['duplicados'] += 1
+                return
+            self._hashes_dry_run.add(digest)
+            analise = analisar_arquivo(caminho, relativo, self.colaboradores)
+            self._contabilizar_analise(analise)
+            self.contadores['novos'] += 1
+            if analise['motivos']:
+                self.contadores['revisar'] += 1
+            elif analise['categoria'] in {'pagamento_colaborador', 'reembolso'}:
+                self.contadores['pagamentos_criados'] += 1
+            return
         analise = analisar_arquivo(caminho, relativo, self.colaboradores)
         self._contabilizar_analise(analise)
 
@@ -462,6 +524,7 @@ class ImportadorArquivoCentral:
                 arquivo = ArquivoImportado.objects.create(
                     categoria=analise['categoria'],
                     subcategoria=analise['subcategoria'],
+                    area=analise['area'],
                     nome_original=caminho.name[:255],
                     arquivo=nome_armazenado,
                     sha256=digest,
@@ -482,6 +545,7 @@ class ImportadorArquivoCentral:
                 )
                 self.contadores['origens_novas'] += 1
                 self._vincular_pagamento(arquivo, analise)
+                self._vincular_documento_trabalhista(arquivo, analise)
         except IntegrityError:
             # O pool pode entregar uma leitura ligeiramente atrasada enquanto
             # outra retomada acabou de inserir o mesmo hash. A restricao unica
@@ -516,8 +580,11 @@ class ImportadorArquivoCentral:
         subcategoria = analise['subcategoria']
         categorias = self.contadores['por_categoria']
         subcategorias = self.contadores['por_subcategoria']
+        areas = self.contadores['por_area']
         categorias[categoria] = categorias.get(categoria, 0) + 1
         subcategorias[subcategoria] = subcategorias.get(subcategoria, 0) + 1
+        area = analise['area']
+        areas[area] = areas.get(area, 0) + 1
         motivos = self.contadores['motivos_revisao']
         for motivo in analise['motivos']:
             motivos[motivo] = motivos.get(motivo, 0) + 1
@@ -537,7 +604,7 @@ class ImportadorArquivoCentral:
                 data_pagamento.replace(day=1)
                 if analise['subcategoria'] in {
                     'salario', 'salario_beneficios', 'prestacao_servico',
-                    'freelancer', 'distrato',
+                    'freelancer', 'distrato', 'auxilio_telefonia',
                 }
                 else data_pagamento
             )
@@ -545,7 +612,7 @@ class ImportadorArquivoCentral:
                 competencia.replace(day=monthrange(competencia.year, competencia.month)[1])
                 if competencia.day == 1 and analise['subcategoria'] in {
                     'salario', 'salario_beneficios', 'prestacao_servico',
-                    'freelancer', 'distrato',
+                    'freelancer', 'distrato', 'auxilio_telefonia',
                 }
                 else competencia + (
                     timedelta(days=6)
@@ -572,5 +639,17 @@ class ImportadorArquivoCentral:
             self.contadores['pagamentos_criados'] += 1
         arquivo.content_type = ContentType.objects.get_for_model(pagamento)
         arquivo.object_id = pagamento.pk
+        arquivo.status = 'vinculado'
+        arquivo.save(update_fields=['content_type', 'object_id', 'status', 'atualizado_em'])
+
+    def _vincular_documento_trabalhista(self, arquivo, analise):
+        if (
+            analise['categoria'] != 'documento_trabalhista'
+            or analise['subcategoria'] != 'rescisao'
+            or not analise['colaborador']
+        ):
+            return
+        arquivo.content_type = ContentType.objects.get_for_model(Colaborador)
+        arquivo.object_id = analise['colaborador'].pk
         arquivo.status = 'vinculado'
         arquivo.save(update_fields=['content_type', 'object_id', 'status', 'atualizado_em'])

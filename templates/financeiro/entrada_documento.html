@@ -137,7 +137,7 @@
           document.getElementById('produtos_preview').innerHTML = html;
         }
 
-        alert('✅ Documento lido com sucesso pela Inteligência Artificial!');
+        alert(info._aviso || 'Documento lido. Confira os dados antes de salvar.');
       } else {
         console.error("Erro OCR:", data.erro);
         alert('⚠️ Erro na leitura com a IA:\n' + data.erro);

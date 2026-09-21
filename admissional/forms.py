@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from .models import (
     Colaborador, PagamentoColaborador, TIPOS_PAGAMENTO_SEMANAIS,
@@ -24,6 +26,7 @@ class ColaboradorForm(forms.ModelForm):
         widgets = {
             'data_nascimento': forms.DateInput(attrs={'type': 'date'}),
             'data_admissao': forms.DateInput(attrs={'type': 'date'}),
+            'data_desligamento': forms.DateInput(attrs={'type': 'date'}),
             'salario': forms.TextInput(attrs={
                 'inputmode': 'decimal', 'placeholder': 'Ex.: 2000,00',
             }),
@@ -129,13 +132,24 @@ class PagamentoColaboradorForm(forms.ModelForm):
         model = PagamentoColaborador
         fields = (
             'colaborador', 'tipo', 'competencia', 'competencia_fim', 'valor',
-            'data_vencimento', 'status', 'data_pagamento', 'recorrente', 'observacao',
+            'dias_trabalhados', 'valor_diaria', 'chave_pix', 'data_vencimento', 'status',
+            'data_pagamento', 'recorrente', 'observacao',
         )
         widgets = {
             'competencia': forms.DateInput(attrs={'type': 'date'}),
             'competencia_fim': forms.DateInput(attrs={'type': 'date'}),
             'valor': forms.TextInput(attrs={
                 'inputmode': 'decimal', 'placeholder': 'Ex.: 2000,00',
+            }),
+            'dias_trabalhados': forms.NumberInput(attrs={
+                'inputmode': 'decimal', 'min': '0.01', 'step': '0.01',
+                'placeholder': 'Ex.: 7',
+            }),
+            'valor_diaria': forms.TextInput(attrs={
+                'inputmode': 'decimal', 'placeholder': 'Ex.: 150,00',
+            }),
+            'chave_pix': forms.TextInput(attrs={
+                'autocomplete': 'off', 'placeholder': 'CPF, CNPJ, e-mail, telefone ou chave aleatória',
             }),
             'data_vencimento': forms.DateInput(attrs={'type': 'date'}),
             'data_pagamento': forms.DateInput(attrs={'type': 'date'}),
@@ -150,13 +164,37 @@ class PagamentoColaboradorForm(forms.ModelForm):
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-control'
         self.fields['recorrente'].widget.attrs['class'] = 'form-check-input'
+        self.fields['valor'].required = False
         self.fields['valor'].localize = True
         self.fields['valor'].widget.is_localized = True
+        self.fields['valor_diaria'].localize = True
+        self.fields['valor_diaria'].widget.is_localized = True
 
     def clean(self):
         cleaned_data = super().clean()
         colaborador = cleaned_data.get('colaborador')
         tipo = cleaned_data.get('tipo')
+        valor = cleaned_data.get('valor')
+        dias_trabalhados = cleaned_data.get('dias_trabalhados')
+        valor_diaria = cleaned_data.get('valor_diaria')
+        if tipo == 'freelancer':
+            if bool(dias_trabalhados) != bool(valor_diaria):
+                if not dias_trabalhados:
+                    self.add_error('dias_trabalhados', 'Informe os dias trabalhados.')
+                if not valor_diaria:
+                    self.add_error('valor_diaria', 'Informe o valor da diária.')
+            elif dias_trabalhados and valor_diaria:
+                cleaned_data['valor'] = (dias_trabalhados * valor_diaria).quantize(
+                    Decimal('0.01')
+                )
+            elif not self.instance.pk:
+                self.add_error(
+                    'dias_trabalhados',
+                    'Freelancer deve ser pago pelos dias efetivamente trabalhados.',
+                )
+                self.add_error('valor_diaria', 'Informe o valor da diária do freelancer.')
+        elif not valor:
+            self.add_error('valor', 'Informe o valor do pagamento.')
         if colaborador and tipo == 'vale_transporte' and colaborador.tipo_contrato != 'clt':
             self.add_error(
                 'tipo',

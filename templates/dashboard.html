@@ -45,24 +45,6 @@
   .executive-log strong { display:block; color:var(--text-primary); font-size:.82rem; }
   .executive-log small, .executive-log time { color:var(--text-muted); font-size:.7rem; }
   .area-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid rgba(0,0,0,.06); font-size:.78rem; text-transform:capitalize; }
-  .ai-home { position:relative; overflow:hidden; margin-bottom:24px; padding:30px; border-radius:22px; color:#fff; background:linear-gradient(135deg,#071426 0%,#0b2545 58%,#123f70 100%); box-shadow:0 18px 46px rgba(7,20,38,.22); }
-  .ai-home::after { content:""; position:absolute; width:340px; height:340px; border-radius:50%; right:-125px; top:-180px; background:radial-gradient(circle,rgba(65,177,255,.42),rgba(65,177,255,0) 70%); pointer-events:none; }
-  .ai-home-kicker { display:inline-flex; align-items:center; gap:8px; margin-bottom:12px; padding:6px 10px; border:1px solid rgba(255,255,255,.22); border-radius:999px; background:rgba(255,255,255,.08); font-size:.72rem; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
-  .ai-home-kicker::before { content:""; width:7px; height:7px; border-radius:50%; background:#5ee6a8; box-shadow:0 0 0 5px rgba(94,230,168,.12); }
-  .ai-home h1 { max-width:720px; margin:0; color:#fff; font-size:clamp(1.8rem,4vw,3rem); line-height:1.08; letter-spacing:-.035em; }
-  .ai-home > p { max-width:760px; margin:12px 0 22px; color:rgba(255,255,255,.72); line-height:1.6; }
-  .ai-question { position:relative; z-index:1; display:flex; gap:10px; max-width:880px; padding:8px; border:1px solid rgba(255,255,255,.18); border-radius:16px; background:#fff; box-shadow:0 12px 30px rgba(0,0,0,.17); }
-  .ai-question input { flex:1; min-width:0; padding:13px 14px; border:0; outline:0; color:#13243a; font-size:.95rem; background:transparent; }
-  .ai-question button { border:0; border-radius:11px; padding:0 20px; color:#fff; background:#1769aa; font-weight:750; cursor:pointer; }
-  .ai-home-suggestions { position:relative; z-index:1; display:flex; flex-wrap:wrap; gap:8px; margin-top:13px; }
-  .ai-home-suggestions button { padding:7px 11px; border:1px solid rgba(255,255,255,.2); border-radius:999px; color:rgba(255,255,255,.88); background:rgba(255,255,255,.06); cursor:pointer; font-size:.73rem; }
-  .ai-home-suggestions button:hover { background:rgba(255,255,255,.14); }
-  .ai-response { position:relative; z-index:1; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:center; margin-top:18px; padding:17px; border-radius:14px; color:#13243a; background:#f3f8fd; }
-  .ai-response strong { display:block; margin-bottom:5px; color:#0b4f86; }
-  .ai-response p { margin:0; line-height:1.55; }
-  .ai-route { margin-top:8px; font-size:.78rem; color:#52667c; }
-  .ai-route b { color:#203a55; }
-  .ai-response a { white-space:nowrap; }
   .ai-directory-header { display:flex; align-items:end; justify-content:space-between; gap:20px; margin:4px 0 14px; }
   .ai-directory-header h2 { margin:0 0 5px; color:var(--text-primary); font-size:1.12rem; }
   .ai-directory-header p { margin:0; color:var(--text-muted); font-size:.82rem; }
@@ -77,41 +59,11 @@
   .ai-empty-processes { grid-column:1/-1; padding:24px; border:1px dashed #ccd7e3; border-radius:14px; color:var(--text-muted); text-align:center; }
   @media (max-width:900px) { .executive-strip { grid-template-columns:repeat(2,1fr); } .executive-feed { grid-template-columns:1fr; } }
   @media (max-width:980px) { .ai-process-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-  @media (max-width:620px) { .ai-home { padding:22px 17px; border-radius:16px; }.ai-question { flex-direction:column; }.ai-question button { min-height:44px; }.ai-response { grid-template-columns:1fr; }.ai-process-grid { grid-template-columns:1fr; }.ai-directory-header { align-items:flex-start; flex-direction:column; } }
+  @media (max-width:620px) { .ai-process-grid { grid-template-columns:1fr; }.ai-directory-header { align-items:flex-start; flex-direction:column; } }
   @media (max-width:520px) { .executive-strip { grid-template-columns:1fr 1fr; gap:8px; } .executive-stat { padding:13px; } .executive-stat strong { font-size:1.35rem; } }
 </style>
 
-<section class="ai-home" aria-labelledby="ai-home-title">
-  <span class="ai-home-kicker">Inteligência do ERP online</span>
-  <h1 id="ai-home-title">O que iremos fazer hoje?</h1>
-  <p>Conte a tarefa em linguagem simples. Eu explico o processo, mostro o caminho no menu e abro a tela correta para você.</p>
-  <form class="ai-question" method="post" action="{% url 'dashboard' %}">
-    {% csrf_token %}
-    <input type="hidden" name="acao" value="perguntar_ia">
-    <label class="sr-only" for="pergunta-ia">O que você precisa fazer?</label>
-    <input id="pergunta-ia" name="pergunta" maxlength="500" required value="{{ pergunta_ia }}" placeholder="Ex.: Quero cadastrar salário e vale-transporte de um colaborador">
-    <button type="submit">Perguntar</button>
-  </form>
-  <div class="ai-home-suggestions" aria-label="Sugestões de perguntas">
-    <button type="submit" name="pergunta" value="Como cadastrar um colaborador com salário e vale-transporte?" form="ai-suggestion-form">Cadastrar colaborador</button>
-    <button type="submit" name="pergunta" value="Onde importo a planilha da Fiscal?" form="ai-suggestion-form">Importar Fiscal</button>
-    <button type="submit" name="pergunta" value="Como registrar uma entrega de EPI?" form="ai-suggestion-form">Entregar EPI</button>
-    <button type="submit" name="pergunta" value="Como criar uma solicitação de compra?" form="ai-suggestion-form">Solicitar compra</button>
-  </div>
-  <form id="ai-suggestion-form" method="post" action="{% url 'dashboard' %}" hidden>
-    {% csrf_token %}<input type="hidden" name="acao" value="perguntar_ia">
-  </form>
-  {% if resposta_ia %}
-  <div class="ai-response" role="status">
-    <div>
-      <strong>Orientação da IA</strong>
-      <p>{{ resposta_ia }}</p>
-      {% if processo_recomendado %}<div class="ai-route">Caminho: <b>{{ processo_recomendado.directory }}</b></div>{% endif %}
-    </div>
-    {% if processo_recomendado %}<a class="btn btn-mod6" href="{{ processo_recomendado.url }}">Abrir tela indicada</a>{% else %}<a class="btn btn-outline" href="{% url 'assistente_erp' %}">Abrir assistente</a>{% endif %}
-  </div>
-  {% endif %}
-</section>
+{% include 'core/_assistant_dashboard.html' %}
 
 <section aria-labelledby="ai-directory-title">
   <div class="ai-directory-header">

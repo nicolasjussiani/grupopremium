@@ -14,6 +14,7 @@ urlpatterns = [
     path('cadastros/unidades/nova/', views.nova_unidade, name='nova_unidade'),
     path('cadastros/unidades/<int:pk>/editar/', views.editar_unidade, name='editar_unidade'),
     path('arquivo-central/', views.arquivo_central, name='arquivo_central'),
+    path('arquivo-central/<int:pk>/', views.detalhe_arquivo_importado, name='detalhe_arquivo_importado'),
     path('arquivo-central/<int:pk>/baixar/', views.baixar_arquivo_importado, name='baixar_arquivo_importado'),
     path('arquivo-central/<int:pk>/revisar/', views.revisar_arquivo_importado, name='revisar_arquivo_importado'),
     path('login/', views.login_view, name='login'),
