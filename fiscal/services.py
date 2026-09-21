@@ -633,6 +633,16 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
                 filtros_existente['competencia'] = folha.competencia
                 filtros_existente['data_vencimento'] = _month_end(folha.competencia)
             payment = pagamento_compativel(**filtros_existente)
+            if not payment:
+                # Uma importação posterior pode trazer como pendente um valor
+                # que já foi efetivamente pago em outra data. Nesse caso o
+                # pagamento existente deve ser conciliado, não recriado.
+                payment = pagamento_compativel(
+                    colaborador=item.colaborador,
+                    tipo=tipo_pagamento,
+                    competencia=folha.competencia,
+                    valor=value,
+                )
         if not payment:
             payment = PagamentoColaborador(
                 identificador_transacao=transaction_id,

@@ -271,6 +271,24 @@ class PagamentosColaboradoresTest(TestCase):
         self.assertFalse(form.is_valid())
         self.assertEqual(PagamentoColaborador.objects.count(), 1)
 
+    def test_rejeita_mesmo_valor_na_mesma_competencia_com_outro_vencimento(self):
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='salario',
+            competencia=date(2026, 9, 1),
+            valor=Decimal('2000.00'),
+            data_vencimento=date(2026, 9, 10),
+            status='pago',
+            data_pagamento=date(2026, 9, 10),
+        )
+
+        form = PagamentoColaboradorForm(data=self.dados_pagamento(
+            data_vencimento='2026-09-30',
+        ))
+
+        self.assertFalse(form.is_valid())
+        self.assertEqual(PagamentoColaborador.objects.count(), 1)
+
     def test_marca_vt_como_pago_na_segunda_da_semana(self):
         pagamento = PagamentoColaborador.objects.create(
             colaborador=self.colaborador,
