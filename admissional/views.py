@@ -1,6 +1,7 @@
 """ERP Grupo PremiumBR — Views do Módulo 2: Admissional"""
 from calendar import monthrange
-from datetime import timedelta
+from datetime import date, timedelta
+from decimal import Decimal
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -316,6 +317,78 @@ def _pagamentos_no_periodo(queryset, inicio, fim):
     )
 
 
+def _resumo_pendencias_pagamentos(queryset, inicio, fim):
+    tipos = ('salario', 'vale_transporte', 'ajuda_custo')
+    valores = list(
+        queryset.filter(status='pendente', tipo__in=tipos)
+        .values('data_vencimento', 'tipo')
+        .annotate(total=Sum('valor'), quantidade=Count('pk'))
+        .order_by('data_vencimento', 'tipo')
+    )
+
+    total_meses = (fim.year - inicio.year) * 12 + fim.month - inicio.month + 1
+    if total_meses <= 36:
+        meses = []
+        cursor = date(inicio.year, inicio.month, 1)
+        limite = date(fim.year, fim.month, 1)
+        while cursor <= limite:
+            meses.append(cursor)
+            if cursor.month == 12:
+                cursor = date(cursor.year + 1, 1, 1)
+            else:
+                cursor = date(cursor.year, cursor.month + 1, 1)
+    else:
+        meses = sorted({
+            date(item['data_vencimento'].year, item['data_vencimento'].month, 1)
+            for item in valores
+        }) or [date(inicio.year, inicio.month, 1)]
+
+    def linha_base(**campos):
+        return {
+            **campos,
+            'salario': Decimal('0'),
+            'vale_transporte': Decimal('0'),
+            'ajuda_custo': Decimal('0'),
+            'total': Decimal('0'),
+            'quantidade': 0,
+        }
+
+    mensais = {
+        (mes.year, mes.month): linha_base(mes=mes)
+        for mes in meses
+    }
+    semanais = {}
+    for mes in meses:
+        ultimo_dia = monthrange(mes.year, mes.month)[1]
+        for numero, dia_inicio in enumerate((1, 8, 15, 22), start=1):
+            dia_fim = (7, 14, 21, ultimo_dia)[numero - 1]
+            semanais[(mes.year, mes.month, numero)] = linha_base(
+                mes=mes,
+                numero=numero,
+                inicio=date(mes.year, mes.month, dia_inicio),
+                fim=date(mes.year, mes.month, dia_fim),
+            )
+
+    totais = linha_base()
+    for item in valores:
+        vencimento = item['data_vencimento']
+        valor = item['total'] or Decimal('0')
+        quantidade = item['quantidade'] or 0
+        numero_semana = min(((vencimento.day - 1) // 7) + 1, 4)
+        chave_mes = (vencimento.year, vencimento.month)
+        chave_semana = (*chave_mes, numero_semana)
+        for destino in (mensais[chave_mes], semanais[chave_semana], totais):
+            destino[item['tipo']] += valor
+            destino['total'] += valor
+            destino['quantidade'] += quantidade
+
+    return {
+        'mensais': list(mensais.values()),
+        'semanais': list(semanais.values()),
+        **totais,
+    }
+
+
 def _anexar_dias_trabalhados(pagamentos, inicio, fim):
     pagamentos = list(pagamentos)
     ids = {pagamento.colaborador_id for pagamento in pagamentos}
@@ -357,14 +430,38 @@ def _anexar_dias_trabalhados(pagamentos, inicio, fim):
     profiles=('rh', 'financeiro', 'gestor'),
 )
 def lista_pagamentos_colaboradores(request):
-    pagamentos = PagamentoColaborador.objects.select_related(
+    pagamentos_base = PagamentoColaborador.objects.select_related(
         'colaborador', 'criado_por', 'item_fiscal', 'parcela_fiscal__beneficio'
     ).prefetch_related('arquivos_importados')
-    pagamentos = pagamentos.exclude(
+    pagamentos_base = pagamentos_base.exclude(
         colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO
     )
     data_inicio, data_fim = _periodo_pagamentos(request)
-    pagamentos = _pagamentos_no_periodo(pagamentos, data_inicio, data_fim)
+    pagamentos_base = _pagamentos_no_periodo(
+        pagamentos_base, data_inicio, data_fim
+    )
+
+    query = request.GET.get('q', '').strip()[:100]
+    if query:
+        pagamentos_base = pagamentos_base.filter(
+            Q(colaborador__nome__icontains=query)
+            | Q(colaborador__cpf__icontains=query)
+            | Q(colaborador__unidade__icontains=query)
+        )
+
+    categoria_filter = request.GET.get('categoria', '').strip()
+    categorias_validas = {valor for valor, _ in Colaborador.CATEGORIAS_TRABALHO}
+    if categoria_filter in categorias_validas:
+        pagamentos_base = pagamentos_base.filter(
+            colaborador__categoria_trabalho=categoria_filter
+        )
+    else:
+        categoria_filter = ''
+
+    resumo_pendencias = _resumo_pendencias_pagamentos(
+        pagamentos_base, data_inicio, data_fim
+    )
+    pagamentos = pagamentos_base
     status_filter = request.GET.get('status', '').strip()
     status_validos = {valor for valor, _ in PagamentoColaborador.STATUS}
     if status_filter in status_validos:
@@ -379,21 +476,6 @@ def lista_pagamentos_colaboradores(request):
         pagamentos = pagamentos.filter(tipo=tipo_filter)
     else:
         tipo_filter = ''
-
-    query = request.GET.get('q', '').strip()[:100]
-    if query:
-        pagamentos = pagamentos.filter(
-            Q(colaborador__nome__icontains=query)
-            | Q(colaborador__cpf__icontains=query)
-            | Q(colaborador__unidade__icontains=query)
-        )
-
-    categoria_filter = request.GET.get('categoria', '').strip()
-    categorias_validas = {valor for valor, _ in Colaborador.CATEGORIAS_TRABALHO}
-    if categoria_filter in categorias_validas:
-        pagamentos = pagamentos.filter(colaborador__categoria_trabalho=categoria_filter)
-    else:
-        categoria_filter = ''
 
     totais = pagamentos.values('status').annotate(total=Sum('valor'))
     totais_status = {item['status']: item['total'] for item in totais}
@@ -411,6 +493,7 @@ def lista_pagamentos_colaboradores(request):
         'tipo_choices': PagamentoColaborador.TIPOS,
         'total_pendente': totais_status.get('pendente', 0),
         'total_pago': totais_status.get('pago', 0),
+        'resumo_pendencias': resumo_pendencias,
         'can_add_pagamento': user_has_access(
             request.user,
             permission='admissional.add_pagamentocolaborador',

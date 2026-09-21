@@ -2,6 +2,31 @@
 {% block title %}Folha de Pagamento — ERP Grupo PremiumBR{% endblock %}
 {% block nav_pagamentos_colaboradores %}active{% endblock %}
 {% block topbar_title %}Folha de Pagamento{% endblock %}
+{% block extra_css %}
+<style>
+  .pending-kpis { grid-template-columns: repeat(4, minmax(170px, 1fr)); }
+  .pending-kpis .kpi-card { padding: 16px; }
+  .pending-kpis .kpi-value { font-size: 1.35rem; }
+  .pending-panels { display:grid; grid-template-columns:minmax(300px,.8fr) minmax(560px,1.4fr); gap:16px; margin-bottom:20px; }
+  .pending-panel { min-width:0; }
+  .pending-panel .card-header { margin-bottom:12px; }
+  .pending-panel table { min-width:520px; }
+  .pending-panel .table-wrap { border-radius:10px; }
+  .pending-panel tbody tr:last-child td { border-bottom:0; }
+  .pending-period { white-space:nowrap; }
+  .pending-total { color:var(--brand-dark, #0d2149); font-weight:800; }
+  @media (max-width:1100px) {
+    .pending-panels { grid-template-columns:1fr; }
+    .pending-kpis { grid-template-columns:repeat(2, minmax(150px, 1fr)); }
+  }
+  @media (max-width:560px) {
+    .pending-kpis { grid-template-columns:1fr 1fr; gap:10px; }
+    .pending-kpis .kpi-card { padding:13px; }
+    .pending-kpis .kpi-value { font-size:1.05rem; }
+    .pending-panel { padding:16px 12px; }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
@@ -47,6 +72,67 @@
     <a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn">Mês atual</a>
   </form>
 </div>
+
+<section aria-labelledby="titulo-resumo-pendencias">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title" id="titulo-resumo-pendencias">Pendências de salário e benefícios</div>
+        <div style="font-size:.8rem;color:var(--text-muted);margin-top:4px;">Valores ainda não pagos no período de {{ data_inicio|date:"d/m/Y" }} a {{ data_fim|date:"d/m/Y" }}.</div>
+      </div>
+      <span class="badge badge-warning">{{ resumo_pendencias.quantidade }} lançamento{{ resumo_pendencias.quantidade|pluralize:"s" }}</span>
+    </div>
+    <div class="kpi-grid pending-kpis">
+      <div class="kpi-card"><div class="kpi-label">Salários pendentes</div><div class="kpi-value">R$ {{ resumo_pendencias.salario|floatformat:2 }}</div></div>
+      <div class="kpi-card"><div class="kpi-label">VT pendente</div><div class="kpi-value">R$ {{ resumo_pendencias.vale_transporte|floatformat:2 }}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Ajuda de custo pendente</div><div class="kpi-value">R$ {{ resumo_pendencias.ajuda_custo|floatformat:2 }}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Total do período</div><div class="kpi-value">R$ {{ resumo_pendencias.total|floatformat:2 }}</div></div>
+    </div>
+  </div>
+
+  <div class="pending-panels">
+    <article class="card pending-panel">
+      <div class="card-header"><div><div class="card-title">Pendentes por mês</div><small style="color:var(--text-muted);">Consolidado mensal</small></div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Mês</th><th>Salário</th><th>VT</th><th>Ajuda</th><th>Total</th></tr></thead>
+          <tbody>
+            {% for linha in resumo_pendencias.mensais %}
+            <tr>
+              <td class="pending-period"><strong>{{ linha.mes|date:"m/Y" }}</strong></td>
+              <td>R$ {{ linha.salario|floatformat:2 }}</td>
+              <td>R$ {{ linha.vale_transporte|floatformat:2 }}</td>
+              <td>R$ {{ linha.ajuda_custo|floatformat:2 }}</td>
+              <td class="pending-total">R$ {{ linha.total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card pending-panel">
+      <div class="card-header"><div><div class="card-title">Pendentes por semana</div><small style="color:var(--text-muted);">1ª: dias 1–7 · 2ª: 8–14 · 3ª: 15–21 · 4ª: 22 ao fim do mês</small></div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Semana</th><th>Período</th><th>Salário</th><th>VT</th><th>Ajuda</th><th>Total</th></tr></thead>
+          <tbody>
+            {% for linha in resumo_pendencias.semanais %}
+            <tr>
+              <td class="pending-period"><strong>{{ linha.numero }}ª semana</strong><br><small>{{ linha.mes|date:"m/Y" }}</small></td>
+              <td class="pending-period">{{ linha.inicio|date:"d/m" }} a {{ linha.fim|date:"d/m" }}</td>
+              <td>R$ {{ linha.salario|floatformat:2 }}</td>
+              <td>R$ {{ linha.vale_transporte|floatformat:2 }}</td>
+              <td>R$ {{ linha.ajuda_custo|floatformat:2 }}</td>
+              <td class="pending-total">R$ {{ linha.total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </div>
+</section>
 
 <div style="margin-bottom:20px;display:flex;gap:10px;flex-wrap:wrap;">
   {% if can_view_financeiro %}<a href="{% url 'painel_financeiro' %}" class="btn btn-outline">← Painel Financeiro</a>{% endif %}

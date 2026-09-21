@@ -370,6 +370,70 @@ class PagamentosColaboradoresTest(TestCase):
 
         self.assertContains(response, 'Não definido')
 
+    def test_lista_resume_pendencias_por_semana_mes_e_tipo(self):
+        pj = Colaborador.objects.create(
+            nome='Pessoa PJ',
+            tipo_contrato='pj',
+            status='ativo',
+        )
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='salario',
+            competencia=date(2026, 9, 1),
+            valor=Decimal('2000.00'),
+            data_vencimento=date(2026, 9, 5),
+        )
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='vale_transporte',
+            competencia=date(2026, 9, 7),
+            valor=Decimal('80.00'),
+            data_vencimento=date(2026, 9, 7),
+        )
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='vale_transporte',
+            competencia=date(2026, 9, 14),
+            valor=Decimal('90.00'),
+            data_vencimento=date(2026, 9, 14),
+        )
+        PagamentoColaborador.objects.create(
+            colaborador=pj,
+            tipo='ajuda_custo',
+            competencia=date(2026, 9, 21),
+            valor=Decimal('75.00'),
+            data_vencimento=date(2026, 9, 21),
+        )
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador,
+            tipo='salario',
+            competencia=date(2026, 8, 1),
+            valor=Decimal('300.00'),
+            data_vencimento=date(2026, 9, 18),
+            status='pago',
+            data_pagamento=date(2026, 9, 18),
+        )
+
+        response = self.client.get(reverse('lista_pagamentos_colaboradores'), {
+            'data_inicio': '2026-09-01',
+            'data_fim': '2026-09-30',
+        })
+
+        resumo = response.context['resumo_pendencias']
+        self.assertEqual(resumo['salario'], Decimal('2000.00'))
+        self.assertEqual(resumo['vale_transporte'], Decimal('170.00'))
+        self.assertEqual(resumo['ajuda_custo'], Decimal('75.00'))
+        self.assertEqual(resumo['total'], Decimal('2245.00'))
+        self.assertEqual(resumo['quantidade'], 4)
+        self.assertEqual(len(resumo['mensais']), 1)
+        self.assertEqual(len(resumo['semanais']), 4)
+        self.assertEqual(resumo['semanais'][0]['salario'], Decimal('2000.00'))
+        self.assertEqual(resumo['semanais'][0]['vale_transporte'], Decimal('80.00'))
+        self.assertEqual(resumo['semanais'][1]['vale_transporte'], Decimal('90.00'))
+        self.assertEqual(resumo['semanais'][2]['ajuda_custo'], Decimal('75.00'))
+        self.assertContains(response, 'Pendentes por semana')
+        self.assertContains(response, 'Pendentes por mês')
+
     def test_freelancer_calcula_total_por_dias_e_diaria(self):
         self.colaborador.categoria_trabalho = 'freelancer'
         self.colaborador.save(update_fields=['categoria_trabalho'])
