@@ -157,6 +157,29 @@ class FiscalIntegrationTests(TestCase):
         self.assertEqual(created_again, 0)
         self.assertEqual(PagamentoColaborador.objects.count(), 5)
 
+    def test_nao_gera_freelancer_quando_pessoa_tambem_esta_na_folha_principal(self):
+        folha, _ = self._import()
+        freelancer = folha.itens.create(
+            colaborador=self.collaborator,
+            aba_origem='FREELANCER',
+            linha_origem=2,
+            regime='freelancer',
+            nome_fonte=self.collaborator.nome,
+            valor_executar=Decimal('500.00'),
+            status_conciliacao='conciliado',
+        )
+
+        created, skipped = gerar_pagamentos_fiscais(folha, self.user)
+
+        self.assertEqual(created, 5)
+        self.assertEqual(skipped, 1)
+        self.assertFalse(
+            PagamentoColaborador.objects.filter(tipo='freelancer').exists()
+        )
+        freelancer.refresh_from_db()
+        self.assertEqual(freelancer.status_conciliacao, 'revisar')
+        self.assertIn('folha principal', ' '.join(freelancer.problemas).lower())
+
     def test_salario_abaixo_de_150_e_classificado_como_freelancer(self):
         folha, _ = importar_folha_xlsx(
             content=build_test_workbook(salary=100, execute=100),

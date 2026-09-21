@@ -573,6 +573,11 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
     invalid_benefits = {}
     pagamentos_reutilizados = set()
     chaves_novas = set()
+    colaboradores_com_folha_principal = set(
+        folha.itens.filter(
+            regime__in=['clt', 'pj', 'supervisor', 'administrativo']
+        ).exclude(colaborador_id=None).values_list('colaborador_id', flat=True)
+    )
 
     def chave_pagamento(payment):
         payment.normalizar_datas_semanais()
@@ -598,6 +603,18 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
     for item in folha.itens.select_related('colaborador', 'pagamento'):
         value = item.valor_para_pagamento
         if item.pagamento_id or not item.colaborador_id or item.problemas or not value or value <= 0:
+            skipped += 1
+            continue
+        if (
+            item.regime == 'freelancer'
+            and item.colaborador_id in colaboradores_com_folha_principal
+        ):
+            item.problemas = [
+                *item.problemas,
+                'Pessoa também consta na folha principal; lançamento freelancer não gerado.',
+            ]
+            item.status_conciliacao = 'revisar'
+            invalid_items.append(item)
             skipped += 1
             continue
         transaction_id = f'fiscal:{folha.pk}:item:{item.pk}'

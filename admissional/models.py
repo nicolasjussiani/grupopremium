@@ -379,6 +379,28 @@ class PagamentoColaborador(models.Model):
                 condition=~Q(status='cancelado'),
                 name='admissional_pagamento_ativo_sem_duplicidade',
             ),
+            models.UniqueConstraint(
+                fields=['colaborador', 'tipo', 'data_vencimento'],
+                condition=(
+                    ~Q(status='cancelado')
+                    & Q(tipo__in=[
+                        'salario', 'vale_transporte', 'ajuda_custo',
+                        'freelancer', 'prestacao_servico',
+                    ])
+                ),
+                name='admissional_um_tipo_por_vencimento',
+            ),
+            models.UniqueConstraint(
+                fields=['colaborador', 'tipo', 'data_pagamento'],
+                condition=(
+                    Q(status='pago', data_pagamento__isnull=False)
+                    & Q(tipo__in=[
+                        'salario', 'vale_transporte', 'ajuda_custo',
+                        'freelancer', 'prestacao_servico',
+                    ])
+                ),
+                name='admissional_um_tipo_pago_por_dia',
+            ),
         ]
 
     def __str__(self):
