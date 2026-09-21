@@ -12,6 +12,7 @@ urlpatterns = [
     path('colaboradores/', views.lista_colaboradores, name='lista_colaboradores'),
     path('colaboradores/novo/', views.novo_colaborador, name='novo_colaborador'),
     path('colaboradores/pagamentos/', views.lista_pagamentos_colaboradores, name='lista_pagamentos_colaboradores'),
+    path('colaboradores/pagamentos/relatorio/', views.relatorio_folha_pagamento, name='relatorio_folha_pagamento'),
     path('colaboradores/pagamentos/beneficios/', views.visao_beneficios_colaboradores, name='visao_beneficios_colaboradores'),
     path('colaboradores/pagamentos/colaborador/<int:pk>/resumo/', views.resumo_colaborador_pagamento, name='resumo_colaborador_pagamento'),
     path('colaboradores/pagamentos/novo/', views.novo_pagamento_colaborador, name='novo_pagamento_colaborador'),

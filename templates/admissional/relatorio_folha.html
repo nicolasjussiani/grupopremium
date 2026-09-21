@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}Relatório da folha{% if colaborador_selecionado %} — {{ colaborador_selecionado.nome }}{% endif %}{% endblock %}
+{% block nav_pagamentos_colaboradores %}active{% endblock %}
+{% block topbar_title %}Relatórios da folha de pagamento{% endblock %}
+{% block extra_css %}
+<style>
+  .report-heading { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+  .report-heading h1 { font-size:1.6rem; margin:0 0 8px; }
+  .report-filters { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+  .report-section { margin-bottom:20px; min-width:0; }
+  .report-section h2 { font-size:1.05rem; margin-bottom:14px; }
+  .report-detail { min-width:1100px; }
+  .report-money { white-space:nowrap; }
+  .report-pix { overflow-wrap:anywhere; max-width:180px; }
+  .report-note { color:var(--text-muted); font-size:.8rem; margin:8px 0; }
+  .report-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  @media print {
+    @page { size:A4 landscape; margin:12mm; }
+    body > :not(.erp-layout), .sidebar, .topbar, .sidebar-backdrop, .report-no-print { display:none !important; }
+    body, body.dark-theme, .erp-layout, .main-content, .content-area { background:white !important; color:#111 !important; display:block !important; width:auto !important; min-height:0 !important; height:auto !important; margin:0 !important; padding:0 !important; overflow:visible !important; }
+    .card, .kpi-card, .table-wrap { box-shadow:none !important; background:white !important; color:#111 !important; border-color:#ccc !important; }
+    .report-note, small, a { color:#333 !important; }
+    .report-heading h1 { font-size:18px; }
+    .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    .kpi-card { padding:8px; }
+    .kpi-value { font-size:17px; }
+    .report-section { padding:10px 0; }
+    .table-wrap { overflow:visible !important; }
+    table, .report-detail { width:100% !important; min-width:0 !important; font-size:9px; border-collapse:collapse; }
+    th, td { padding:5px !important; color:#111 !important; background:white !important; border-bottom:1px solid #ddd; white-space:normal !important; overflow-wrap:anywhere; }
+    thead { display:table-header-group; }
+    tr, .kpi-grid { break-inside:avoid; }
+    h2 { break-after:avoid; }
+    a { text-decoration:none; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="report-heading">
+  <div>
+    <div class="report-note">Grupo PremiumBR · Folha de pagamento</div>
+    <h1>{% if colaborador_selecionado %}Relatório individual{% else %}Relatório geral{% endif %}</h1>
+    {% if colaborador_selecionado %}<p><strong>{{ colaborador_selecionado.nome }}</strong> · Código {{ colaborador_selecionado.pk }} · {{ colaborador_selecionado.unidade|default:"Unidade não informada" }}</p>{% endif %}
+    <p>{{ data_inicio|date:"d/m/Y" }} a {{ data_fim|date:"d/m/Y" }} · Emitido em {{ gerado_em|date:"d/m/Y H:i" }}</p>
+    <p class="report-note">Equipe atual. Período pela data do pagamento; quando não preenchida, pelo vencimento.</p>
+    <p class="report-note">{% if query %}Busca: {{ query }} · {% endif %}{% if unidade_filter %}Unidade: {{ unidade_filter }} · {% endif %}Tipo: {% for v, l in tipo_choices %}{% if v == tipo_filter %}{{ l }}{% endif %}{% endfor %}{% if not tipo_filter %}Todos{% endif %} · Situação: {% for v, l in status_choices %}{% if v == status_filter %}{{ l }}{% endif %}{% endfor %}{% if not status_filter %}Pagos e pendentes{% endif %} · Categoria: {% for v, l in categoria_choices %}{% if v == categoria_filter %}{{ l }}{% endif %}{% endfor %}{% if not categoria_filter %}Fixos e freelancers{% endif %}</p>
+  </div>
+  <div class="report-actions report-no-print">
+    <a href="{% url 'lista_pagamentos_colaboradores' %}?{{ filtros_query }}" class="btn btn-outline">Voltar à folha</a>
+    <button type="button" class="btn btn-mod6" onclick="window.print()">Imprimir / Salvar PDF</button>
+  </div>
+</div>
+<form method="get" class="card report-section report-no-print">
+  <div class="report-filters">
+    <div><label for="rel-pessoa">Pessoa</label><select id="rel-pessoa" name="colaborador" class="form-control"><option value="">Todas — relatório geral</option>{% for c in colaboradores %}<option value="{{ c.pk }}" {% if colaborador_selecionado.pk == c.pk %}selected{% endif %}>{{ c.nome }} · {{ c.pk }}{% if c.unidade %} · {{ c.unidade }}{% endif %}</option>{% endfor %}</select></div>
+    <div><label for="rel-inicio">Data inicial</label><input id="rel-inicio" type="date" name="data_inicio" value="{{ data_inicio|date:'Y-m-d' }}" class="form-control" required></div>
+    <div><label for="rel-fim">Data final</label><input id="rel-fim" type="date" name="data_fim" value="{{ data_fim|date:'Y-m-d' }}" class="form-control" required></div>
+    <div><label for="rel-unidade">Unidade</label><select id="rel-unidade" name="unidade" class="form-control"><option value="">Todas</option>{% for unidade in unidades %}<option {% if unidade == unidade_filter %}selected{% endif %}>{{ unidade }}</option>{% endfor %}</select></div>
+    <div><label for="rel-tipo">Tipo</label><select id="rel-tipo" name="tipo" class="form-control"><option value="">Todos</option>{% for v, l in tipo_choices %}<option value="{{ v }}" {% if v == tipo_filter %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label for="rel-status">Situação</label><select id="rel-status" name="status" class="form-control"><option value="">Pagos e pendentes</option>{% for v, l in status_choices %}<option value="{{ v }}" {% if v == status_filter %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label for="rel-categoria">Categoria</label><select id="rel-categoria" name="categoria" class="form-control"><option value="">Fixos e freelancers</option>{% for v, l in categoria_choices %}<option value="{{ v }}" {% if v == categoria_filter %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label for="rel-busca">Nome, CPF ou unidade</label><input id="rel-busca" name="q" value="{{ query }}" class="form-control" type="search"></div>
+  </div>
+  <div class="report-actions" style="margin-top:16px;"><button class="btn btn-mod6" type="submit">Gerar relatório</button><a href="{% url 'relatorio_folha_pagamento' %}" class="btn btn-outline">Limpar filtros</a></div>
+</form>
+<div class="kpi-grid report-section">
+  <div class="kpi-card"><div class="kpi-label">Pessoas no relatório</div><div class="kpi-value">{{ total_pessoas }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Pago</div><div class="kpi-value">R$ {{ total_pago|floatformat:2 }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Pendente</div><div class="kpi-value">R$ {{ total_pendente|floatformat:2 }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Total pago + pendente</div><div class="kpi-value">R$ {{ total_geral|floatformat:2 }}</div></div>
+</div>
+{% if total_cancelado %}<p class="report-note">Cancelados: R$ {{ total_cancelado|floatformat:2 }}. Este valor não integra o total pago + pendente.</p>{% endif %}
+{% if pagamentos %}
+<section class="card report-section">
+  <h2>Resumo por tipo de pagamento</h2>
+  <div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Lançamentos</th><th>Pago</th><th>Pendente</th><th>Cancelado</th><th>Total pago + pendente</th></tr></thead><tbody>
+    {% for t in totais_tipo %}<tr><td>{{ t.nome }}</td><td>{{ t.quantidade }}</td><td>R$ {{ t.pago|floatformat:2 }}</td><td>R$ {{ t.pendente|floatformat:2 }}</td><td>R$ {{ t.cancelado|floatformat:2 }}</td><td><strong>R$ {{ t.total|floatformat:2 }}</strong></td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% if not colaborador_selecionado %}
+<section class="card report-section">
+  <h2>Resumo por pessoa</h2>
+  <div class="table-wrap"><table><thead><tr><th>Código / Pessoa</th><th>Unidade</th><th>Categoria</th><th>Pago</th><th>Pendente</th><th>Cancelado</th><th>Total pago + pendente</th></tr></thead><tbody>
+    {% for p in pessoas %}<tr><td><a href="{% url 'relatorio_folha_pagamento' %}?{{ filtros_query }}&amp;colaborador={{ p.colaborador.pk }}">{{ p.colaborador.pk }} · {{ p.colaborador.nome }}</a></td><td>{{ p.colaborador.unidade|default:"Não informado" }}</td><td>{{ p.colaborador.get_categoria_trabalho_display }}</td><td>R$ {{ p.pago|floatformat:2 }}</td><td>R$ {{ p.pendente|floatformat:2 }}</td><td>R$ {{ p.cancelado|floatformat:2 }}</td><td><strong>R$ {{ p.total|floatformat:2 }}</strong></td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endif %}
+<section class="card report-section">
+  <h2>Detalhamento · {{ pagamentos|length }} lançamento{{ pagamentos|length|pluralize:"s" }}</h2>
+  <div class="table-wrap"><table class="report-detail"><thead><tr><th>Pessoa / Unidade</th><th>Tipo</th><th>Competência</th><th>Dias trabalhados</th><th>Diária</th><th>PIX</th><th>Vencimento</th><th>Pago em</th><th>Valor</th><th>Situação</th></tr></thead><tbody>
+    {% for p in pagamentos %}<tr>
+      <td><strong>{{ p.colaborador.nome }}</strong><br><small>{{ p.colaborador.pk }} · {{ p.colaborador.unidade|default:"Não informado" }} · {{ p.colaborador.get_categoria_trabalho_display }}</small></td>
+      <td>{{ p.get_tipo_display }}</td>
+      <td>{{ p.competencia|date:"d/m/Y" }}{% if p.fim_competencia != p.competencia %}<br>a {{ p.fim_competencia|date:"d/m/Y" }}{% endif %}</td>
+      <td>{% if p.dias_trabalhados_exibicao is not None %}{{ p.dias_trabalhados_exibicao|floatformat:-2 }}{% else %}Não definido{% endif %}</td>
+      <td>{% if p.valor_diaria %}R$ {{ p.valor_diaria|floatformat:2 }}{% else %}—{% endif %}</td>
+      <td class="report-pix">{{ p.chave_pix_exibicao|default:"Não informado" }}</td>
+      <td>{{ p.data_vencimento|date:"d/m/Y" }}</td><td>{{ p.data_pagamento|date:"d/m/Y"|default:"—" }}</td>
+      <td class="report-money">R$ {{ p.valor|floatformat:2 }}</td><td>{{ p.get_status_display }}</td>
+    </tr>{% endfor %}
+  </tbody></table></div>
+  <p class="report-note">Dias trabalhados: valor registrado no lançamento/base importada; quando não informado, presenças registradas no período selecionado. Não some os dias repetidos entre pagamentos da mesma pessoa.</p>
+</section>
+{% else %}<div class="card report-section">Nenhum pagamento encontrado para os filtros selecionados.</div>{% endif %}
+{% endblock %}

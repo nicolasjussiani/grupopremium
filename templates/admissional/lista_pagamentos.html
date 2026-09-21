@@ -32,6 +32,7 @@
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
   <h1 class="mod-title">💵 Folha de Pagamento</h1>
   <div class="mod-desc">Acompanhe somente a equipe atual, os dias trabalhados, o PIX e a confirmação de cada pagamento.</div>
+  <a href="{% url 'relatorio_folha_pagamento' %}?{{ filtros_query }}" class="btn btn-mod6" style="margin-top:14px;">Relatório geral da folha</a>
 </div>
 
 <div class="kpi-grid" style="margin-bottom:20px;">
@@ -41,6 +42,8 @@
 
 <div class="card" style="margin-bottom:20px;">
   <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+    {% if unidade_filter %}<input type="hidden" name="unidade" value="{{ unidade_filter }}">{% endif %}
+    {% if colaborador_selecionado %}<input type="hidden" name="colaborador" value="{{ colaborador_selecionado.pk }}">{% endif %}
     <div style="flex:1;min-width:220px;">
       <label for="busca-pagamento">Colaborador</label>
       <input id="busca-pagamento" class="form-control" type="search" name="q" value="{{ query }}" placeholder="Nome, CPF ou unidade">
@@ -161,6 +164,7 @@
           {% endwith %}
         </td>
         <td>
+          <a href="{% url 'relatorio_folha_pagamento' %}?{{ filtros_query }}&amp;colaborador={{ pagamento.colaborador_id }}" class="btn btn-sm btn-outline">Relatório individual</a>
           {% if can_edit_pagamento %}
             {% if pagamento.status == 'pendente' %}
             <form method="post" action="{% url 'marcar_pagamento_como_pago' pagamento.pk %}" style="display:inline;" onsubmit="return confirm('Confirmar que este pagamento foi realizado hoje?');">

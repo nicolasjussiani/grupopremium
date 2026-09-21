@@ -304,8 +304,13 @@ def _periodo_pagamentos(request):
     hoje = timezone.localdate()
     inicio_padrao = hoje.replace(day=1)
     fim_padrao = hoje.replace(day=monthrange(hoje.year, hoje.month)[1])
-    inicio = parse_date(request.GET.get('data_inicio', '')) or inicio_padrao
-    fim = parse_date(request.GET.get('data_fim', '')) or fim_padrao
+    def data_ou_padrao(campo, padrao):
+        try:
+            return parse_date(request.GET.get(campo, '')) or padrao
+        except ValueError:
+            return padrao
+    inicio = data_ou_padrao('data_inicio', inicio_padrao)
+    fim = data_ou_padrao('data_fim', fim_padrao)
     if fim < inicio:
         inicio, fim = fim, inicio
     return inicio, fim
@@ -430,12 +435,7 @@ def _anexar_dias_trabalhados(pagamentos, inicio, fim):
     return pagamentos
 
 
-@login_required
-@access_required(
-    permission='admissional.view_pagamentocolaborador',
-    profiles=('rh', 'financeiro', 'gestor'),
-)
-def lista_pagamentos_colaboradores(request):
+def _dados_folha(request, *, incluir_resumo=True):
     pagamentos_base = PagamentoColaborador.objects.select_related(
         'colaborador', 'criado_por', 'item_fiscal', 'parcela_fiscal__beneficio'
     ).prefetch_related('arquivos_importados')
@@ -455,6 +455,17 @@ def lista_pagamentos_colaboradores(request):
             | Q(colaborador__unidade__icontains=query)
         )
 
+    unidade_filter = request.GET.get('unidade', '').strip()[:100]
+    if unidade_filter:
+        pagamentos_base = pagamentos_base.filter(colaborador__unidade=unidade_filter)
+    colaborador_filter = request.GET.get('colaborador', '').strip()
+    colaborador_selecionado = None
+    if colaborador_filter:
+        if not colaborador_filter.isascii() or not colaborador_filter.isdigit() or len(colaborador_filter) > 18:
+            raise Http404('Colaborador inválido.')
+        colaborador_selecionado = get_object_or_404(Colaborador, pk=int(colaborador_filter))
+        pagamentos_base = pagamentos_base.filter(colaborador=colaborador_selecionado)
+
     categoria_filter = request.GET.get('categoria', '').strip()
     categorias_validas = {valor for valor, _ in Colaborador.CATEGORIAS_TRABALHO}
     if categoria_filter in categorias_validas:
@@ -466,7 +477,7 @@ def lista_pagamentos_colaboradores(request):
 
     resumo_pendencias = _resumo_pendencias_pagamentos(
         pagamentos_base, data_inicio, data_fim
-    )
+    ) if incluir_resumo else None
     pagamentos = pagamentos_base
     status_filter = request.GET.get('status', '').strip()
     status_validos = {valor for valor, _ in PagamentoColaborador.STATUS}
@@ -486,8 +497,16 @@ def lista_pagamentos_colaboradores(request):
     totais = pagamentos.values('status').annotate(total=Sum('valor'))
     totais_status = {item['status']: item['total'] for item in totais}
     pagamentos = _anexar_dias_trabalhados(pagamentos, data_inicio, data_fim)
-    return render(request, 'admissional/lista_pagamentos.html', {
+    filtros = {
+        'data_inicio': data_inicio.isoformat(), 'data_fim': data_fim.isoformat(),
+        'q': query, 'tipo': tipo_filter, 'status': status_filter,
+        'categoria': categoria_filter, 'unidade': unidade_filter,
+    }
+    return {
         'pagamentos': pagamentos,
+        'unidade_filter': unidade_filter,
+        'colaborador_selecionado': colaborador_selecionado,
+        'filtros_query': urlencode(filtros),
         'query': query,
         'status_filter': status_filter,
         'tipo_filter': tipo_filter,
@@ -515,7 +534,51 @@ def lista_pagamentos_colaboradores(request):
             permission='financeiro.view_documentofinanceiro',
             profiles=('financeiro', 'gestor'),
         ),
+    }
+
+
+@login_required
+@access_required(permission='admissional.view_pagamentocolaborador', profiles=('rh', 'financeiro', 'gestor'))
+def lista_pagamentos_colaboradores(request):
+    return render(request, 'admissional/lista_pagamentos.html', _dados_folha(request))
+
+
+@login_required
+@access_required(permission='admissional.view_pagamentocolaborador', profiles=('rh', 'financeiro', 'gestor'))
+def relatorio_folha_pagamento(request):
+    contexto = _dados_folha(request, incluir_resumo=False)
+    pessoas = {}
+    tipos = {}
+    total_cancelado = Decimal('0')
+    for pagamento in contexto['pagamentos']:
+        pessoa = pessoas.setdefault(pagamento.colaborador_id, {
+            'colaborador': pagamento.colaborador, 'quantidade': 0,
+            'pago': Decimal('0'), 'pendente': Decimal('0'), 'cancelado': Decimal('0'),
+        })
+        tipo = tipos.setdefault(pagamento.tipo, {
+            'nome': pagamento.get_tipo_display(), 'quantidade': 0,
+            'pago': Decimal('0'), 'pendente': Decimal('0'), 'cancelado': Decimal('0'),
+        })
+        for resumo in (pessoa, tipo):
+            resumo['quantidade'] += 1
+            resumo[pagamento.status] += pagamento.valor
+            resumo['total'] = resumo['pago'] + resumo['pendente']
+        if pagamento.status == 'cancelado':
+            total_cancelado += pagamento.valor
+    equipe = Colaborador.objects.exclude(status__in=Colaborador.STATUS_SEM_PAGAMENTO)
+    contexto.update({
+        'pessoas': sorted(pessoas.values(), key=lambda p: (p['colaborador'].nome.casefold(), p['colaborador'].pk)),
+        'totais_tipo': sorted(tipos.values(), key=lambda t: t['nome']),
+        'total_geral': contexto['total_pendente'] + contexto['total_pago'],
+        'total_cancelado': total_cancelado,
+        'total_pessoas': len(pessoas),
+        'gerado_em': timezone.now(),
+        'colaboradores': equipe.only('pk', 'nome', 'unidade').order_by('nome', 'pk'),
+        'unidades': equipe.exclude(unidade='').order_by('unidade').values_list('unidade', flat=True).distinct(),
     })
+    response = render(request, 'admissional/relatorio_folha.html', contexto)
+    response['Cache-Control'] = 'private, no-store'
+    return response
 
 
 @login_required
