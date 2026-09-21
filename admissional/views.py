@@ -1011,15 +1011,56 @@ from django.http import HttpResponse
 from datetime import timedelta
 from .models import PresencaDiaria
 
+def _filtros_presenca(request):
+    dados = request.POST if request.method == 'POST' else request.GET
+    filtros = {campo: dados.get(campo, '').strip()[:100] for campo in (
+        'unidade', 'q', 'cargo', 'setor', 'tipo_contrato', 'categoria', 'situacao',
+    )}
+    for campo, choices in (
+        ('tipo_contrato', Colaborador.TIPO_CONTRATO),
+        ('categoria', Colaborador.CATEGORIAS_TRABALHO),
+        ('situacao', PresencaDiaria.STATUS_CHOICES),
+    ):
+        if filtros[campo] not in dict(choices):
+            filtros[campo] = ''
+    return filtros
+
+
+def _lista_presenca_filtrada(data, filtros):
+    colaboradores = Colaborador.objects.filter(status='ativo').order_by('nome', 'pk')
+    for campo in ('unidade', 'cargo', 'setor'):
+        if filtros[campo]:
+            colaboradores = colaboradores.filter(**{f'{campo}__icontains': filtros[campo]})
+    if filtros['q']:
+        busca = Q(nome__icontains=filtros['q']) | Q(cpf__icontains=filtros['q'])
+        if filtros['q'].isascii() and filtros['q'].isdigit():
+            busca |= Q(pk=int(filtros['q']))
+        colaboradores = colaboradores.filter(busca)
+    for filtro, campo in (('tipo_contrato', 'tipo_contrato'), ('categoria', 'categoria_trabalho')):
+        if filtros[filtro]:
+            colaboradores = colaboradores.filter(**{campo: filtros[filtro]})
+    colaboradores = list(colaboradores)
+    registros = {
+        p.colaborador_id: p for p in PresencaDiaria.objects.filter(
+            data=data, colaborador_id__in=[c.pk for c in colaboradores],
+        )
+    }
+    resultado = []
+    for colaborador in colaboradores:
+        presenca = registros.get(colaborador.pk) or PresencaDiaria(data=data)
+        presenca.colaborador = colaborador
+        if not filtros['situacao'] or presenca.status == filtros['situacao']:
+            resultado.append(presenca)
+    return resultado
+
+
 @login_required
 @access_required(permission='admissional.change_presencadiaria', profiles=('rh',))
 @transaction.atomic
 def controle_presenca(request):
     from datetime import datetime
     data_str = request.GET.get('data') or request.POST.get('data')
-    unidade_filter = (
-        request.GET.get('unidade') or request.POST.get('unidade') or ''
-    ).strip()[:100]
+    filtros = _filtros_presenca(request)
     
     if data_str:
         try:
@@ -1029,11 +1070,10 @@ def controle_presenca(request):
     else:
         data_selecionada = timezone.now().date()
         
+    presencas = _lista_presenca_filtrada(data_selecionada, filtros)
     if request.method == 'POST':
         status_validos = {choice[0] for choice in PresencaDiaria.STATUS_CHOICES}
-        colaboradores_validos = set(
-            Colaborador.objects.filter(status='ativo').values_list('pk', flat=True)
-        )
+        colaboradores_validos = {p.colaborador_id for p in presencas}
         for key, value in request.POST.items():
             if key.startswith('colaborador_'):
                 try:
@@ -1051,31 +1091,19 @@ def controle_presenca(request):
                     defaults={'status': status, 'observacao': obs}
                 )
         messages.success(request, f'Presenças salvas com sucesso para o dia {data_selecionada.strftime("%d/%m/%Y")}!')
-        query = urlencode({'data': data_selecionada.isoformat(), 'unidade': unidade_filter})
+        query = urlencode({'data': data_selecionada.isoformat(), **filtros})
         return redirect(f'{request.path}?{query}')
 
-    colaboradores = Colaborador.objects.filter(status='ativo')
-    if unidade_filter:
-        colaboradores = colaboradores.filter(unidade__icontains=unidade_filter)
-        
-    colaboradores = list(colaboradores)
-    registros = {
-        presenca.colaborador_id: presenca
-        for presenca in PresencaDiaria.objects.filter(
-            colaborador_id__in=[c.pk for c in colaboradores],
-            data=data_selecionada,
-        )
-    }
-    presencas = [
-        registros.get(c.pk) or PresencaDiaria(colaborador=c, data=data_selecionada)
-        for c in colaboradores
-    ]
     total_nao_definidos = sum(p.status == 'indefinido' for p in presencas)
         
     return render(request, 'admissional/controle_presenca.html', {
         'presencas': presencas,
         'data_selecionada': data_selecionada,
-        'unidade_filter': unidade_filter,
+        'unidade_filter': filtros['unidade'],
+        'filtros': filtros,
+        'filtros_query': urlencode({'data': data_selecionada.isoformat(), **filtros}),
+        'contrato_choices': Colaborador.TIPO_CONTRATO,
+        'categoria_choices': Colaborador.CATEGORIAS_TRABALHO,
         'status_choices': PresencaDiaria.STATUS_CHOICES,
         'total_nao_definidos': total_nao_definidos,
         'total_definidos': len(presencas) - total_nao_definidos,
@@ -1083,9 +1111,10 @@ def controle_presenca(request):
     })
 
 @login_required
+@access_required(permission='admissional.change_presencadiaria', profiles=('rh',))
 def exportar_presenca_csv(request):
     data_str = request.GET.get('data')
-    unidade_filter = request.GET.get('unidade', '')
+    filtros = _filtros_presenca(request)
     from datetime import datetime
     try:
         data_filtro = datetime.strptime(data_str or '', '%Y-%m-%d').date()
@@ -1098,20 +1127,8 @@ def exportar_presenca_csv(request):
     writer = csv.writer(response)
     writer.writerow(['Data', 'Colaborador', 'CPF/Matricula', 'Cliente/Unidade', 'Cidade/UF', 'Status', 'Observacao'])
     
-    colaboradores = Colaborador.objects.filter(status='ativo')
-    if unidade_filter:
-        colaboradores = colaboradores.filter(unidade__icontains=unidade_filter)
-    colaboradores = list(colaboradores)
-    presencas = {
-        p.colaborador_id: p
-        for p in PresencaDiaria.objects.filter(
-            data=data_filtro,
-            colaborador_id__in=[c.pk for c in colaboradores],
-        )
-    }
-
-    for colaborador in colaboradores:
-        p = presencas.get(colaborador.pk)
+    for p in _lista_presenca_filtrada(data_filtro, filtros):
+        colaborador = p.colaborador
         def csv_safe(value):
             text = str(value or '')
             return "'" + text if text.startswith(('=', '+', '-', '@')) else text

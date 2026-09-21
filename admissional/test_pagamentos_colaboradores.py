@@ -562,6 +562,34 @@ class PagamentosColaboradoresTest(TestCase):
 
 
 class PresencaNaoDefinidaTest(TestCase):
+    def test_filtros_exportacao_e_salvamento_limitados_a_selecao(self):
+        alvo = Colaborador.objects.create(
+            nome='Ana Filtro', status='ativo', unidade='Santos',
+            cargo='Operadora', setor='Limpeza', tipo_contrato='pj',
+            categoria_trabalho='freelancer',
+        )
+        filtros = {
+            'data': '2026-09-18', 'q': 'Ana', 'unidade': 'Santos',
+            'cargo': 'Operadora', 'setor': 'Limpeza', 'tipo_contrato': 'pj',
+            'categoria': 'freelancer', 'situacao': 'indefinido',
+        }
+        response = self.client.get(reverse('controle_presenca'), filtros)
+        self.assertEqual([p.colaborador_id for p in response.context['presencas']], [alvo.pk])
+        csv = self.client.get(reverse('exportar_presenca_csv'), filtros).content.decode()
+        self.assertIn('Ana Filtro', csv)
+        self.assertNotIn('Sem marcação', csv)
+        response = self.client.post(reverse('controle_presenca'), {
+            **filtros, f'colaborador_{alvo.pk}': '1', f'status_{alvo.pk}': 'presente',
+            f'colaborador_{self.colaborador.pk}': '1',
+            f'status_{self.colaborador.pk}': 'falta',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('situacao=indefinido', response.url)
+        self.assertEqual(PresencaDiaria.objects.get(colaborador=alvo).status, 'presente')
+        self.assertFalse(PresencaDiaria.objects.filter(colaborador=self.colaborador).exists())
+        response = self.client.get(reverse('controle_presenca'), filtros)
+        self.assertEqual(response.context['total_colaboradores_presenca'], 0)
+
     def setUp(self):
         self.user = User.objects.create_superuser('admin_presenca', password='senha-forte')
         self.client = Client()

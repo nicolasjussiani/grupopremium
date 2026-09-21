@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="module-banner mod-banner-2" style="margin-bottom:20px;">
-  <div class="mod-title">?? Controle de Presença Diária</div>
+  <div class="mod-title">Controle de Presença Diária</div>
   <div class="mod-desc">Quem ainda não foi atualizado aparece claramente como “Não definido”.</div>
 </div>
 
@@ -18,7 +18,7 @@
 {% if total_nao_definidos %}<div class="alert alert-warning" style="margin-bottom:20px;">⚠️ Existem {{ total_nao_definidos }} colaborador(es) sem definição nesta data.</div>{% endif %}
 
 <div class="card" style="margin-bottom: 20px;">
-  <form method="get" class="flex gap-4 align-center">
+  <form method="get" style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;">
     <div class="form-group" style="margin-bottom:0; flex:1; max-width: 250px;">
       <label class="form-label">Data</label>
       <input type="date" name="data" class="form-control" value="{{ data_selecionada|date:'Y-m-d' }}" required>
@@ -27,9 +27,16 @@
         <label class="form-label">Unidade/Cliente</label>
         <input type="text" name="unidade" class="form-control" value="{{ unidade_filter }}" placeholder="Filtrar por unidade...">
     </div>
-    <div style="padding-top: 24px;">
+    <div><label class="form-label" for="presenca-busca">Nome, CPF ou código</label><input id="presenca-busca" class="form-control" name="q" type="search" value="{{ filtros.q }}"></div>
+    <div><label class="form-label" for="presenca-cargo">Cargo</label><input id="presenca-cargo" class="form-control" name="cargo" value="{{ filtros.cargo }}"></div>
+    <div><label class="form-label" for="presenca-setor">Setor</label><input id="presenca-setor" class="form-control" name="setor" value="{{ filtros.setor }}"></div>
+    <div><label class="form-label" for="presenca-contrato">Vínculo</label><select id="presenca-contrato" name="tipo_contrato" class="form-control"><option value="">Todos</option>{% for v, l in contrato_choices %}<option value="{{ v }}" {% if filtros.tipo_contrato == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label class="form-label" for="presenca-categoria">Categoria</label><select id="presenca-categoria" name="categoria" class="form-control"><option value="">Fixos e freelancers</option>{% for v, l in categoria_choices %}<option value="{{ v }}" {% if filtros.categoria == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label class="form-label" for="presenca-situacao">Situação do dia</label><select id="presenca-situacao" name="situacao" class="form-control"><option value="">Todas</option>{% for v, l in status_choices %}<option value="{{ v }}" {% if filtros.situacao == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
       <button type="submit" class="btn btn-mod1">Buscar</button>
-      <a href="{% url 'exportar_presenca_csv' %}?data={{ data_selecionada|date:'Y-m-d' }}&unidade={{ unidade_filter }}" class="btn btn-success">?? Exportar CSV</a>
+      <a href="{% url 'controle_presenca' %}?data={{ data_selecionada|date:'Y-m-d' }}" class="btn btn-outline">Limpar filtros</a>
+      <a href="{% url 'exportar_presenca_csv' %}?{{ filtros_query }}" class="btn btn-success">Exportar CSV filtrado</a>
     </div>
   </form>
 </div>
@@ -37,12 +44,12 @@
 <form method="post">
     {% csrf_token %}
     <input type="hidden" name="data" value="{{ data_selecionada|date:'Y-m-d' }}">
-    <input type="hidden" name="unidade" value="{{ unidade_filter }}">
+    {% for campo, valor in filtros.items %}<input type="hidden" name="{{ campo }}" value="{{ valor }}">{% endfor %}
     <div class="card">
         <div style="overflow-x:auto;">
             <table class="table">
                 <thead>
-                    <tr {% if p.status == 'indefinido' %}style="background:rgba(245,158,11,.08);"{% endif %}>
+                    <tr>
                         <th>Colaborador</th>
                         <th>Cliente/Unidade</th>
                         <th>CPF/Matrícula</th>
