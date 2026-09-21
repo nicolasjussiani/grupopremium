@@ -13,7 +13,7 @@
     <strong>Atenção:</strong> você está excluindo “{{ vaga.nome_vaga }}”.
     {% if vaga.candidatos.count %}Os {{ vaga.candidatos.count }} candidato(s) vinculados também serão removidos.{% endif %}
   </div>
-  <form method="post">
+  <form method="post" id="form-excluir-vaga">
     {% csrf_token %}
     <div class="form-group">
       <label class="form-label" for="id_motivo">Motivo da exclusão <span class="required">*</span></label>
@@ -33,4 +33,25 @@
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const form = document.getElementById('form-excluir-vaga');
+  const button = form.querySelector('button[type="submit"]');
+  let sending = false;
+  form.addEventListener('submit', (event) => {
+    if (sending) { event.preventDefault(); return; }
+    sending = true;
+    button.disabled = true;
+    button.textContent = 'Excluindo…';
+  });
+  window.addEventListener('pageshow', () => {
+    sending = false;
+    button.disabled = false;
+    button.textContent = 'Confirmar exclusão';
+  });
+})();
+</script>
 {% endblock %}

@@ -141,6 +141,8 @@ class AuditLogMiddleware(MiddlewareMixin):
         return f'/auditoria-logs/?destaque={log.pk}'
 
     def process_response(self, request, response):
+        if getattr(request, '_audit_no_change', False):
+            return response
         if not (
             request.method == 'POST'
             and getattr(request, 'user', None)

@@ -4,11 +4,26 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from core.models import PerfilUsuario
+from core.models import LogAtividade, Notificacao, PerfilUsuario
 from recrutamento.models import Candidato, HistoricoVaga, Vaga
 
 
 class GestaoVagaTests(TestCase):
+    def test_repetir_exclusao_redireciona_sem_duplicar_historico_ou_notificacao(self):
+        url = reverse('excluir_vaga', args=[self.vaga.pk])
+        dados = {'motivo': 'outros', 'justificativa': 'Vaga cadastrada para teste.'}
+        self.assertRedirects(self.client.post(url, dados), reverse('lista_vagas'))
+        totais = (HistoricoVaga.objects.count(), LogAtividade.objects.count(), Notificacao.objects.count())
+        for _ in range(3):
+            response = self.client.post(url, dados, follow=True)
+            self.assertContains(response, 'Esta vaga já não está disponível')
+            self.assertEqual(response.redirect_chain, [(reverse('lista_vagas'), 302)])
+        self.assertEqual(
+            (HistoricoVaga.objects.count(), LogAtividade.objects.count(), Notificacao.objects.count()),
+            totais,
+        )
+        self.assertRedirects(self.client.get(url), reverse('lista_vagas'))
+
     def setUp(self):
         self.usuario = User.objects.create_user(
             'rh-vagas', password='senha-forte-123', first_name='Pessoa', last_name='RH'

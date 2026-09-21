@@ -214,7 +214,12 @@ def editar_vaga(request, pk):
 @access_required(permission='recrutamento.delete_vaga', profiles=('rh', 'gestor'))
 @transaction.atomic
 def excluir_vaga(request, pk):
-    vaga = get_object_or_404(Vaga.objects.select_for_update(), pk=pk)
+    vaga = Vaga.objects.select_for_update().filter(pk=pk).first()
+    if vaga is None:
+        # A repeated submission must not generate a second deletion event.
+        request._audit_no_change = True
+        messages.info(request, 'Esta vaga já não está disponível. A lista foi atualizada.')
+        return redirect('lista_vagas')
     if request.method == 'POST':
         motivo = request.POST.get('motivo', '')
         justificativa = request.POST.get('justificativa', '').strip()
