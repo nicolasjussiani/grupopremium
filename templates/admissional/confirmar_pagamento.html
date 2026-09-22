@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Confirmar pagamento — ERP Grupo PremiumBR{% endblock %}
+{% block nav_pagamentos_colaboradores %}active{% endblock %}
+{% block topbar_title %}Confirmar pagamento{% endblock %}
+{% block content %}
+<div class="card" style="max-width:720px;margin:0 auto;">
+  <h1 style="font-size:1.5rem;">Confirmar pagamento</h1>
+  <p style="margin:16px 0;"><strong>{{ pagamento.colaborador.nome }}</strong><br>{{ pagamento.get_tipo_display }} · R$ {{ pagamento.valor|floatformat:2 }}<br>Competência: {{ pagamento.competencia|date:"d/m/Y" }} a {{ pagamento.fim_competencia|date:"d/m/Y" }}</p>
+  <p>Ao confirmar, este lançamento será marcado como pago hoje ({{ hoje|date:"d/m/Y" }}). Para VT e ajuda de custo, será registrada a segunda-feira desta semana.</p>
+  {% if erro %}<div class="alert alert-error" data-persistent-alert>{{ erro }}</div>{% endif %}
+  <form method="post" enctype="multipart/form-data" style="margin-top:20px;">
+    {% csrf_token %}
+    {% with arquivos=pagamento.arquivos_importados.all %}
+    {% if arquivos %}<p>Este pagamento já tem comprovante. Você pode confirmar ou acrescentar outro:</p><ul style="padding-left:20px;overflow-wrap:anywhere;">{% for arquivo in arquivos %}<li><a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank" rel="noopener">{{ arquivo.nome_original }}</a></li>{% endfor %}</ul>{% endif %}
+    <div class="form-group" style="margin-top:16px;">
+      <label class="form-label" for="id_comprovante_folha">Comprovante de pagamento{% if not arquivos %} *{% endif %}</label>
+      <input type="file" id="id_comprovante_folha" name="comprovante_folha" accept=".pdf,.jpg,.jpeg,.png" class="form-control" {% if not arquivos and not request.POST.direct_upload_comprovante_folha %}required{% endif %}>
+      <small class="form-help">PDF, PNG ou JPG, até 50 MB. O pagamento só será confirmado com um comprovante vinculado.</small>
+    </div>
+    {% endwith %}
+    {% if request.POST.direct_upload_comprovante_folha %}
+    <input type="hidden" name="direct_upload_comprovante_folha" value="{{ request.POST.direct_upload_comprovante_folha }}">
+    <input type="hidden" name="direct_upload_comprovante_folha_original_name" value="{{ request.POST.direct_upload_comprovante_folha_original_name }}">
+    <p>Arquivo enviado: {{ request.POST.direct_upload_comprovante_folha_original_name }}</p>
+    {% endif %}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+      <a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn btn-outline">Cancelar</a>
+      <button type="submit" class="btn btn-success">Confirmar pagamento com comprovante</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

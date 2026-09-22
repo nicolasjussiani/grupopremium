@@ -11,6 +11,9 @@ from core.access import user_has_access
 
 
 def _can_upload(user, field_name):
+    if field_name == 'comprovante_folha':
+        return any(user_has_access(user, permission=permission, profiles=('rh', 'financeiro', 'gestor'))
+                   for permission in ('admissional.add_pagamentocolaborador', 'admissional.change_pagamentocolaborador'))
     if field_name.startswith('anexo_'):
         return user_has_access(user, profiles=('rh', 'sesmet'))
     rules = {

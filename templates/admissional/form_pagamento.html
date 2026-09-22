@@ -15,7 +15,7 @@
     <span id="resumo-detalhes"></span>
     <strong id="resumo-dias" style="margin-left:8px;"></strong>
   </div>
-  <form method="post">
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     {% if form.non_field_errors %}
       <div class="alert alert-error">{{ form.non_field_errors.0 }}</div>
@@ -38,6 +38,21 @@
       </div>
       {% endfor %}
     </div>
+    <section class="form-group" style="margin-top:20px;">
+      <label class="form-label" for="id_comprovante_folha">Adicionar comprovante de pagamento</label>
+      <input id="id_comprovante_folha" type="file" name="comprovante_folha" accept=".pdf,.png,.jpg,.jpeg" class="form-control">
+      <small class="form-help">PDF, PNG ou JPG, até 50 MB. Obrigatório para confirmar um novo pagamento como pago. Para pagamentos pendentes, pode ser anexado depois, em “Marcar como pago”. Para acrescentar outros, edite o pagamento.</small>
+      {% if request.POST.direct_upload_comprovante_folha %}
+      <input type="hidden" name="direct_upload_comprovante_folha" value="{{ request.POST.direct_upload_comprovante_folha }}">
+      <input type="hidden" name="direct_upload_comprovante_folha_original_name" value="{{ request.POST.direct_upload_comprovante_folha_original_name }}">
+      <small class="form-help">Arquivo enviado: {{ request.POST.direct_upload_comprovante_folha_original_name }}. Será utilizado ao salvar; selecione outro se quiser substituir esta seleção.</small>
+      {% endif %}
+      {% if pagamento %}
+      <ul style="padding-left:20px;margin-top:12px;overflow-wrap:anywhere;">
+        {% for comprovante in pagamento.arquivos_importados.all %}<li><a href="{% url 'baixar_arquivo_importado' comprovante.pk %}" target="_blank" rel="noopener">{{ comprovante.nome_original }}</a></li>{% endfor %}
+      </ul>
+      {% endif %}
+    </section>
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:15px;">
       <a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn btn-outline">Cancelar</a>
       <button type="submit" class="btn btn-mod6">Salvar pagamento</button>

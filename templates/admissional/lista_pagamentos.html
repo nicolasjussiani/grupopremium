@@ -159,17 +159,15 @@
         <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% elif pagamento.status == 'cancelado' %}badge-danger{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
         <td>{{ pagamento.data_pagamento|date:"d/m/Y"|default:"—" }}</td>
         <td>
-          {% with comprovante=pagamento.arquivos_importados.first %}
-            {% if comprovante %}<a href="{% url 'baixar_arquivo_importado' comprovante.pk %}" class="btn btn-sm btn-outline" target="_blank">Abrir</a>{% else %}—{% endif %}
-          {% endwith %}
+          {% for comprovante in pagamento.arquivos_importados.all %}
+            <a href="{% url 'baixar_arquivo_importado' comprovante.pk %}" class="btn btn-sm btn-outline" target="_blank" rel="noopener" title="{{ comprovante.nome_original }}">Comprovante {{ forloop.counter }}</a>
+          {% empty %}—{% endfor %}
         </td>
         <td>
           <a href="{% url 'relatorio_folha_pagamento' %}?{{ filtros_query }}&amp;colaborador={{ pagamento.colaborador_id }}" class="btn btn-sm btn-outline">Relatório individual</a>
           {% if can_edit_pagamento %}
             {% if pagamento.status == 'pendente' %}
-            <form method="post" action="{% url 'marcar_pagamento_como_pago' pagamento.pk %}" style="display:inline;" onsubmit="return confirm('Confirmar que este pagamento foi realizado hoje?');">
-              {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Marcar como pago</button>
-            </form>
+            <a href="{% url 'marcar_pagamento_como_pago' pagamento.pk %}" class="btn btn-sm btn-success">Marcar como pago</a>
             <form method="post" action="{% url 'retirar_pagamento_folha' pagamento.pk %}" style="display:inline;" onsubmit="return confirm('Retirar este lançamento da folha? O histórico será preservado.');">
               {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline">Retirar da folha</button>
             </form>

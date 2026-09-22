@@ -16,6 +16,7 @@ DIRECT_UPLOAD_TOKEN_MAX_AGE = 30 * 60
 TOKEN_SALT = 'core.direct-upload.v1'
 
 UPLOAD_RULES = {
+    'comprovante_folha': ('_temporarios/admissional/pagamentos/comprovantes', 'document'),
     'arquivo': ('_temporarios/admissional/documentos', 'document'),
     'arquivo_pdf': ('_temporarios/financeiro/documentos', 'document'),
     'curriculo_pdf': ('_temporarios/recrutamento/curriculos', 'document'),

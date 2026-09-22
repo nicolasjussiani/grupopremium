@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import OperationalError, connection
 from django.test import Client, TestCase
 from django.test.utils import CaptureQueriesContext
@@ -302,7 +303,8 @@ class PagamentosColaboradoresTest(TestCase):
         )
 
         response = self.client.post(
-            reverse('marcar_pagamento_como_pago', args=[pagamento.pk])
+            reverse('marcar_pagamento_como_pago', args=[pagamento.pk]),
+            {'comprovante_folha': SimpleUploadedFile('vt.pdf', b'%PDF-vt', content_type='application/pdf')},
         )
 
         self.assertRedirects(response, reverse('lista_pagamentos_colaboradores'))
@@ -322,13 +324,16 @@ class PagamentosColaboradoresTest(TestCase):
             recorrente=True,
         )
 
-        self.client.post(reverse('marcar_pagamento_como_pago', args=[pagamento.pk]))
+        self.client.post(reverse('marcar_pagamento_como_pago', args=[pagamento.pk]), {
+            'comprovante_folha': SimpleUploadedFile('vt.pdf', b'%PDF-recorrencia', content_type='application/pdf'),
+        })
         self.client.post(reverse('marcar_pagamento_como_pago', args=[pagamento.pk]))
 
         proximo = PagamentoColaborador.objects.get(competencia=date(2026, 9, 21))
         self.assertEqual(proximo.competencia_fim, date(2026, 9, 27))
         self.assertEqual(proximo.status, 'pendente')
         self.assertTrue(proximo.recorrente)
+        self.assertFalse(proximo.arquivos_importados.exists())
 
     def test_lista_mostra_dias_trabalhados_do_periodo(self):
         PresencaDiaria.objects.create(
@@ -523,7 +528,7 @@ class PagamentosColaboradoresTest(TestCase):
 
         self.assertContains(response, '80,00')
         self.assertNotContains(response, '2.000,00')
-    def test_confirmacao_de_pagamento_nao_aceita_get(self):
+    def test_confirmacao_de_pagamento_get_apenas_exibe_formulario(self):
         pagamento = PagamentoColaborador.objects.create(
             colaborador=self.colaborador,
             tipo='salario',
@@ -536,7 +541,9 @@ class PagamentosColaboradoresTest(TestCase):
             reverse('marcar_pagamento_como_pago', args=[pagamento.pk])
         )
 
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 200)
+        pagamento.refresh_from_db()
+        self.assertEqual(pagamento.status, 'pendente')
 
     def test_lista_filtra_situacao(self):
         PagamentoColaborador.objects.create(

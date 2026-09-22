@@ -14,6 +14,7 @@ from .models import (
     PagamentoColaborador, PresencaDiaria,
 )
 from .forms import ColaboradorForm, PagamentoColaboradorForm
+from .comprovantes import preparar_comprovante, vincular_comprovante, exigir_comprovante
 from core.models import ArquivoImportado, Notificacao
 from django.contrib.contenttypes.models import ContentType
 from sesmet.models import IntegracaoSeguranca, RegistroEPI, OrdemServico
@@ -670,13 +671,22 @@ def novo_pagamento_colaborador(request):
         if form.is_valid():
             pagamento = form.save(commit=False)
             pagamento.criado_por = request.user
-            pagamento.save()
-            _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
-            mensagem = 'Pagamento cadastrado com sucesso.'
-            if recorrencia_criada:
-                mensagem += ' A próxima semana foi gerada automaticamente.'
-            messages.success(request, mensagem)
-            return redirect('lista_pagamentos_colaboradores')
+            try:
+                comprovante = preparar_comprovante(request, pagamento)
+                if pagamento.status == 'pago':
+                    exigir_comprovante(comprovante, pagamento)
+                with transaction.atomic():
+                    pagamento.save()
+                    vincular_comprovante(comprovante, pagamento, request.user)
+                    _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
+            except ValidationError as exc:
+                form.add_error(None, exc)
+            else:
+                mensagem = 'Pagamento cadastrado com sucesso.'
+                if recorrencia_criada:
+                    mensagem += ' A próxima semana foi gerada automaticamente.'
+                messages.success(request, mensagem)
+                return redirect('lista_pagamentos_colaboradores')
     else:
         initial = {
             'colaborador': request.GET.get('colaborador', ''),
@@ -722,16 +732,26 @@ def novo_pagamento_colaborador(request):
 )
 def editar_pagamento_colaborador(request, pk):
     pagamento = get_object_or_404(PagamentoColaborador, pk=pk)
+    status_anterior = pagamento.status
     if request.method == 'POST':
         form = PagamentoColaboradorForm(request.POST, instance=pagamento)
         if form.is_valid():
-            pagamento = form.save()
-            _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
-            mensagem = 'Pagamento atualizado com sucesso.'
-            if recorrencia_criada:
-                mensagem += ' A próxima semana foi gerada automaticamente.'
-            messages.success(request, mensagem)
-            return redirect('lista_pagamentos_colaboradores')
+            try:
+                comprovante = preparar_comprovante(request, pagamento)
+                if pagamento.status == 'pago' and status_anterior != 'pago':
+                    exigir_comprovante(comprovante, pagamento)
+                with transaction.atomic():
+                    pagamento = form.save()
+                    vincular_comprovante(comprovante, pagamento, request.user)
+                    _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
+            except ValidationError as exc:
+                form.add_error(None, exc)
+            else:
+                mensagem = 'Pagamento atualizado com sucesso.'
+                if recorrencia_criada:
+                    mensagem += ' A próxima semana foi gerada automaticamente.'
+                messages.success(request, mensagem)
+                return redirect('lista_pagamentos_colaboradores')
     else:
         form = PagamentoColaboradorForm(instance=pagamento)
     return render(request, 'admissional/form_pagamento.html', {
@@ -742,29 +762,42 @@ def editar_pagamento_colaborador(request, pk):
 
 
 @login_required
-@require_POST
 @access_required(
     permission='admissional.change_pagamentocolaborador',
     profiles=('rh', 'financeiro', 'gestor'),
 )
-@transaction.atomic
 def marcar_pagamento_como_pago(request, pk):
-    pagamento = get_object_or_404(
-        PagamentoColaborador.objects.select_for_update(), pk=pk
-    )
+    pagamento = get_object_or_404(PagamentoColaborador, pk=pk)
     if pagamento.status == 'cancelado':
         messages.error(request, 'Este lançamento foi retirado da folha e não pode ser pago.')
     elif pagamento.status == 'pago':
         messages.info(request, 'Este pagamento já estava marcado como pago.')
     else:
-        pagamento.status = 'pago'
-        pagamento.data_pagamento = timezone.localdate()
-        pagamento.save(update_fields=['status', 'data_pagamento', 'atualizado_em'])
-        _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
-        mensagem = 'Pagamento marcado como pago.'
-        if recorrencia_criada:
-            mensagem += ' A próxima semana foi gerada automaticamente.'
-        messages.success(request, mensagem)
+        erro = ''
+        if request.method == 'POST':
+            try:
+                comprovante = preparar_comprovante(request, pagamento)
+                exigir_comprovante(comprovante, pagamento)
+                with transaction.atomic():
+                    pagamento = PagamentoColaborador.objects.select_for_update().get(pk=pk)
+                    if pagamento.status != 'pendente':
+                        raise ValidationError('A situação deste pagamento mudou. Volte à folha e confira o lançamento.')
+                    pagamento.status = 'pago'
+                    pagamento.data_pagamento = timezone.localdate()
+                    pagamento.save(update_fields=['status', 'data_pagamento', 'atualizado_em'])
+                    vincular_comprovante(comprovante, pagamento, request.user)
+                    _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
+            except ValidationError as exc:
+                erro = ' '.join(exc.messages)
+            else:
+                mensagem = 'Pagamento confirmado com comprovante.'
+                if recorrencia_criada:
+                    mensagem += ' A próxima semana foi gerada automaticamente.'
+                messages.success(request, mensagem)
+                return redirect('lista_pagamentos_colaboradores')
+        return render(request, 'admissional/confirmar_pagamento.html', {
+            'pagamento': pagamento, 'erro': erro, 'hoje': timezone.localdate(),
+        })
     return redirect('lista_pagamentos_colaboradores')
 
 
