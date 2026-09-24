@@ -286,12 +286,13 @@ class TestNovoColaboradorHTTP(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Colaborador.objects.filter(cpf__isnull=True).exists())
 
-    def test_POST_sem_data_admissao_e_com_documento_cria_colaborador(self):
+    def test_POST_sem_data_admissao_e_com_documento_nao_cria_colaborador(self):
         data = _colaborador_data(data_admissao='')
         data['anexo_cpf'] = _documento()
         response = self.client.post(self.url, data=data)
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(Colaborador.objects.filter(data_admissao__isnull=True).exists())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Informe a data de início do colaborador.')
+        self.assertFalse(Colaborador.objects.exists())
 
     def test_POST_cpf_duplicado_nao_causa_5xx(self):
         """CPF duplicado deve retornar 200 com erro de form, nao 5xx."""
@@ -461,27 +462,58 @@ class TestColaboradorForm(TestCase):
         form = ColaboradorForm(data=_colaborador_data(unidade=''))
         self.assertTrue(form.is_valid(), form.errors)
 
-    def test_form_valido_sem_data_admissao(self):
+    def test_form_invalido_sem_data_admissao(self):
         form = ColaboradorForm(data=_colaborador_data(data_admissao=''))
+        self.assertFalse(form.is_valid())
+        self.assertIn('data_admissao', form.errors)
+
+    def test_novo_form_exige_data_sem_preencher_automaticamente(self):
+        form = ColaboradorForm()
+        self.assertTrue(form.fields['data_admissao'].required)
+        self.assertIsNone(form['data_admissao'].value())
+        self.assertIn('required', str(form['data_admissao']))
+
+    def test_edicao_de_cadastro_antigo_sem_data_continua_permitida(self):
+        colaborador = Colaborador.objects.create(nome='Cadastro antigo')
+        form = ColaboradorForm(
+            data=_colaborador_data(data_admissao=''), instance=colaborador,
+        )
         self.assertTrue(form.is_valid(), form.errors)
+
+    def test_data_existente_renderizada_no_formato_do_campo_date(self):
+        colaborador = Colaborador.objects.create(
+            nome='Cadastro com data', data_admissao=datetime.date(2026, 9, 1),
+        )
+        form = ColaboradorForm(instance=colaborador)
+        self.assertIn('value="2026-09-01"', str(form['data_admissao']))
 
     def test_novo_cadastro_exige_pelo_menos_um_documento(self):
         form = ColaboradorForm(data={}, require_document=True)
         self.assertFalse(form.is_valid())
         self.assertIn('pelo menos um documento', form.non_field_errors()[0])
 
-    def test_novo_cadastro_aceita_apenas_um_documento(self):
+    def test_novo_cadastro_aceita_data_e_um_documento(self):
         form = ColaboradorForm(
-            data={}, files={'anexo_cpf': _documento()}, require_document=True,
+            data={'data_admissao': '2026-09-01'},
+            files={'anexo_cpf': _documento()}, require_document=True,
         )
         self.assertTrue(form.is_valid(), form.errors)
 
     def test_novo_cadastro_reconhece_upload_direto(self):
         form = ColaboradorForm(
-            data={'direct_upload_anexo_cpf': 'token-assinado'},
+            data={'direct_upload_anexo_cpf': 'token-assinado', 'data_admissao': '2026-09-01'},
             require_document=True,
         )
         self.assertTrue(form.is_valid(), form.errors)
+
+    def test_data_ausente_preserva_referencia_do_upload_direto(self):
+        form = ColaboradorForm(
+            data={'direct_upload_anexo_cpf': 'token-assinado'}, require_document=True,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('data_admissao', form.errors)
+        self.assertEqual(form['direct_upload_anexo_cpf'].value(), 'token-assinado')
+        self.assertFalse(form.non_field_errors())
 
     def test_form_widgets_tem_classe_form_control(self):
         """Todos os campos devem ter a classe CSS form-control."""

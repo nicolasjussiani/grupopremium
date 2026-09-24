@@ -25,7 +25,7 @@ class ColaboradorForm(forms.ModelForm):
         )
         widgets = {
             'data_nascimento': forms.DateInput(attrs={'type': 'date'}),
-            'data_admissao': forms.DateInput(attrs={'type': 'date'}),
+            'data_admissao': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
             'data_desligamento': forms.DateInput(attrs={'type': 'date'}),
             'salario': forms.TextInput(attrs={
                 'inputmode': 'decimal', 'placeholder': 'Ex.: 2000,00',
@@ -50,13 +50,18 @@ class ColaboradorForm(forms.ModelForm):
                 widget=forms.HiddenInput(),
             )
         for name, field in self.fields.items():
-            # Os dados cadastrais podem ser completados depois. No cadastro,
-            # a unica exigencia e existir ao menos um documento anexado.
+            # Os demais dados podem ser completados depois; a data de inicio
+            # e obrigatoria em novos cadastros (definida abaixo).
             if not name.startswith('anexo_') and not name.startswith('direct_upload_'):
                 field.required = False
             field.widget.attrs['class'] = 'form-control'
             if name.startswith('anexo_'):
                 field.widget.attrs['accept'] = '.pdf,.png,.jpg,.jpeg'
+        data_admissao = self.fields['data_admissao']
+        data_admissao.required = self.instance._state.adding
+        data_admissao.label = 'Data de início / admissão'
+        data_admissao.error_messages['required'] = 'Informe a data de início do colaborador.'
+        data_admissao.help_text = 'Informe a data em que a pessoa iniciou na empresa.'
         self.fields['salario'].help_text = 'Informe o salário mensal do colaborador.'
         self.fields['vale_transporte_semanal'].help_text = (
             'Informe o valor total pago por semana (apenas CLT).'

@@ -6,7 +6,7 @@
 {% block content %}
 <div class="module-banner mod-banner-2" style="margin-bottom:20px;">
   <h1 class="mod-title">🏢 {{ acao }} Colaborador</h1>
-  <div class="mod-desc">Envie um documento agora e complete os demais dados quando estiverem disponíveis.</div>
+  <div class="mod-desc">{% if form.fields.data_admissao.required %}Informe a data de início e envie um documento para cadastrar o colaborador.{% else %}Atualize os dados e documentos do colaborador.{% endif %}</div>
 </div>
 
 <div class="card collaborator-form-card">
@@ -24,7 +24,7 @@
         <span class="form-section-icon" aria-hidden="true">01</span>
         <div>
           <h2 id="dados-colaborador-title">Dados do colaborador</h2>
-          <p>Todos os dados pessoais e profissionais são opcionais e podem ser preenchidos depois.</p>
+          <p>{% if form.fields.data_admissao.required %}A data de início é obrigatória. Os demais dados podem ser preenchidos depois.{% else %}Complete os dados pessoais e profissionais quando estiverem disponíveis.{% endif %}</p>
         </div>
       </div>
       <div class="collaborator-fields-grid">
@@ -35,6 +35,7 @@
                 {{ field.label }} {% if field.field.required %}<span class="required">*</span>{% endif %}
               </label>
               {{ field }}
+              {% if field.help_text %}<small class="form-help">{{ field.help_text }}</small>{% endif %}
               {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
             </div>
           {% endif %}
