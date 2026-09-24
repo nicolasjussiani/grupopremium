@@ -17,6 +17,14 @@ def validate_document_upload(upload):
     )
 
 
+def validate_pdf_upload(upload):
+    _validate_upload(
+        upload,
+        extensions={'.pdf'},
+        mime_types={'application/pdf'},
+    )
+
+
 def validate_image_upload(upload):
     _validate_upload(
         upload,

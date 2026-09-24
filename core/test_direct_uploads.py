@@ -9,7 +9,9 @@ from django.core.files.storage import default_storage
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from core.direct_uploads import TOKEN_SALT, verify_direct_upload
+from core.direct_uploads import (
+    TOKEN_SALT, validate_upload_metadata, verify_direct_upload,
+)
 
 
 class DirectUploadEndpointTests(TestCase):
@@ -65,3 +67,16 @@ class DirectUploadTokenTests(TestCase):
         )
         with self.assertRaises(ValidationError):
             verify_direct_upload(request, 'curriculo_pdf')
+
+    def test_upload_financeiro_aceita_somente_pdf(self):
+        with self.assertRaises(ValidationError):
+            validate_upload_metadata(
+                'arquivo_pdf', 'nota.png', 'image/png', 100,
+            )
+
+        pasta, extensao, tamanho = validate_upload_metadata(
+            'arquivo_pdf', 'nota.pdf', 'application/pdf', 100,
+        )
+        self.assertEqual(pasta, '_temporarios/financeiro/documentos')
+        self.assertEqual(extensao, '.pdf')
+        self.assertEqual(tamanho, 100)

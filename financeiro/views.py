@@ -13,7 +13,7 @@ from .models import DocumentoFinanceiro, AuditoriaItem, LancamentoERP, Orcamento
 from django.http import HttpResponse
 from django.core.files.storage import default_storage
 from core.access import access_required
-from core.validators import validate_document_upload
+from core.validators import validate_document_upload, validate_pdf_upload
 from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.utils.text import get_valid_filename
@@ -152,7 +152,7 @@ def entrada_documento(request):
             })
         if arquivo_upload:
             try:
-                validate_document_upload(arquivo_upload)
+                validate_pdf_upload(arquivo_upload)
             except ValidationError as exc:
                 messages.error(request, exc.messages[0])
                 return render(request, 'financeiro/entrada_documento.html', {

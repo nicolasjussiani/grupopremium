@@ -53,8 +53,12 @@ def validate_upload_metadata(field_name, filename, content_type, size):
 
     extension = Path(filename).suffix.lower()
     kind = rule[1]
-    allowed_extensions = IMAGE_EXTENSIONS if kind == 'image' else DOCUMENT_EXTENSIONS
-    allowed_mime_types = IMAGE_MIME_TYPES if kind == 'image' else DOCUMENT_MIME_TYPES
+    if field_name == 'arquivo_pdf':
+        allowed_extensions = {'.pdf'}
+        allowed_mime_types = {'application/pdf'}
+    else:
+        allowed_extensions = IMAGE_EXTENSIONS if kind == 'image' else DOCUMENT_EXTENSIONS
+        allowed_mime_types = IMAGE_MIME_TYPES if kind == 'image' else DOCUMENT_MIME_TYPES
     if extension not in allowed_extensions or content_type not in allowed_mime_types:
         raise ValidationError('Tipo de arquivo nao permitido.')
     return rule[0], extension, size

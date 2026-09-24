@@ -64,6 +64,25 @@ class EntradaDocumentoOpcionalTests(TestCase):
         documento = DocumentoFinanceiro.objects.get(numero_documento='NF-SEM-PDF-001')
         self.assertFalse(documento.arquivo)
 
+    def test_novo_documento_rejeita_imagem_no_campo_pdf(self):
+        imagem = SimpleUploadedFile(
+            'documento.png', b'\x89PNG\r\n\x1a\nconteudo', content_type='image/png'
+        )
+
+        response = self.client.post(reverse('entrada_documento'), {
+            'tipo': 'nota_fiscal',
+            'numero_documento': 'NF-IMAGEM-001',
+            'descricao': 'Arquivo com formato incorreto',
+            'valor': '89.90',
+            'arquivo_pdf': imagem,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Extensao de arquivo nao permitida.')
+        self.assertFalse(
+            DocumentoFinanceiro.objects.filter(numero_documento='NF-IMAGEM-001').exists()
+        )
+
     def test_formulario_indica_campos_complementares_como_opcionais(self):
         response = self.client.get(reverse('entrada_documento'))
 
@@ -75,8 +94,19 @@ class EntradaDocumentoOpcionalTests(TestCase):
             response, 'name="data_vencimento" class="form-control" required'
         )
         self.assertContains(response, 'inclusive o PDF')
+        self.assertContains(response, 'Documento financeiro em PDF')
+        self.assertContains(response, 'com até 50 MB')
         self.assertNotContains(
-            response, 'name="arquivo_pdf" accept="application/pdf" class="form-control" required'
+            response, 'name="arquivo_pdf" accept=".pdf,application/pdf" class="form-control" required'
+        )
+
+    def test_campo_pdf_aparece_antes_dos_dados_do_documento(self):
+        response = self.client.get(reverse('entrada_documento'))
+        conteudo = response.content.decode()
+
+        self.assertLess(
+            conteudo.index('name="arquivo_pdf"'),
+            conteudo.index('name="tipo"'),
         )
 
     def test_centro_de_custo_pode_ser_informado_no_lancamento(self):
