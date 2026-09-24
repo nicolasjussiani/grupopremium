@@ -15,10 +15,21 @@
   <p>Os próximos pagamentos recorrentes sairão da folha automaticamente. Pagamentos já realizados e obrigações anteriores permanecerão no histórico.</p>
   <p style="color: var(--text-muted); margin-bottom: 25px;">O colaborador deixará de aparecer nas rotinas de pessoas ativas, mas seu cadastro, documentos, EPIs e demais registros serão preservados. O RH poderá reativá-lo posteriormente.</p>
   
-  <form method="post" class="flex gap-2" style="justify-content: center;">
+  <form method="post" style="max-width:360px; margin:0 auto; text-align:left;">
     {% csrf_token %}
-    <button type="submit" class="btn btn-danger">Confirmar desativação</button>
-    <a href="{% url 'lista_colaboradores' %}" class="btn btn-outline">Cancelar</a>
+    <div class="form-group" style="margin-bottom:20px;">
+      <label class="form-label" for="data_desligamento">
+        Data de desligamento <span class="required">*</span>
+      </label>
+      <input type="date" id="data_desligamento" name="data_desligamento"
+             class="form-control" value="{{ data_desligamento }}" required>
+      <small class="form-help">Essa data será usada no histórico e no controle financeiro.</small>
+      {% if erro_desligamento %}<div class="field-error">{{ erro_desligamento }}</div>{% endif %}
+    </div>
+    <div class="flex gap-2" style="justify-content:center;">
+      <button type="submit" class="btn btn-danger">Confirmar desativação</button>
+      <a href="{% url 'lista_colaboradores' %}" class="btn btn-outline">Cancelar</a>
+    </div>
   </form>
 </div>
 {% endblock %}

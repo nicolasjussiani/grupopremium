@@ -480,6 +480,26 @@ class TestColaboradorForm(TestCase):
         )
         self.assertTrue(form.is_valid(), form.errors)
 
+    def test_edicao_exige_data_ao_mudar_status_para_inativo(self):
+        colaborador = Colaborador.objects.create(
+            nome='Colaborador ativo', data_admissao=datetime.date(2026, 9, 1),
+        )
+        form = ColaboradorForm(
+            data=_colaborador_data(
+                status='inativo',
+                data_admissao='2026-09-01',
+                data_desligamento='',
+            ),
+            instance=colaborador,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('data_desligamento', form.errors)
+        self.assertIn(
+            'Informe a data de desligamento do colaborador.',
+            form.errors['data_desligamento'],
+        )
+
     def test_data_existente_renderizada_no_formato_do_campo_date(self):
         colaborador = Colaborador.objects.create(
             nome='Cadastro com data', data_admissao=datetime.date(2026, 9, 1),

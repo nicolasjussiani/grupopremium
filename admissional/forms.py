@@ -26,7 +26,9 @@ class ColaboradorForm(forms.ModelForm):
         widgets = {
             'data_nascimento': forms.DateInput(attrs={'type': 'date'}),
             'data_admissao': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
-            'data_desligamento': forms.DateInput(attrs={'type': 'date'}),
+            'data_desligamento': forms.DateInput(
+                format='%Y-%m-%d', attrs={'type': 'date'},
+            ),
             'salario': forms.TextInput(attrs={
                 'inputmode': 'decimal', 'placeholder': 'Ex.: 2000,00',
             }),
@@ -87,6 +89,15 @@ class ColaboradorForm(forms.ModelForm):
             )
 
         tipo_contrato = cleaned_data['tipo_contrato']
+        status = cleaned_data['status']
+        if (
+            status in Colaborador.STATUS_SEM_PAGAMENTO
+            and not cleaned_data.get('data_desligamento')
+        ):
+            self.add_error(
+                'data_desligamento',
+                'Informe a data de desligamento do colaborador.',
+            )
         vale_transporte = cleaned_data.get('vale_transporte_semanal') or 0
         ajuda_custo = cleaned_data.get('ajuda_custo_semanal') or 0
         if tipo_contrato == 'pj' and vale_transporte > 0:

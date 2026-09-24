@@ -62,11 +62,15 @@ class ListaColaboradoresContratoTest(TestCase):
             arquivo='admissional/colaboradores/teste/contrato.pdf',
         )
 
-        response = self.client.post(reverse('excluir_colaborador', args=[colaborador.pk]))
+        response = self.client.post(
+            reverse('excluir_colaborador', args=[colaborador.pk]),
+            {'data_desligamento': '2026-04-30'},
+        )
 
         self.assertRedirects(response, f"{reverse('lista_colaboradores')}?status=inativo")
         colaborador.refresh_from_db()
         self.assertEqual(colaborador.status, 'inativo')
+        self.assertEqual(colaborador.data_desligamento, date(2026, 4, 30))
         self.assertTrue(Colaborador.objects.filter(pk=colaborador.pk).exists())
         self.assertTrue(DocumentoColaborador.objects.filter(pk=documento.pk).exists())
 
@@ -95,7 +99,10 @@ class ListaColaboradoresContratoTest(TestCase):
             data_pagamento=data_historica,
         )
 
-        self.client.post(reverse('excluir_colaborador', args=[colaborador.pk]))
+        self.client.post(
+            reverse('excluir_colaborador', args=[colaborador.pk]),
+            {'data_desligamento': timezone.localdate().isoformat()},
+        )
 
         pendente.refresh_from_db()
         vale_transporte.refresh_from_db()
@@ -122,7 +129,10 @@ class ListaColaboradoresContratoTest(TestCase):
             valor='150.00', data_vencimento=hoje + timezone.timedelta(days=1),
         )
 
-        self.client.post(reverse('excluir_colaborador', args=[colaborador.pk]))
+        self.client.post(
+            reverse('excluir_colaborador', args=[colaborador.pk]),
+            {'data_desligamento': timezone.localdate().isoformat()},
+        )
 
         antigo.refresh_from_db()
         reembolso.refresh_from_db()
@@ -154,7 +164,46 @@ class ListaColaboradoresContratoTest(TestCase):
 
         self.assertContains(response, 'Desativar Colaborador')
         self.assertContains(response, 'documentos, EPIs e demais registros serão preservados')
+        self.assertContains(response, 'Data de desligamento')
+        self.assertContains(response, 'name="data_desligamento"', html=False)
         self.assertNotContains(response, 'removerá todos os registros')
+
+    def test_desativar_exige_data_de_desligamento(self):
+        colaborador = Colaborador.objects.create(
+            nome='Pessoa sem Data', data_admissao=date(2026, 4, 10), status='ativo',
+        )
+
+        response = self.client.post(
+            reverse('excluir_colaborador', args=[colaborador.pk]),
+            {'data_desligamento': ''},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Informe uma data de desligamento válida.')
+        colaborador.refresh_from_db()
+        self.assertEqual(colaborador.status, 'ativo')
+        self.assertIsNone(colaborador.data_desligamento)
+
+    def test_desativar_rejeita_data_anterior_a_admissao(self):
+        colaborador = Colaborador.objects.create(
+            nome='Pessoa com Data Inválida',
+            data_admissao=date(2026, 4, 10),
+            status='ativo',
+        )
+
+        response = self.client.post(
+            reverse('excluir_colaborador', args=[colaborador.pk]),
+            {'data_desligamento': '2026-04-09'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'A data de desligamento não pode ser anterior à admissão.',
+        )
+        colaborador.refresh_from_db()
+        self.assertEqual(colaborador.status, 'ativo')
+        self.assertIsNone(colaborador.data_desligamento)
 
     def test_delete_direto_no_modelo_tambem_apenas_desativa(self):
         colaborador = Colaborador.objects.create(

@@ -217,6 +217,11 @@ class Colaborador(models.Model):
 
     def clean(self):
         super().clean()
+        if self.status in self.STATUS_SEM_PAGAMENTO and not self.data_desligamento:
+            raise ValidationError({
+                'data_desligamento':
+                    'Informe a data de desligamento do colaborador.'
+            })
         if (
             self.data_admissao
             and self.data_desligamento

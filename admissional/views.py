@@ -1058,17 +1058,38 @@ def excluir_documento_colaborador(request, pk, documento_pk):
 def excluir_colaborador(request, pk):
     colaborador = get_object_or_404(Colaborador, pk=pk)
     if request.method == 'POST':
+        data_texto = request.POST.get('data_desligamento', '').strip()
+        data_desligamento = parse_date(data_texto) if data_texto else None
+        if not data_desligamento:
+            return render(request, 'admissional/excluir_colaborador.html', {
+                'colaborador': colaborador,
+                'data_desligamento': data_texto,
+                'erro_desligamento': 'Informe uma data de desligamento válida.',
+            })
+
         nome = colaborador.nome
+        if colaborador.data_admissao and data_desligamento < colaborador.data_admissao:
+            return render(request, 'admissional/excluir_colaborador.html', {
+                'colaborador': colaborador,
+                'data_desligamento': data_texto,
+                'erro_desligamento':
+                    'A data de desligamento não pode ser anterior à admissão.',
+            })
+
         # Desativacao logica: preserva cadastro, documentos e todo o historico.
         colaborador.status = 'inativo'
-        colaborador.save(update_fields=['status'])
+        colaborador.data_desligamento = data_desligamento
+        colaborador.save(update_fields=['status', 'data_desligamento'])
         messages.success(
             request,
             f'Colaborador {nome} desativado com sucesso. Os próximos pagamentos '
             'recorrentes saíram da folha; nenhum histórico foi excluído.'
         )
         return redirect(f"{reverse('lista_colaboradores')}?status=inativo")
-    return render(request, 'admissional/excluir_colaborador.html', {'colaborador': colaborador})
+    return render(request, 'admissional/excluir_colaborador.html', {
+        'colaborador': colaborador,
+        'data_desligamento': timezone.localdate().isoformat(),
+    })
 
 
 @login_required
