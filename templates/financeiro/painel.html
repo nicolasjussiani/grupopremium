@@ -14,18 +14,18 @@
     <div class="kpi-card kpi-mod6">
       <div class="kpi-icon">📄</div>
       <div class="kpi-value">{{ docs_pendentes|length }}</div>
-      <div class="kpi-label">Docs. Pendentes</div>
+      <div class="kpi-label">Docs. em conferência</div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--warning);">
       <div class="kpi-icon">💸</div>
       <div class="kpi-value" style="font-size:1.4rem;">R$</div>
       <div class="kpi-label">{{ total_valor_pendente|floatformat:0 }}</div>
-      <div class="kpi-sub">Total pendente</div>
+      <div class="kpi-sub">Total em conferência</div>
     </div>
     <div class="kpi-card kpi-mod6">
       <div class="kpi-icon">📊</div>
       <div class="kpi-value">{{ lancamentos_pendentes|length }}</div>
-      <div class="kpi-label">Lançamentos Pendentes</div>
+      <div class="kpi-label">Lançamentos em validação</div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--success);">
       <div class="kpi-icon">✅</div>
@@ -36,6 +36,41 @@
   </div>
 
   <a href="{% url 'entrada_documento' %}" class="btn btn-mod6">+ Novo Documento</a>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><div class="card-title">Situação dos pagamentos</div></div>
+  <form method="get" class="gateway-actions" style="margin-bottom:16px;">
+    <label for="filtro_pagamento">Pagamento</label>
+    <select id="filtro_pagamento" name="pagamento" class="form-control">
+      <option value="">Todos</option>
+      {% for valor, rotulo in situacoes_pagamento %}
+      <option value="{{ valor }}" {% if filtro_pagamento == valor %}selected{% endif %}>{{ rotulo }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-mod6">Filtrar</button>
+  </form>
+  <p class="form-help">Registros antigos aparecem como Não informado até que o pagamento seja conferido.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Documento / Descrição</th><th>Valor</th><th>Vencimento</th><th>Pagamento</th><th>Pago em</th><th></th></tr></thead>
+    <tbody>
+      {% for doc in pagamentos %}
+      <tr>
+        <td>{{ doc.numero_documento }}<br>{{ doc.descricao }}</td>
+        <td>R$ {{ doc.valor|floatformat:2 }}</td>
+        <td>{{ doc.data_vencimento|date:"d/m/Y"|default:"—" }}</td>
+        <td><span class="badge {% if doc.situacao_pagamento == 'pago' %}badge-success{% elif doc.situacao_pagamento == 'a_pagar' %}badge-warning{% else %}badge-info{% endif %}">{{ doc.get_situacao_pagamento_display }}</span></td>
+        <td>{{ doc.data_pagamento|date:"d/m/Y"|default:"—" }}</td>
+        <td><a href="{% url 'detalhe_documento' doc.pk %}" class="btn btn-sm btn-outline">Abrir</a></td>
+      </tr>
+      {% empty %}<tr><td colspan="6">Nenhum documento encontrado.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <div class="gateway-actions">
+    {% if pagamentos.has_previous %}<a href="?pagamento={{ filtro_pagamento }}&pagina={{ pagamentos.previous_page_number }}" class="btn btn-outline">Anterior</a>{% endif %}
+    <span>Página {{ pagamentos.number }} de {{ pagamentos.paginator.num_pages }}</span>
+    {% if pagamentos.has_next %}<a href="?pagamento={{ filtro_pagamento }}&pagina={{ pagamentos.next_page_number }}" class="btn btn-outline">Próxima</a>{% endif %}
+  </div>
 </div>
 
 <div class="card" style="margin-top:20px;border-left:4px solid var(--mod6-yellow);">
@@ -166,10 +201,10 @@
     {% endif %}
   </div>
 
-  <!-- Lançamentos Pendentes -->
+  <!-- Lançamentos em validação -->
   <div class="card" style="border-top-color:var(--mod6-yellow);">
     <div class="card-header">
-      <div class="card-title">📊 Lançamentos Pendentes</div>
+      <div class="card-title">📊 Lançamentos em validação</div>
       {% if lancamentos_pendentes %}<span class="badge badge-warning">{{ lancamentos_pendentes|length }}</span>{% endif %}
     </div>
 

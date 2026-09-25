@@ -68,6 +68,17 @@
 
   <!-- Ações -->
   <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div class="card-title">Pagamento: {{ documento.get_situacao_pagamento_display }}</div>
+      {% if documento.data_pagamento %}<p>Pago em {{ documento.data_pagamento|date:"d/m/Y" }}</p>{% endif %}
+      {% if pode_alterar_pagamento %}
+      <form method="post" action="{% url 'atualizar_pagamento_documento' documento.pk %}" style="margin-top:16px;">
+        {% csrf_token %}
+        {% include "financeiro/campos_pagamento.html" %}
+        <button type="submit" class="btn btn-mod6">Salvar pagamento</button>
+      </form>
+      {% endif %}
+    </div>
     <!-- Ação disponível conforme status -->
     {% if documento.status == 'em_auditoria' or documento.status == 'recebido' %}
     <div class="card">

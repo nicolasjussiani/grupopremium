@@ -4,6 +4,16 @@ from django.contrib.auth.models import User
 
 
 class DocumentoFinanceiro(models.Model):
+    SITUACOES_PAGAMENTO = [
+        ('nao_informado', 'Não informado'),
+        ('a_pagar', 'A pagar'),
+        ('pago', 'Pago'),
+    ]
+    situacao_pagamento = models.CharField(
+        max_length=15, choices=SITUACOES_PAGAMENTO, default='nao_informado',
+        verbose_name='Situação do pagamento',
+    )
+    data_pagamento = models.DateField(null=True, blank=True, verbose_name='Data do pagamento')
     TIPOS = [
         ('nota_fiscal', 'Nota Fiscal'),
         ('contrato', 'Contrato'),

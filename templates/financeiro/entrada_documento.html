@@ -18,7 +18,7 @@
     <div class="gateway-box">
       <div class="gateway-question">Informações do documento estão corretas?</div>
       <p style="font-size:0.82rem;color:var(--text-secondary);">SIM → Inicia auditoria automática | NÃO → Solicitar correção ao emitente</p>
-      <p style="font-size:0.82rem;color:var(--text-secondary);margin-top:6px;">Obrigatórios somente: tipo, número, descrição e valor. Os demais dados, inclusive o PDF, podem ficar em branco neste cadastro.</p>
+      <p style="font-size:0.82rem;color:var(--text-secondary);margin-top:6px;">Obrigatórios somente: tipo, número, descrição e valor. Os demais dados, inclusive o PDF, podem ficar em branco neste cadastro. Ao selecionar Pago, informe também a data do pagamento.</p>
     </div>
 
     <form method="post" enctype="multipart/form-data" style="margin-top:20px;">
@@ -40,54 +40,55 @@
         </div>
       </div>
       <div class="form-grid">
+        {% include "financeiro/campos_pagamento.html" %}
         <div class="form-group">
           <label class="form-label">Tipo de Documento <span class="required">*</span></label>
           <select name="tipo" class="form-control" required>
             <option value="">Selecione...</option>
             {% for val, label in tipos %}
-            <option value="{{ val }}">{{ label }}</option>
+            <option value="{{ val }}" {% if request.POST.tipo == val %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">Número do Documento <span class="required">*</span></label>
-          <input type="text" name="numero_documento" class="form-control" required placeholder="Ex: NF-123456">
+          <input type="text" name="numero_documento" value="{{ request.POST.numero_documento|default:'' }}" class="form-control" required placeholder="Ex: NF-123456">
         </div>
         <div class="form-group form-full">
           <label class="form-label">Descrição <span class="required">*</span></label>
-          <input type="text" name="descricao" class="form-control" required placeholder="Descrição resumida do documento">
+          <input type="text" name="descricao" value="{{ request.POST.descricao|default:'' }}" class="form-control" required placeholder="Descrição resumida do documento">
         </div>
         <div class="form-group">
           <label class="form-label">Valor (R$) <span class="required">*</span></label>
-          <input type="number" name="valor" class="form-control" required min="0.01" step="0.01" placeholder="0,00">
+          <input type="number" name="valor" value="{{ request.POST.valor|default:'' }}" class="form-control" required min="0.01" step="0.01" placeholder="0,00">
         </div>
         <div class="form-group">
           <label class="form-label">Centro de Custo <span style="color:var(--text-muted);">(opcional)</span></label>
-          <input type="text" name="centro_custo" class="form-control" placeholder="Ex: ADM, OPE-SP...">
+          <input type="text" name="centro_custo" value="{{ request.POST.centro_custo|default:'' }}" class="form-control" placeholder="Ex: ADM, OPE-SP...">
         </div>
         <div class="form-group">
           <label class="form-label">Unidade <span style="color:var(--text-muted);">(opcional)</span></label>
-          <input type="text" name="unidade" class="form-control" placeholder="Ex: Matriz SP, Filial RJ...">
+          <input type="text" name="unidade" value="{{ request.POST.unidade|default:'' }}" class="form-control" placeholder="Ex: Matriz SP, Filial RJ...">
         </div>
         <div class="form-group">
           <label class="form-label">CNPJ do Emitente <span style="color:var(--text-muted);">(opcional)</span></label>
-          <input type="text" id="id_cnpj" name="cnpj_emitente" class="form-control" placeholder="00.000.000/0001-00">
+          <input type="text" id="id_cnpj" name="cnpj_emitente" value="{{ request.POST.cnpj_emitente|default:'' }}" class="form-control" placeholder="00.000.000/0001-00">
         </div>
         <div class="form-group">
           <label class="form-label">Razão Social do Emitente <span style="color:var(--text-muted);">(opcional)</span></label>
-          <input type="text" id="id_razao" name="razao_social_emitente" class="form-control" placeholder="Nome da empresa emitente">
+          <input type="text" id="id_razao" name="razao_social_emitente" value="{{ request.POST.razao_social_emitente|default:'' }}" class="form-control" placeholder="Nome da empresa emitente">
         </div>
         <div class="form-group">
           <label class="form-label">Contratos Vinculados</label>
-          <input type="text" name="contratos_vinculados" class="form-control" placeholder="Nº do(s) contrato(s)">
+          <input type="text" name="contratos_vinculados" value="{{ request.POST.contratos_vinculados|default:'' }}" class="form-control" placeholder="Nº do(s) contrato(s)">
         </div>
         <div class="form-group">
           <label class="form-label">Data de Emissão <span style="color:var(--text-muted);">(opcional)</span></label>
-          <input type="date" name="data_emissao" class="form-control">
+          <input type="date" name="data_emissao" value="{{ request.POST.data_emissao|default:'' }}" class="form-control">
         </div>
         <div class="form-group">
           <label class="form-label">Data de Vencimento <span style="color:var(--text-muted);">(opcional)</span></label>
-          <input type="date" id="id_vencimento" name="data_vencimento" class="form-control">
+          <input type="date" id="id_vencimento" name="data_vencimento" value="{{ request.POST.data_vencimento|default:'' }}" class="form-control">
         </div>
       </div>
 
@@ -132,9 +133,9 @@
         const info = data.dados;
         if (info.cnpj_emitente) document.getElementById('id_cnpj').value = info.cnpj_emitente;
         if (info.razao_social_emitente) document.getElementById('id_razao').value = info.razao_social_emitente;
-        if (info.valor) document.querySelector('input[name="valor"]').value = info.valor;
-        if (info.numero_documento) document.querySelector('input[name="numero_documento"]').value = info.numero_documento;
-        if (info.data_emissao) document.querySelector('input[name="data_emissao"]').value = info.data_emissao;
+        if (info.valor) document.querySelector('input[name="valor" value="{{ request.POST.valor|default:'' }}"]').value = info.valor;
+        if (info.numero_documento) document.querySelector('input[name="numero_documento" value="{{ request.POST.numero_documento|default:'' }}"]').value = info.numero_documento;
+        if (info.data_emissao) document.querySelector('input[name="data_emissao" value="{{ request.POST.data_emissao|default:'' }}"]').value = info.data_emissao;
         if (info.data_vencimento) document.getElementById('id_vencimento').value = info.data_vencimento;
         
         if (info.produtos && info.produtos.length > 0) {

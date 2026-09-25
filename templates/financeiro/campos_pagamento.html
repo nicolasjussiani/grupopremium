@@ -1,0 +1,26 @@
+<div class="form-group">
+  <label class="form-label" for="id_situacao_pagamento">Situação do pagamento</label>
+  {{ pagamento_form.situacao_pagamento }}
+  {{ pagamento_form.situacao_pagamento.errors }}
+</div>
+<div class="form-group" id="campo_data_pagamento">
+  <label class="form-label" for="id_data_pagamento">Data do pagamento</label>
+  {{ pagamento_form.data_pagamento }}
+  {{ pagamento_form.data_pagamento.errors }}
+</div>
+<p class="form-help form-full">Pix ou outra despesa já quitada: selecione Pago e informe a data do pagamento. Para despesas ainda não quitadas, selecione A pagar e preencha o vencimento no documento.</p>
+<script>
+  (() => {
+    const situacao = document.getElementById('id_situacao_pagamento');
+    const data = document.getElementById('id_data_pagamento');
+    const campo = document.getElementById('campo_data_pagamento');
+    function atualizar() {
+      const pago = situacao.value === 'pago';
+      campo.style.display = pago ? '' : 'none';
+      data.required = pago;
+      data.disabled = !pago;
+    }
+    situacao.addEventListener('change', atualizar);
+    atualizar();
+  })();
+</script>

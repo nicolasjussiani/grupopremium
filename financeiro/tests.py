@@ -1,6 +1,7 @@
 from unittest.mock import patch
+from datetime import date
 
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group, Permission, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
@@ -8,6 +9,143 @@ from django.urls import reverse
 from core.models import PerfilUsuario
 from financeiro.models import AuditoriaItem, DocumentoFinanceiro, LancamentoERP
 from financeiro.services.ocr_service import extrair_dados_documento
+
+
+class PagamentoDocumentoTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('operador-pagamento')
+        PerfilUsuario.objects.create(usuario=self.user, perfil='financeiro')
+        grupo, _ = Group.objects.get_or_create(name='Financeiro_Operador')
+        self.user.groups.add(grupo)
+        self.client.force_login(self.user)
+        self.dados = dict(tipo='boleto', numero_documento='BOL-1',
+                          descricao='Compra de material', valor='150.00',
+                          situacao_pagamento='a_pagar', data_vencimento='2026-10-01')
+
+    def criar(self, **campos):
+        dados = {**self.dados, **campos}
+        return self.client.post(reverse('entrada_documento'), dados)
+
+    def test_pago_no_cadastro_nao_aparece_no_filtro_a_pagar(self):
+        self.assertEqual(self.criar(situacao_pagamento='pago', data_pagamento='2026-09-25').status_code, 302)
+        doc = DocumentoFinanceiro.objects.get()
+        self.assertEqual(doc.data_pagamento, date(2026, 9, 25))
+        self.assertEqual(doc.situacao_pagamento, 'pago')
+        self.assertEqual(doc.status, 'em_auditoria')
+        painel = self.client.get(reverse('painel_financeiro'), {'pagamento': 'a_pagar'})
+        self.assertEqual(list(painel.context['pagamentos']), [])
+        painel = self.client.get(reverse('painel_financeiro'), {'pagamento': 'pago'})
+        self.assertContains(painel, 'Compra de material')
+
+    def test_rejeita_pago_sem_data_e_status_invalido(self):
+        for campos in ({'situacao_pagamento': 'pago'},
+                       {'situacao_pagamento': 'invalido'},
+                       {'situacao_pagamento': 'pago', 'data_pagamento': '2026-02-30'}):
+            with self.subTest(campos=campos):
+                self.assertEqual(self.criar(**campos).status_code, 200)
+                self.assertFalse(DocumentoFinanceiro.objects.exists())
+
+    def test_baixa_e_correcao_preservam_vencimento_e_auditoria(self):
+        self.criar()
+        doc = DocumentoFinanceiro.objects.get()
+        url = reverse('atualizar_pagamento_documento', args=[doc.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.assertEqual(self.client.post(url, {'situacao_pagamento': 'pago'}).status_code, 400)
+        self.assertEqual(self.client.post(url, {'situacao_pagamento': 'pago', 'data_pagamento': '2026-09-25'}).status_code, 302)
+        doc.refresh_from_db()
+        self.assertEqual(doc.situacao_pagamento, 'pago')
+        self.assertEqual(doc.data_vencimento, date(2026, 10, 1))
+        self.assertEqual(doc.status, 'em_auditoria')
+        self.client.post(url, {'situacao_pagamento': 'a_pagar', 'data_pagamento': '2026-09-25'})
+        doc.refresh_from_db()
+        self.assertEqual(doc.situacao_pagamento, 'a_pagar')
+        self.assertIsNone(doc.data_pagamento)
+
+    def test_usuario_sem_permissao_nao_altera_pagamento(self):
+        self.criar()
+        doc = DocumentoFinanceiro.objects.get()
+        leitor = User.objects.create_user('sem-permissao')
+        leitor.user_permissions.add(Permission.objects.get(codename='view_documentofinanceiro'))
+        self.client.force_login(leitor)
+        response = self.client.post(reverse('atualizar_pagamento_documento', args=[doc.pk]),
+                                    {'situacao_pagamento': 'pago', 'data_pagamento': '2026-09-25'})
+        self.assertEqual(response.status_code, 403)
+        doc.refresh_from_db()
+        self.assertEqual(doc.situacao_pagamento, 'a_pagar')
+        self.assertNotContains(self.client.get(reverse('detalhe_documento', args=[doc.pk])), 'Salvar pagamento')
+
+    def test_documento_sem_classificacao_nao_e_assumido_como_divida(self):
+        doc = DocumentoFinanceiro.objects.create(tipo='boleto', numero_documento='ANTIGO', descricao='Antigo', valor=20)
+        self.assertEqual(doc.situacao_pagamento, 'nao_informado')
+        self.assertContains(self.client.get(reverse('painel_financeiro'), {'pagamento': 'nao_informado'}), 'ANTIGO')
+
+    def test_lancamento_erp_salva_pagamento_no_documento(self):
+        self.criar()
+        doc = DocumentoFinanceiro.objects.get()
+        doc.status = 'aprovado_lancamento'
+        doc.save()
+        dados = dict(descricao='Material', tipo='debito', competencia='2026-09-01', centro_custo='ADM', situacao_pagamento='pago')
+        url = reverse('lancar_erp', args=[doc.pk])
+        self.assertEqual(self.client.post(url, dados).status_code, 200)
+        self.assertFalse(LancamentoERP.objects.exists())
+        dados['data_pagamento'] = '2026-09-25'
+        self.assertEqual(self.client.post(url, dados).status_code, 302)
+        doc.refresh_from_db()
+        self.assertEqual(doc.situacao_pagamento, 'pago')
+        self.assertEqual(doc.status, 'lancado')
+
+    def test_erro_de_pagamento_preserva_dados_digitados_no_lancamento(self):
+        self.criar()
+        doc = DocumentoFinanceiro.objects.get()
+        doc.status = 'aprovado_lancamento'
+        doc.save()
+        response = self.client.post(reverse('lancar_erp', args=[doc.pk]), {
+            'descricao': 'Descricao manual especifica', 'tipo': 'provisao',
+            'competencia': '2026-09-01', 'centro_custo': 'CENTRO MANUAL',
+            'situacao_pagamento': 'pago',
+        })
+        self.assertContains(response, 'value="Descricao manual especifica"')
+        self.assertContains(response, 'value="2026-09-01"')
+        self.assertContains(response, 'value="CENTRO MANUAL"')
+        self.assertContains(response, 'value="provisao" selected')
+        self.assertFalse(LancamentoERP.objects.exists())
+
+    def test_aprovar_documento_nao_quita_e_baixa_funciona_apos_arquivamento(self):
+        self.client.force_login(User.objects.create_superuser('aprovador-teste', password='teste'))
+        self.criar()
+        doc = DocumentoFinanceiro.objects.get()
+        self.client.post(reverse('auditoria_documento', args=[doc.pk]), {
+            f'item_{item.pk}': 'ok' for item in doc.auditoria.all()
+        })
+        self.client.post(reverse('lancar_erp', args=[doc.pk]), {
+            'descricao': 'Boleto pendente', 'tipo': 'debito',
+            'competencia': '2026-09-01', 'centro_custo': 'ADM',
+            'situacao_pagamento': 'a_pagar',
+        })
+        lancamento = LancamentoERP.objects.get(documento=doc)
+        self.client.post(reverse('validar_lancamento', args=[lancamento.pk]), {'acao': 'validar'})
+        doc.refresh_from_db()
+        self.assertEqual(doc.status, 'arquivado')
+        self.assertEqual(doc.situacao_pagamento, 'a_pagar')
+        self.assertContains(self.client.get(reverse('painel_financeiro'), {'pagamento': 'a_pagar'}), 'Compra de material')
+        self.client.post(reverse('atualizar_pagamento_documento', args=[doc.pk]), {
+            'situacao_pagamento': 'pago', 'data_pagamento': '2026-09-25',
+        })
+        doc.refresh_from_db()
+        self.assertEqual(doc.status, 'arquivado')
+        self.assertEqual(doc.situacao_pagamento, 'pago')
+        self.assertEqual(list(self.client.get(reverse('painel_financeiro'), {'pagamento': 'a_pagar'}).context['pagamentos']), [])
+
+    def test_pagamento_protegido_por_csrf(self):
+        from django.test import Client
+        self.criar()
+        doc = DocumentoFinanceiro.objects.get()
+        cliente = Client(enforce_csrf_checks=True)
+        cliente.force_login(self.user)
+        url = reverse('atualizar_pagamento_documento', args=[doc.pk])
+        self.assertEqual(cliente.post(url, {'situacao_pagamento': 'pago', 'data_pagamento': '2026-09-25'}).status_code, 403)
+        doc.refresh_from_db()
+        self.assertEqual(doc.situacao_pagamento, 'a_pagar')
 
 
 class LeituraProvisoriaDocumentoTests(SimpleTestCase):

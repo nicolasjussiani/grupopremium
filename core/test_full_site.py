@@ -372,6 +372,7 @@ class FullSiteRouteTests(TestCase):
             ('painel_financeiro', (), 200),
             ('entrada_documento', (), 200),
             ('detalhe_documento', (self.documento_financeiro.pk,), 200),
+            ('atualizar_pagamento_documento', (self.documento_financeiro.pk,), 405),
             ('auditoria_documento', (self.documento_financeiro.pk,), 200),
             ('lancar_erp', (self.documento_financeiro.pk,), 200),
             ('validar_lancamento', (self.lancamento.pk,), 200),

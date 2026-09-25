@@ -12,7 +12,10 @@ from decimal import Decimal, InvalidOperation
 from .models import DocumentoFinanceiro, AuditoriaItem, LancamentoERP, OrcamentoCentroCusto, ItemDocumentoFinanceiro
 from django.http import HttpResponse
 from django.core.files.storage import default_storage
-from core.access import access_required
+from core.access import access_required, user_has_access
+from django.core.paginator import Paginator
+from django.views.decorators.http import require_POST
+from .forms import PagamentoDocumentoForm
 from core.validators import validate_document_upload, validate_pdf_upload
 from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
@@ -26,6 +29,13 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def painel_financeiro(request):
+    pagamentos = DocumentoFinanceiro.objects.all()
+    filtro_pagamento = request.GET.get('pagamento', '')
+    if filtro_pagamento in dict(DocumentoFinanceiro.SITUACOES_PAGAMENTO):
+        pagamentos = pagamentos.filter(situacao_pagamento=filtro_pagamento)
+    else:
+        filtro_pagamento = ''
+    pagina_pagamentos = Paginator(pagamentos, 20).get_page(request.GET.get('pagina'))
     docs_pendentes = DocumentoFinanceiro.objects.filter(status__in=['recebido', 'em_auditoria'])
     lancamentos_pendentes = LancamentoERP.objects.filter(status__in=['rascunho', 'em_validacao'])
     finalizados_mes = LancamentoERP.objects.filter(
@@ -87,6 +97,9 @@ def painel_financeiro(request):
         messages.error(request, 'Nao foi possivel carregar os orcamentos.')
 
     return render(request, 'financeiro/painel.html', {
+        'pagamentos': pagina_pagamentos,
+        'filtro_pagamento': filtro_pagamento,
+        'situacoes_pagamento': DocumentoFinanceiro.SITUACOES_PAGAMENTO,
         'docs_pendentes': docs_pendentes,
         'lancamentos_pendentes': lancamentos_pendentes,
         'finalizados_mes': finalizados_mes,
@@ -107,6 +120,7 @@ def painel_financeiro(request):
 @access_required(permission='financeiro.add_documentofinanceiro', profiles=('financeiro', 'gestor'))
 @transaction.atomic
 def entrada_documento(request):
+    pagamento_form = PagamentoDocumentoForm(request.POST if request.method == 'POST' else None)
     if request.method == 'POST':
         campos_obrigatorios = (
             'tipo', 'numero_documento', 'descricao', 'valor',
@@ -114,7 +128,7 @@ def entrada_documento(request):
         if any(not request.POST.get(campo, '').strip() for campo in campos_obrigatorios):
             messages.error(request, 'Preencha todos os campos obrigatorios.')
             return render(request, 'financeiro/entrada_documento.html', {
-                'tipos': DocumentoFinanceiro.TIPOS,
+                'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
             })
         try:
             valor_documento = Decimal(request.POST['valor'].replace(',', '.'))
@@ -123,10 +137,21 @@ def entrada_documento(request):
         if valor_documento <= 0:
             messages.error(request, 'O valor do documento deve ser maior que zero.')
             return render(request, 'financeiro/entrada_documento.html', {
-                'tipos': DocumentoFinanceiro.TIPOS,
+                'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
+            })
+
+        # Compatibilidade com integrações que ainda não enviam o novo campo.
+        if 'situacao_pagamento' not in request.POST:
+            dados_pagamento = request.POST.copy()
+            dados_pagamento['situacao_pagamento'] = 'a_pagar'
+            pagamento_form = PagamentoDocumentoForm(dados_pagamento)
+        if not pagamento_form.is_valid():
+            return render(request, 'financeiro/entrada_documento.html', {
+                'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
             })
 
         doc = DocumentoFinanceiro(
+            **pagamento_form.cleaned_data,
             tipo=request.POST['tipo'],
             numero_documento=request.POST['numero_documento'],
             descricao=request.POST['descricao'],
@@ -148,7 +173,7 @@ def entrada_documento(request):
         except ValidationError as exc:
             messages.error(request, exc.messages[0])
             return render(request, 'financeiro/entrada_documento.html', {
-                'tipos': DocumentoFinanceiro.TIPOS,
+                'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
             })
         if arquivo_upload:
             try:
@@ -156,7 +181,7 @@ def entrada_documento(request):
             except ValidationError as exc:
                 messages.error(request, exc.messages[0])
                 return render(request, 'financeiro/entrada_documento.html', {
-                    'tipos': DocumentoFinanceiro.TIPOS,
+                    'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
                 })
             doc.arquivo = arquivo_upload
         elif direct_key:
@@ -168,13 +193,13 @@ def entrada_documento(request):
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages))
             return render(request, 'financeiro/entrada_documento.html', {
-                'tipos': DocumentoFinanceiro.TIPOS,
+                'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
             })
         except OSError:
             transaction.set_rollback(True)
             messages.error(request, 'Nao foi possivel armazenar o documento. Tente novamente.')
             return render(request, 'financeiro/entrada_documento.html', {
-                'tipos': DocumentoFinanceiro.TIPOS,
+                'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
             })
 
         produtos_json = request.POST.get('produtos_json', '[]')
@@ -199,7 +224,7 @@ def entrada_documento(request):
             transaction.set_rollback(True)
             messages.error(request, 'A lista de itens do documento e invalida.')
             return render(request, 'financeiro/entrada_documento.html', {
-                'tipos': DocumentoFinanceiro.TIPOS,
+                'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
             })
 
         # Criar checklist de auditoria automaticamente
@@ -211,7 +236,7 @@ def entrada_documento(request):
         return redirect('auditoria_documento', pk=doc.pk)
 
     return render(request, 'financeiro/entrada_documento.html', {
-        'tipos': DocumentoFinanceiro.TIPOS,
+        'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
     })
 
 from django.http import JsonResponse
@@ -296,12 +321,40 @@ def auditoria_documento(request, pk):
     })
 
 
+ACESSO_PAGAMENTO = dict(
+    permission='financeiro.change_documentofinanceiro',
+    profiles=('financeiro', 'gestor'),
+    groups=('Financeiro_Operador', 'Financeiro_Aprovador'),
+)
+
+
+@login_required
+@access_required(**ACESSO_PAGAMENTO)
+@require_POST
+@transaction.atomic
+def atualizar_pagamento_documento(request, pk):
+    doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=pk)
+    form = PagamentoDocumentoForm(request.POST)
+    if form.is_valid():
+        doc.situacao_pagamento = form.cleaned_data['situacao_pagamento']
+        doc.data_pagamento = form.cleaned_data['data_pagamento']
+        doc.save(update_fields=['situacao_pagamento', 'data_pagamento', 'atualizado_em'])
+        messages.success(request, 'Situação do pagamento atualizada.')
+        return redirect('detalhe_documento', pk=pk)
+    return render(request, 'financeiro/detalhe_documento.html', {
+        'documento': doc, 'lancamentos': doc.lancamentos.all(),
+        'pagamento_form': form, 'pode_alterar_pagamento': True,
+    }, status=400)
+
+
 @login_required
 def detalhe_documento(request, pk):
     doc = get_object_or_404(DocumentoFinanceiro, pk=pk)
     return render(request, 'financeiro/detalhe_documento.html', {
         'documento': doc,
         'lancamentos': doc.lancamentos.all(),
+        'pagamento_form': PagamentoDocumentoForm.para_documento(doc),
+        'pode_alterar_pagamento': user_has_access(request.user, **ACESSO_PAGAMENTO),
     })
 
 
@@ -314,6 +367,9 @@ def detalhe_documento(request, pk):
 def lancar_erp(request, doc_pk):
     """Lançamento oficial no ERP Grupo PremiumBR"""
     doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=doc_pk)
+    pagamento_form = (PagamentoDocumentoForm(request.POST)
+        if request.method == 'POST' and 'situacao_pagamento' in request.POST
+        else PagamentoDocumentoForm.para_documento(doc))
     if request.method == 'POST':
         if doc.status != 'aprovado_lancamento' or doc.lancamentos.exclude(status='rejeitado').exists():
             messages.error(request, 'O documento nao esta disponivel para um novo lancamento.')
@@ -327,7 +383,11 @@ def lancar_erp(request, doc_pk):
             messages.error(request, 'Dados do lancamento invalidos ou incompletos.')
             return render(request, 'financeiro/lancar_erp.html', {
                 'documento': doc,
-                'tipos': LancamentoERP.TIPOS,
+                'tipos': LancamentoERP.TIPOS, 'pagamento_form': pagamento_form,
+            })
+        if pagamento_form.is_bound and not pagamento_form.is_valid():
+            return render(request, 'financeiro/lancar_erp.html', {
+                'documento': doc, 'tipos': LancamentoERP.TIPOS, 'pagamento_form': pagamento_form,
             })
         lancamento = LancamentoERP(
             documento=doc,
@@ -346,15 +406,18 @@ def lancar_erp(request, doc_pk):
             messages.error(request, '; '.join(exc.messages))
             return render(request, 'financeiro/lancar_erp.html', {
                 'documento': doc,
-                'tipos': LancamentoERP.TIPOS,
+                'tipos': LancamentoERP.TIPOS, 'pagamento_form': pagamento_form,
             })
+        if pagamento_form.is_bound:
+            doc.situacao_pagamento = pagamento_form.cleaned_data['situacao_pagamento']
+            doc.data_pagamento = pagamento_form.cleaned_data['data_pagamento']
         doc.status = 'lancado'
         doc.save()
         messages.info(request, f'📊 Lançamento criado. Aguardando validação final.')
         return redirect('validar_lancamento', pk=lancamento.pk)
     return render(request, 'financeiro/lancar_erp.html', {
         'documento': doc,
-        'tipos': LancamentoERP.TIPOS,
+        'tipos': LancamentoERP.TIPOS, 'pagamento_form': pagamento_form,
     })
 
 
