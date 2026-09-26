@@ -9,6 +9,28 @@
     const filters = Array.from(panel.querySelectorAll('[data-vt-filter]'));
     let status = 'todos';
     const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    const exportLink = panel.querySelector('[data-vt-export]');
+    const exportBase = exportLink?.href;
+    const report = matching => {
+      if (exportLink) {
+        const url = new URL(exportBase);
+        url.searchParams.set('busca_lista', search.value.trim());
+        url.searchParams.set('beneficio', benefit.value);
+        url.searchParams.set('situacao', status);
+        exportLink.href = url.toString();
+      }
+      panel.querySelectorAll('[data-report-chart]').forEach(chart => {
+        const money = chart.dataset.money === 'true';
+        const bars = Array.from(chart.querySelectorAll('[data-report-bar]'));
+        const totals = bars.map(bar => matching.filter(p => p.dataset.status === bar.dataset.reportBar)
+          .reduce((sum, p) => sum + (money ? Math.round(Number(p.dataset.savedAmount || 0) * 100) : 1), 0));
+        const max = Math.max(...totals, 1);
+        bars.forEach((bar, i) => {
+          bar.querySelector('[data-report-value]').textContent = money ? new Intl.NumberFormat('pt-BR', {style:'currency',currency:'BRL'}).format(totals[i] / 100) : String(totals[i]);
+          bar.querySelector('.report-bar-fill').style.width = `${totals[i] / max * 100}%`;
+        });
+      });
+    };
     const filter = () => {
       const query = normalize(search.value.trim());
       let visible = 0;
@@ -19,6 +41,7 @@
         person.hidden = !match;
         visible += Number(match);
       });
+      report(people.filter(person => !person.hidden));
       panel.querySelector('[data-vt-count]').textContent = `${visible} de ${people.length} pessoa(s)`;
       panel.querySelector('[data-vt-empty]').hidden = visible !== 0 || people.length === 0;
       filters.forEach(button => {

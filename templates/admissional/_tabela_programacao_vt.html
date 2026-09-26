@@ -1,4 +1,4 @@
-{% load l10n %}
+{% load l10n relatorios %}
 <section class="vt-panel" data-vt-panel data-vt-week="{{ segunda|date:'Y-m-d' }}" aria-label="Revisão semanal de VT e ajuda de custo">
   <header class="vt-heading">
     <div><span class="vt-eyebrow">VT E AJUDA DE CUSTO · REVISÃO SEMANAL</span><h2>Pessoas para o pagamento de segunda-feira · {{ segunda|date:"d/m/Y" }}</h2><p>Confira a presença, escolha quem recebe e salve a decisão.</p></div>
@@ -22,10 +22,16 @@
       <button type="button" class="vt-filter" data-vt-filter="pago" aria-pressed="false">Pagos <span>{{ resumo_vt.pago }}</span></button>
     </div>
   </div>
+  <div style="padding:0 20px;">
+    <div class="report-toolbar"><p>Gráficos e planilha acompanham os filtros da lista. Exibem dados salvos.</p><a class="btn btn-outline" href="{% url_exportar_vt segunda %}" data-vt-export>Exportar Excel com gráficos</a></div>
+    <details><summary style="cursor:pointer;font-weight:600;">Ver gráficos da semana</summary>
+      {% graficos_vt linhas as graficos %}{% include 'core/_graficos_relatorio.html' %}
+    </details>
+  </div>
   <div class="vt-list-caption"><span data-vt-count aria-live="polite">{{ linhas|length }} pessoa(s) nesta lista</span><span>As alterações entram nos totais depois de salvar.</span></div>
   <div class="vt-people">
     {% for linha in linhas %}
-    <article class="vt-person" id="vt-pessoa-{{ linha.pessoa.pk }}" data-vt-person data-status="{{ linha.situacao }}" data-benefit="{{ linha.tipo_beneficio }}" data-search="{{ linha.pessoa.nome }} {{ linha.pessoa.unidade }} {{ linha.pessoa.pk }} {{ linha.pessoa.tipo_contrato }} {{ linha.nome_beneficio }}">
+    <article class="vt-person" id="vt-pessoa-{{ linha.pessoa.pk }}" data-vt-person data-status="{{ linha.situacao }}" data-benefit="{{ linha.tipo_beneficio }}" data-saved-amount="{% if linha.pagamento and linha.situacao != 'nao' %}{{ linha.pagamento.valor|unlocalize }}{% else %}0{% endif %}" data-search="{{ linha.pessoa.nome }} {{ linha.pessoa.unidade }} {{ linha.pessoa.pk }} {{ linha.pessoa.tipo_contrato }} {{ linha.nome_beneficio }}">
       <div class="vt-identity">
         <div class="vt-person-title"><span class="vt-avatar" aria-hidden="true">{{ linha.pessoa.nome|first|upper }}</span><div><h3>{{ linha.pessoa.nome }}</h3><p>{{ linha.pessoa.unidade|default:"Unidade não informada" }}</p></div></div>
         <div class="vt-person-meta"><span>Cadastro #{{ linha.pessoa.pk }}</span><span>{{ linha.pessoa.get_status_display }}</span><span><strong>{{ linha.pessoa.get_tipo_contrato_display }} · {{ linha.nome_beneficio }}</strong></span></div>

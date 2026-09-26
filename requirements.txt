@@ -12,3 +12,4 @@ google-genai>=1.0,<2
 PyMuPDF>=1.24,<2
 pytesseract>=0.3.13,<1
 pywebview>=5,<7
+XlsxWriter==3.2.9

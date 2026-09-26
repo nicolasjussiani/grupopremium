@@ -8,7 +8,8 @@
     <h1>{{ folha.titulo }} <span style="font-size:1rem;color:var(--text-muted);">v{{ folha.versao }}</span></h1>
     <p>Origem: {{ folha.arquivo_origem.nome_original }} · importada em {{ folha.criado_em|date:"d/m/Y H:i" }}</p>
   </div>
-  <div style="display:flex;gap:10px;">
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <a class="btn btn-outline" href="{% url 'exportar_folha_fiscal_xlsx' folha.pk %}">Exportar Excel com gráficos</a>
     <a href="{% url 'painel_fiscal' %}" class="btn btn-secondary">Voltar</a>
     <a href="{% url 'baixar_arquivo_importado' folha.arquivo_origem.pk %}" target="_blank" rel="noopener" class="btn btn-outline">Planilha original</a>
     <form method="post" action="{% url 'processar_folha_fiscal' folha.pk %}" onsubmit="return confirm('Gerar pagamentos somente para registros conciliados e sem pendências?');">
@@ -17,6 +18,7 @@
   </div>
 </div>
 
+<details class="card" style="margin-bottom:20px;"><summary style="cursor:pointer;font-weight:600;">Gráficos deste lote</summary><p style="font-size:.8rem;margin-top:12px;">Valores da folha informados na origem e pagamentos vinculados no sistema. Cancelados não entram no gráfico de pagamentos.</p>{% include 'core/_graficos_relatorio.html' %}</details>
 <div class="kpi-grid" style="margin-bottom:20px;">
   <div class="kpi-card"><div class="kpi-label">Registros de folha</div><div class="kpi-value">{{ itens|length }}</div></div>
   <div class="kpi-card"><div class="kpi-label">Beneficiários</div><div class="kpi-value">{{ beneficios|length }}</div></div>
