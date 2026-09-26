@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard — ERP Grupo PremiumBR{% endblock %}
+{% block title %}{{ dashboard_section_label }} — ERP Grupo PremiumBR{% endblock %}
 {% block nav_dashboard %}active{% endblock %}
-{% block topbar_title %}Dashboard Geral{% endblock %}
+{% block topbar_title %}{{ dashboard_section_label }}{% endblock %}
 
 {% block content %}
 <style>
@@ -33,11 +33,11 @@
     border-color: var(--text-primary, #1e293b) !important;
   }
   .executive-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:20px; }
-  .executive-stat { padding:17px; border:1px solid #dfe6ef; border-radius:14px; background:#fff; }
+  .executive-stat { padding:17px; border:1px solid var(--border); border-radius:14px; background:var(--bg-card); }
   .executive-stat span { display:block; color:var(--text-muted); font-size:.72rem; font-weight:650; }
   .executive-stat strong { display:block; margin:7px 0 3px; color:var(--text-primary); font-size:1.65rem; }
   .executive-stat small { color:var(--text-muted); font-size:.68rem; }
-  .executive-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .executive-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 20px; }
   .executive-feed { display:grid; grid-template-columns:minmax(0,2fr) minmax(230px,1fr); gap:16px; margin-bottom:24px; }
   .executive-log { display:grid; grid-template-columns:10px minmax(0,1fr) auto; gap:10px; align-items:center; padding:11px 0; border-bottom:1px solid rgba(0,0,0,.06); text-decoration:none; }
   .executive-log:last-child { border-bottom:0; }
@@ -49,12 +49,12 @@
   .ai-directory-header h2 { margin:0 0 5px; color:var(--text-primary); font-size:1.12rem; }
   .ai-directory-header p { margin:0; color:var(--text-muted); font-size:.82rem; }
   .ai-process-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:26px; }
-  .ai-process-card { --card-accent:#1769aa; display:flex; min-height:190px; flex-direction:column; padding:17px; border:1px solid #dfe7f0; border-top:3px solid var(--card-accent); border-radius:15px; background:#fff; box-shadow:0 5px 16px rgba(15,35,55,.05); }
+  .ai-process-card { --card-accent:#1769aa; display:flex; min-height:190px; flex-direction:column; padding:17px; border:1px solid var(--border); border-top:3px solid var(--card-accent); border-radius:15px; background:var(--bg-card); box-shadow:0 5px 16px rgba(15,35,55,.05); }
   .ai-process-card--green { --card-accent:#159a68; }.ai-process-card--yellow { --card-accent:#d59313; }.ai-process-card--blue { --card-accent:#2e72d2; }.ai-process-card--cyan { --card-accent:#0891b2; }.ai-process-card--purple { --card-accent:#7c55c7; }.ai-process-card--navy { --card-accent:#1f3e68; }.ai-process-card--orange { --card-accent:#dc6b24; }
   .ai-process-topline { display:flex; align-items:flex-start; gap:9px; color:#64778b; font-size:.68rem; line-height:1.35; }
   .ai-process-number { flex:none; color:var(--card-accent); font-weight:850; }
-  .ai-process-card h3 { margin:15px 0 7px; color:#13243a; font-size:.98rem; }
-  .ai-process-card p { margin:0 0 15px; color:#657589; font-size:.76rem; line-height:1.5; }
+  .ai-process-card h3 { margin:15px 0 7px; color:var(--text-primary); font-size:.98rem; }
+  .ai-process-card p { margin:0 0 15px; color:var(--text-secondary); font-size:.76rem; line-height:1.5; }
   .ai-process-link { margin-top:auto; color:var(--card-accent); font-size:.76rem; font-weight:800; text-decoration:none; }
   .ai-empty-processes { grid-column:1/-1; padding:24px; border:1px dashed #ccd7e3; border-radius:14px; color:var(--text-muted); text-align:center; }
   @media (max-width:900px) { .executive-strip { grid-template-columns:repeat(2,1fr); } .executive-feed { grid-template-columns:1fr; } }
@@ -63,22 +63,12 @@
   @media (max-width:520px) { .executive-strip { grid-template-columns:1fr 1fr; gap:8px; } .executive-stat { padding:13px; } .executive-stat strong { font-size:1.35rem; } }
 </style>
 
-{% include 'core/_assistant_dashboard.html' %}
-
-<section aria-labelledby="ai-directory-title">
-  <div class="ai-directory-header">
-    <div><h2 id="ai-directory-title">Processos disponíveis para você</h2><p>Cada opção já mostra o diretório e leva diretamente ao ponto de início.</p></div>
-    <a href="{% url 'ajuda' %}" class="btn btn-outline btn-sm">Ver manual completo</a>
-  </div>
-  {% include 'core/_assistant_processes.html' %}
-</section>
-
 <div class="page-header" style="margin-bottom: 2rem;">
   <div>
-    <h1 style="font-size: 1.75rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">Olá, {{ user.get_full_name|default:user.username }}!</h1>
-    <p style="color: var(--text-muted); font-size: 0.9rem;">Visão geral de todos os processos integrados — {{ hoje|date:"d \d\e F \d\e Y" }}</p>
+    <h1 style="font-size: 1.75rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">{% if dashboard_section == 'resumo' %}Olá, {{ user.get_full_name|default:user.username }}!{% else %}{{ dashboard_section_label }}{% endif %}</h1>
+    <p style="color: var(--text-muted); font-size: 0.9rem;">{% if dashboard_section == 'resumo' %}Os principais indicadores do seu dia.{% elif dashboard_section == 'processos' %}Escolha a rotina que deseja iniciar.{% elif dashboard_section == 'atividade' %}Acompanhe as movimentações e os avisos recentes.{% else %}Encontre uma tela ou tire dúvidas sobre suas rotinas.{% endif %}</p>
   </div>
-  <div class="flex gap-2">
+  {% if dashboard_section == 'resumo' %}<div class="flex gap-2">
     {% if is_visao_executiva or request.user.perfil.perfil == 'rh' or request.user.perfil.perfil == 'gestor' %}
     <a href="{% url 'nova_vaga' %}" class="btn btn-mod1 btn-sm" style="font-weight: 500; border-radius: var(--radius-sm);">+ Abrir Vaga</a>
     {% endif %}
@@ -88,9 +78,36 @@
     {% if is_visao_executiva or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
     <a href="{% url 'entrada_documento' %}" class="btn btn-mod6 btn-sm" style="font-weight: 500; border-radius: var(--radius-sm);">+ Documento Fin.</a>
     {% endif %}
-  </div>
+  </div>{% endif %}
 </div>
 
+<nav class="dashboard-sections" aria-label="Seções do painel">
+  {% for section in dashboard_sections %}
+  <a href="{% url 'dashboard' %}?secao={{ section.key }}" {% if dashboard_section == section.key %}class="is-active" aria-current="page"{% endif %}>{{ section.label }}</a>
+  {% endfor %}
+</nav>
+{% if dashboard_section == 'assistente' %}
+{% include 'core/_assistant_dashboard.html' %}
+{% elif dashboard_section == 'processos' %}
+
+<section aria-labelledby="ai-directory-title">
+  <div class="ai-directory-header">
+    <div><h2 id="ai-directory-title">Processos disponíveis para você</h2><p>Cada opção já mostra o diretório e leva diretamente ao ponto de início.</p></div>
+    <a href="{% url 'ajuda' %}" class="btn btn-outline btn-sm">Ver manual completo</a>
+  </div>
+  {% include 'core/_assistant_processes.html' %}
+  {% if processos_assistente.has_other_pages %}
+  <nav class="process-pagination" aria-label="Páginas de processos">
+    {% if processos_assistente.has_previous %}<a class="btn btn-outline btn-sm" href="?secao=processos&amp;pagina={{ processos_assistente.previous_page_number }}">← Anterior</a>{% endif %}
+    <span>Página {{ processos_assistente.number }} de {{ processos_assistente.paginator.num_pages }}</span>
+    {% if processos_assistente.has_next %}<a class="btn btn-outline btn-sm" href="?secao=processos&amp;pagina={{ processos_assistente.next_page_number }}">Próxima →</a>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+
+{% endif %}
+
+{% if dashboard_section == 'resumo' %}
 {% if is_visao_executiva %}
 <section aria-label="Resumo executivo">
   <div class="executive-strip">
@@ -197,6 +214,8 @@
 
 </div>
 
+{% endif %}
+{% if dashboard_section == 'atividade' %}
 {% if is_visao_executiva %}
 <div class="executive-feed">
   <div class="card">
@@ -337,6 +356,8 @@
 
 </div>
 
+{% endif %}
+{% if dashboard_section == 'resumo' %}
 {% if epis_vencidos > 0 or demandas_urgentes > 0 %}
 <div style="margin-top:24px;padding:16px 20px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.18);border-radius:var(--radius-md);display:flex;align-items:center;gap:14px; box-shadow: 0 2px 4px rgba(239,68,68,0.02);">
   <div style="color: var(--danger); display: flex; align-items: center; flex-shrink: 0;">
@@ -352,4 +373,5 @@
 </div>
 {% endif %}
 
+{% endif %}
 {% endblock %}

@@ -26,7 +26,7 @@ class AssistenteProvisorioTests(TestCase):
         response = self.client.get(reverse('assistente_erp'))
         self.assertRedirects(
             response,
-            f'{reverse("dashboard")}#assistente-dashboard',
+            f'{reverse("dashboard")}?secao=assistente#assistente-dashboard',
             fetch_redirect_response=False,
         )
         antes = ArquivoImportado.objects.count()

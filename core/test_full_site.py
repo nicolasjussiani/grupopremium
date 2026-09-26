@@ -332,6 +332,7 @@ class FullSiteRouteTests(TestCase):
             ('excluir_colaborador', (self.colaborador.pk,), 200),
             ('reativar_colaborador', (self.colaborador.pk,), 405),
             ('lista_pagamentos_colaboradores', (), 200),
+            ('programacao_vt', (), 200),
             ('relatorio_folha_pagamento', (), 200),
             ('visao_beneficios_colaboradores', (), 200),
             ('historico_vt_colaborador', (self.colaborador.pk,), 200),

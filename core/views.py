@@ -346,6 +346,18 @@ def logout_view(request):
 
 @login_required
 def dashboard(request):
+    dashboard_sections = [
+        {'key': 'resumo', 'label': 'Visão geral'},
+        {'key': 'processos', 'label': 'Processos'},
+        {'key': 'atividade', 'label': 'Atividade e avisos'},
+        {'key': 'assistente', 'label': 'Assistente'},
+    ]
+    dashboard_section = request.GET.get('secao', 'resumo')
+    if dashboard_section not in {section['key'] for section in dashboard_sections}:
+        dashboard_section = 'resumo'
+    # Existing form submissions and document-result links still open their result.
+    if request.method == 'POST' or request.GET.get('arquivo'):
+        dashboard_section = 'assistente'
     hoje = timezone.now().date()
     from core.assistant_navigation import (
         answer_with_process, processes_for_user, recommend_process,
@@ -396,7 +408,7 @@ def dashboard(request):
                         messages.success(request, 'Documento classificado e armazenado automaticamente.')
                 else:
                     messages.info(request, 'Esse documento já estava registrado; mantivemos apenas uma cópia.')
-                return redirect(f'{reverse("dashboard")}?arquivo={arquivo.pk}#assistente-dashboard')
+                return redirect(f'{reverse("dashboard")}?secao=assistente&arquivo={arquivo.pk}#assistente-dashboard')
             except ValidationError as exc:
                 messages.error(request, exc.messages[0])
             except Exception:
@@ -568,8 +580,12 @@ def dashboard(request):
         'hoje': hoje,
         'modo_demo': False,
     }
+    processos_page = Paginator(processes_for_user(request.user), 6).get_page(request.GET.get('pagina'))
     context.update({
-        'processos_assistente': processes_for_user(request.user),
+        'dashboard_section': dashboard_section,
+        'dashboard_sections': dashboard_sections,
+        'dashboard_section_label': next(section['label'] for section in dashboard_sections if section['key'] == dashboard_section),
+        'processos_assistente': processos_page,
         'pergunta_ia': pergunta_ia,
         'resposta_ia': resposta_ia,
         'processo_recomendado': processo_recomendado,
@@ -591,7 +607,7 @@ def ajuda(request):
 @login_required
 def assistente_erp(request):
     """Mantém links antigos funcionando; a assistente agora vive no dashboard."""
-    return redirect(f'{reverse("dashboard")}#assistente-dashboard')
+    return redirect(f'{reverse("dashboard")}?secao=assistente#assistente-dashboard')
 
 
 @login_required

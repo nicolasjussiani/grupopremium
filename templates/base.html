@@ -12,7 +12,7 @@
   <link rel="icon" href="{% static 'favicon.jpeg' %}" type="image/jpeg">
   <link rel="manifest" href="{% url 'pwa_manifest' %}">
   <link rel="apple-touch-icon" sizes="180x180" href="{% static 'pwa-icon-180.png' %}">
-  <link rel="stylesheet" href="{% static 'css/main.css' %}?v=6">
+  <link rel="stylesheet" href="{% static 'css/main.css' %}?v=7">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -49,9 +49,8 @@
       </div>
     </div>
 
-    <!-- Navegação -->
-    <nav class="sidebar-nav">
-      <div class="nav-section-label">Navegação</div>
+    <!-- Navegação organizada por área -->
+    <nav class="sidebar-nav" aria-label="Áreas do sistema">
       <a href="{% url 'dashboard' %}" class="nav-item {% block nav_dashboard %}{% endblock %}">
         <span class="nav-icon">🏠</span>
         Dashboard
@@ -60,36 +59,10 @@
         <span class="nav-icon">❓</span>
         Central de Ajuda
       </a>
-      <a href="{% url 'cadastros_gerais' %}" class="nav-item {% block nav_cadastros %}{% endblock %}">
-        <span class="nav-icon">🏬</span>
-        Fornecedores e Unidades
-      </a>
-
-      <!-- Visível apenas para administradores e diretoria autorizada -->
-      {% if request.user.is_superuser or perms.core.view_logatividade %}
-      <div class="nav-section-label">DIRETORIA</div>
-      <a href="{% url 'auditoria_sistema' %}" class="nav-item" style="color: #FCD34D;">
-        <span class="nav-icon">🔍</span>
-        Auditoria Global
-      </a>
-      <a href="{% url 'painel_sla' %}" class="nav-item" style="color: #FCD34D;">
-        <span class="nav-icon">⏱️</span>
-        Tempo de Processos (SLA)
-      </a>
-      <a href="{% url 'painel_mobile' %}" class="nav-item" style="color: #FCD34D;">
-        <span class="nav-icon">📱</span>
-        Aprovações no Celular
-      </a>
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'admin' or perms.core.add_perfilusuario %}
-      <a href="{% url 'lista_usuarios' %}" class="nav-item" style="color: #FCD34D;">
-        <span class="nav-icon">🔐</span>
-        Usuários e Acessos
-      </a>
-      {% endif %}
-      {% endif %}
-
-      <div class="nav-section-label">Módulos</div>
-
+      <div class="nav-section-label">Áreas de trabalho</div>
+      <details class="nav-group" name="sidebar-area" data-nav-group="pessoas">
+        <summary><span class="nav-group-icon" aria-hidden="true">👥</span><span><strong>Pessoas e RH</strong><small>Seleção e colaboradores</small></span><span class="nav-group-chevron" aria-hidden="true">›</span></summary>
+        <div class="nav-group-links">
       {% if not is_intermediario and request.user.is_superuser or not is_intermediario and request.user.perfil.perfil == 'rh' or not is_intermediario and request.user.perfil.perfil == 'gestor' or not is_intermediario and request.user.perfil.perfil == 'sesmet' %}
       <a href="{% url 'lista_vagas' %}" class="nav-item mod1 {% block nav_recrutamento %}{% endblock %}">
         <span class="nav-icon">👥</span>
@@ -111,6 +84,26 @@
       </a>
       {% endif %}
 
+      {% if not is_intermediario and request.user.is_superuser or not is_intermediario and request.user.perfil.perfil == 'rh' or not is_intermediario and request.user.perfil.perfil == 'gestor' or not is_intermediario and request.user.perfil.perfil == 'sesmet' %}
+      <div class="nav-section-label">Colaboradores</div>
+      <a href="{% url 'lista_colaboradores' %}" class="nav-item {% block nav_colaboradores %}{% endblock %}">
+        <span class="nav-icon">🏢</span>
+        Colaboradores Ativos
+      </a>
+      <a href="{% url 'controle_presenca' %}" class="nav-item {% block nav_presenca %}{% endblock %}">
+        <span class="nav-icon">📅</span>
+        Controle de Presença
+      </a>
+      <a href="{% url 'periodo_experiencia' %}" class="nav-item {% block nav_experiencia %}{% endblock %}">
+        <span class="nav-icon">⏳</span>
+        Período de Experiência
+      </a>
+      {% endif %}
+        </div>
+      </details>
+      <details class="nav-group" name="sidebar-area" data-nav-group="operacoes">
+        <summary><span class="nav-group-icon" aria-hidden="true">🗂️</span><span><strong>Operações</strong><small>Rotinas, segurança e materiais</small></span><span class="nav-group-chevron" aria-hidden="true">›</span></summary>
+        <div class="nav-group-links">
       {% if request.user.is_superuser or request.user.perfil.perfil == 'gestor' %}
       <a href="{% url 'lista_demandas' %}" class="nav-item mod3 {% block nav_administrativo %}{% endblock %}">
         <span class="nav-icon">🗂️</span>
@@ -135,6 +128,19 @@
       </a>
       {% endif %}
 
+      {% if not is_estoque_compras and request.user.is_superuser or not is_estoque_compras and request.user.perfil.perfil == 'sesmet' or not is_estoque_compras and request.user.perfil.perfil == 'rh' or not is_estoque_compras and request.user.perfil.perfil == 'gestor' or not is_estoque_compras and request.user.perfil.perfil == 'compras' %}
+      <a href="{% url 'painel_manutencao' %}" class="nav-item mod3 {% block nav_manutencao %}{% endblock %}">
+        <span class="nav-icon">🔧</span>
+        Manutenção / Patrimônio
+      </a>
+      {% endif %}
+
+
+        </div>
+      </details>
+      <details class="nav-group" name="sidebar-area" data-nav-group="financeiro">
+        <summary><span class="nav-group-icon" aria-hidden="true">💰</span><span><strong>Financeiro</strong><small>Fiscal, folha e arquivos</small></span><span class="nav-group-chevron" aria-hidden="true">›</span></summary>
+        <div class="nav-group-links">
       {% if request.user.is_superuser or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
       <a href="{% url 'painel_financeiro' %}" class="nav-item mod6 {% block nav_financeiro %}{% endblock %}">
         <span class="nav-icon">💰</span>
@@ -154,15 +160,16 @@
       </a>
       {% endif %}
 
-      {% if not is_estoque_compras and request.user.is_superuser or not is_estoque_compras and request.user.perfil.perfil == 'sesmet' or not is_estoque_compras and request.user.perfil.perfil == 'rh' or not is_estoque_compras and request.user.perfil.perfil == 'gestor' or not is_estoque_compras and request.user.perfil.perfil == 'compras' %}
-      <a href="{% url 'painel_manutencao' %}" class="nav-item mod3 {% block nav_manutencao %}{% endblock %}">
-        <span class="nav-icon">🔧</span>
-        Manutenção / Patrimônio
+        </div>
+      </details>
+      <details class="nav-group" name="sidebar-area" data-nav-group="gestao">
+        <summary><span class="nav-group-icon" aria-hidden="true">⚙️</span><span><strong>Gestão e cadastros</strong><small>Aprovações e administração</small></span><span class="nav-group-chevron" aria-hidden="true">›</span></summary>
+        <div class="nav-group-links">
+      <a href="{% url 'cadastros_gerais' %}" class="nav-item {% block nav_cadastros %}{% endblock %}">
+        <span class="nav-icon">🏬</span>
+        Fornecedores e Unidades
       </a>
-      {% endif %}
 
-
-      <div class="nav-section-label">Processos</div>
       {% if not is_estoque_compras %}
       <a href="{% url 'aprovacoes_pendentes' %}" class="nav-item {% block nav_aprovacoes %}{% endblock %}" id="navAprovacoes">
         <span class="nav-icon">✅</span>
@@ -171,21 +178,31 @@
       </a>
       {% endif %}
 
-      {% if not is_intermediario and request.user.is_superuser or not is_intermediario and request.user.perfil.perfil == 'rh' or not is_intermediario and request.user.perfil.perfil == 'gestor' or not is_intermediario and request.user.perfil.perfil == 'sesmet' %}
-      <div class="nav-section-label">Colaboradores</div>
-      <a href="{% url 'lista_colaboradores' %}" class="nav-item {% block nav_colaboradores %}{% endblock %}">
-        <span class="nav-icon">🏢</span>
-        Colaboradores Ativos
+      <!-- Visível apenas para administradores e diretoria autorizada -->
+      {% if request.user.is_superuser or perms.core.view_logatividade %}
+      <div class="nav-section-label">DIRETORIA</div>
+      <a href="{% url 'auditoria_sistema' %}" class="nav-item" style="color: #FCD34D;">
+        <span class="nav-icon">🔍</span>
+        Auditoria Global
       </a>
-      <a href="{% url 'controle_presenca' %}" class="nav-item {% block nav_presenca %}{% endblock %}">
-        <span class="nav-icon">📅</span>
-        Controle de Presença
+      <a href="{% url 'painel_sla' %}" class="nav-item" style="color: #FCD34D;">
+        <span class="nav-icon">⏱️</span>
+        Tempo de Processos (SLA)
       </a>
-      <a href="{% url 'periodo_experiencia' %}" class="nav-item {% block nav_experiencia %}{% endblock %}">
-        <span class="nav-icon">⏳</span>
-        Período de Experiência
+      <a href="{% url 'painel_mobile' %}" class="nav-item" style="color: #FCD34D;">
+        <span class="nav-icon">📱</span>
+        Aprovações no Celular
+      </a>
+      {% if request.user.is_superuser or request.user.perfil.perfil == 'admin' or perms.core.add_perfilusuario %}
+      <a href="{% url 'lista_usuarios' %}" class="nav-item" style="color: #FCD34D;">
+        <span class="nav-icon">🔐</span>
+        Usuários e Acessos
       </a>
       {% endif %}
+      {% endif %}
+
+        </div>
+      </details>
     </nav>
 
     <!-- Footer do Sidebar -->
@@ -252,6 +269,22 @@
 </div>
 
 <script>
+// Open only the area containing the current page; native details supports keyboard use.
+const navigationGroups = Array.from(document.querySelectorAll('[data-nav-group]'));
+navigationGroups.forEach(group => {
+  const links = Array.from(group.querySelectorAll('a.nav-item'));
+  if (!links.length) { group.remove(); return; }
+  links.forEach(link => {
+    if (link.classList.contains('active') || new URL(link.href).pathname === location.pathname) {
+      link.classList.add('active');
+      link.setAttribute('aria-current', 'page');
+      group.open = true;
+    }
+  });
+  group.addEventListener('toggle', () => {
+    if (group.open) navigationGroups.forEach(other => { if (other !== group) other.open = false; });
+  });
+});
 const sidebar = document.getElementById('sidebar');
 const sidebarBackdrop = document.getElementById('sidebarBackdrop');
 const mobileMenuButton = document.getElementById('mobileMenuButton');

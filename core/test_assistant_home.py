@@ -12,14 +12,23 @@ class AssistantHomeTests(TestCase):
         PerfilUsuario.objects.create(usuario=user, perfil=profile)
         return user
 
-    def test_dashboard_abre_com_ia_processos_e_diretorios(self):
+    def test_dashboard_separa_resumo_assistente_e_processos(self):
         user = self._user('financeiro-home', 'financeiro')
         self.client.force_login(user)
 
         response = self.client.get(reverse('dashboard'))
 
         self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'id="assistente-dashboard"')
+        self.assertNotContains(response, 'class="ai-process-grid"')
+        self.assertNotContains(response, 'class="executive-feed"')
+        self.assertContains(response, 'class="kpi-grid mb-6"')
+
+        response = self.client.get(reverse('dashboard'), {'secao': 'assistente'})
         self.assertContains(response, 'No que você está pensando?')
+        self.assertNotContains(response, 'class="kpi-grid mb-6"')
+
+        response = self.client.get(reverse('dashboard'), {'secao': 'processos'})
         self.assertContains(response, 'Financeiro &gt; Base Fiscal')
         self.assertContains(response, reverse('painel_fiscal'))
         self.assertNotContains(response, 'SESMET &gt; Registrar entrega de EPI')
@@ -55,7 +64,7 @@ class AssistantHomeTests(TestCase):
         legacy_response = self.client.get(reverse('assistente_erp'))
         self.assertRedirects(
             legacy_response,
-            f'{reverse("dashboard")}#assistente-dashboard',
+            f'{reverse("dashboard")}?secao=assistente#assistente-dashboard',
             fetch_redirect_response=False,
         )
 
@@ -67,3 +76,29 @@ class AssistantHomeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Caminho:')
         self.assertContains(response, 'Financeiro &gt; Base Fiscal')
+
+    def test_processos_paginados_sem_perder_acessos(self):
+        user = User.objects.create_superuser('admin-navigation', password='test-password')
+        self.client.force_login(user)
+        expected = {item['key'] for item in processes_for_user(user)}
+        found = set()
+        page = 1
+        while True:
+            response = self.client.get(reverse('dashboard'), {'secao': 'processos', 'pagina': page})
+            self.assertEqual(response.status_code, 200)
+            processes = response.context['processos_assistente']
+            self.assertLessEqual(len(processes), 6)
+            found.update(item['key'] for item in processes)
+            if not processes.has_next():
+                break
+            page += 1
+        self.assertEqual(found, expected)
+
+    def test_secao_invalida_volta_para_resumo_e_atividade_fica_separada(self):
+        self.client.force_login(self._user('gestor-sections', 'gestor'))
+        response = self.client.get(reverse('dashboard'), {'secao': 'inexistente'})
+        self.assertEqual(response.context['dashboard_section'], 'resumo')
+        response = self.client.get(reverse('dashboard'), {'secao': 'atividade'})
+        self.assertContains(response, 'Atividade Recente')
+        self.assertNotContains(response, 'class="kpi-grid mb-6"')
+        self.assertNotContains(response, 'id="assistente-dashboard"')

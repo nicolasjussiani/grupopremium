@@ -61,7 +61,7 @@
   <div class="dash-ai__hero">
     <div class="dash-ai__status">Inteligência do ERP</div>
     <h1 class="dash-ai__title" id="assistente-dashboard-titulo">Olá, {{ request.user.get_full_name|default:request.user.username }}. No que você está pensando?</h1>
-    <form method="post" action="{% url 'dashboard' %}#assistente-dashboard" id="dash-ai-question-form">
+    <form method="post" action="{% url 'dashboard' %}?secao=assistente#assistente-dashboard" id="dash-ai-question-form">
       {% csrf_token %}
       <input type="hidden" name="acao" value="perguntar_ia">
       <div class="dash-ai__composer">
@@ -94,7 +94,7 @@
       <div><h2>Ler e organizar documento</h2><p>PDF, PNG ou JPG de até 50 MB, enviado diretamente ao storage.</p></div>
       <button class="dash-ai__close" id="dash-ai-upload-close" type="button" aria-label="Fechar envio">×</button>
     </div>
-    <form method="post" action="{% url 'dashboard' %}#assistente-dashboard" enctype="multipart/form-data" class="dash-ai__upload-form">
+    <form method="post" action="{% url 'dashboard' %}?secao=assistente#assistente-dashboard" enctype="multipart/form-data" class="dash-ai__upload-form">
       {% csrf_token %}
       <input type="hidden" name="acao" value="documento_ia">
       <div class="dash-ai__field"><label for="categoria-ia">Destino sugerido</label><select id="categoria-ia" name="categoria"><option value="">Identificar automaticamente</option>{% for value, label in categorias_ia %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>

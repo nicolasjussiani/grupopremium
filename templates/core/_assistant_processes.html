@@ -2,7 +2,7 @@
   {% for processo in processos_assistente %}
   <article class="ai-process-card ai-process-card--{{ processo.theme }}">
     <div class="ai-process-topline">
-      <span class="ai-process-number">{{ forloop.counter|stringformat:"02d" }}</span>
+      <span class="ai-process-number">{{ processos_assistente.start_index|add:forloop.counter0|stringformat:"02d" }}</span>
       <span class="ai-process-path">{{ processo.directory }}</span>
     </div>
     <h3>{{ processo.title }}</h3>
