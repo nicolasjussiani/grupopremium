@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Remover anexo — Compras{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}Remover anexo{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;margin:20px auto;">
+  <h1 class="card-title">Remover {{ nome_anexo|lower }}?</h1>
+  <p><strong>{{ requisicao.numero }}</strong> · {{ requisicao.unidade_destino }}</p>
+  <p>O arquivo será removido desta requisição. A requisição, seus produtos e pedidos serão mantidos.</p>
+  {% if campo == 'comprovante_pagamento' %}
+  <p>Remover o comprovante não desfaz o pagamento nem os pedidos já gerados.</p>
+  {% endif %}
+  <a href="{{ arquivo.url }}" target="_blank" rel="noopener" class="btn btn-outline">Conferir arquivo</a>
+  <form method="post" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:24px;">
+    {% csrf_token %}
+    <input type="hidden" name="confirmacao" value="{{ confirmacao }}">
+    <a href="{% url 'detalhe_requisicao' requisicao.pk %}" class="btn btn-outline">Voltar sem remover</a>
+    <button type="submit" class="btn btn-danger">Confirmar remoção</button>
+  </form>
+</div>
+{% endblock %}

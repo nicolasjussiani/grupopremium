@@ -13,6 +13,10 @@ from core.access import access_required, user_has_access
 from core.direct_uploads import assign_direct_upload
 from django.core.exceptions import ValidationError
 from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods
+from django.core import signing
+from django.http import Http404
+from django.utils import timezone
 
 
 STATUS_COMPRA_REALIZADA = {
@@ -322,6 +326,49 @@ def detalhe_requisicao(request, pk):
         'total_itens': len(itens),
         'total_estoque': sum(item.status == 'atendido_interno' for item in itens),
         'total_compra': sum(item.status == 'compra_externa' for item in itens),
+        'pode_remover_anexo': user_has_access(
+            request.user, permission='compras.change_requisicaocompra',
+            profiles=('compras', 'gestor', 'estoque_compras'),
+        ),
+    })
+
+
+@login_required
+@access_required(permission='compras.change_requisicaocompra', profiles=('compras', 'gestor', 'estoque_compras'))
+@require_http_methods(['GET', 'POST'])
+@transaction.atomic
+def remover_anexo_requisicao(request, pk, campo):
+    nomes = {'documento': 'Documento anexo', 'comprovante_pagamento': 'Comprovante de pagamento'}
+    if campo not in nomes:
+        raise Http404
+    requisicao = get_object_or_404(RequisicaoCompra.objects.select_for_update(), pk=pk)
+    arquivo = getattr(requisicao, campo)
+    if not arquivo:
+        messages.info(request, 'Este anexo já foi removido.')
+        return redirect('detalhe_requisicao', pk=pk)
+    referencia = {'pk': pk, 'campo': campo, 'arquivo': arquivo.name}
+    if request.method == 'POST':
+        try:
+            confirmado = signing.loads(request.POST.get('confirmacao', ''), salt='compras.remover-anexo', max_age=3600)
+        except signing.BadSignature:
+            confirmado = None
+        if confirmado != referencia:
+            messages.error(request, 'O anexo ou a confirmação mudou. Confira o arquivo e confirme novamente.')
+            return redirect('remover_anexo_requisicao', pk=pk, campo=campo)
+        from core.models import LogAtividade
+        from core.storage_organization import delete_if_unreferenced
+        nome_arquivo, storage = arquivo.name, arquivo.storage
+        RequisicaoCompra.objects.filter(pk=pk).update(**{campo: '', 'atualizado_em': timezone.now()})
+        LogAtividade.objects.create(
+            usuario=request.user, modulo='compras', acao='Remoção de anexo da requisição',
+            url=request.path, detalhes=f'{requisicao.numero} | {nomes[campo]} | {nome_arquivo}',
+        )
+        transaction.on_commit(lambda: delete_if_unreferenced(storage, nome_arquivo), robust=True)
+        messages.success(request, f'{nomes[campo]} removido da requisição.')
+        return redirect('detalhe_requisicao', pk=pk)
+    return render(request, 'compras/remover_anexo.html', {
+        'requisicao': requisicao, 'campo': campo, 'nome_anexo': nomes[campo],
+        'arquivo': arquivo, 'confirmacao': signing.dumps(referencia, salt='compras.remover-anexo'),
     })
 
 

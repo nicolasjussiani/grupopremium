@@ -53,6 +53,9 @@
     <a href="{{ requisicao.documento.url }}" target="_blank" class="btn btn-sm btn-outline" style="margin-left:8px;">
       📄 Ver/Baixar Anexo
     </a>
+    {% if pode_remover_anexo %}
+    <a href="{% url 'remover_anexo_requisicao' requisicao.pk 'documento' %}" class="btn btn-sm btn-outline" style="color:var(--danger);margin-left:8px;">Remover anexo</a>
+    {% endif %}
   </div>
   {% endif %}
   {% if requisicao.comprovante_pagamento %}
@@ -61,6 +64,9 @@
     <a href="{{ requisicao.comprovante_pagamento.url }}" target="_blank" class="btn btn-sm btn-mod5" style="margin-left:8px;">
       💲 Ver Comprovante
     </a>
+    {% if pode_remover_anexo %}
+    <a href="{% url 'remover_anexo_requisicao' requisicao.pk 'comprovante_pagamento' %}" class="btn btn-sm btn-outline" style="color:var(--danger);margin-left:8px;">Remover comprovante</a>
+    {% endif %}
     <span class="badge badge-warning" style="margin-left:8px;">Medida Provisória</span>
   </div>
   {% endif %}

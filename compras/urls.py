@@ -1,6 +1,7 @@
 from django.urls import path
 from compras import views
 urlpatterns = [
+    path('requisicao/<int:pk>/anexo/<str:campo>/remover/', views.remover_anexo_requisicao, name='remover_anexo_requisicao'),
     path('', views.painel_compras, name='painel_compras'),
     path('materiais/', views.lista_materiais, name='lista_materiais'),
     path('materiais/novo/', views.novo_material, name='novo_material'),
