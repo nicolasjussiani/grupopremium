@@ -30,6 +30,7 @@ from django.utils.text import get_valid_filename
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
+from .calendario_presenca import montar_calendario_presenca
 
 
 @login_required
@@ -1144,7 +1145,7 @@ def _filtros_presenca(request):
     return filtros
 
 
-def _lista_presenca_filtrada(data, filtros):
+def _colaboradores_presenca_filtrados(filtros):
     colaboradores = Colaborador.objects.filter(status='ativo').order_by('nome', 'pk')
     for campo in ('unidade', 'cargo', 'setor'):
         if filtros[campo]:
@@ -1157,7 +1158,11 @@ def _lista_presenca_filtrada(data, filtros):
     for filtro, campo in (('tipo_contrato', 'tipo_contrato'), ('categoria', 'categoria_trabalho')):
         if filtros[filtro]:
             colaboradores = colaboradores.filter(**{campo: filtros[filtro]})
-    colaboradores = list(colaboradores)
+    return colaboradores
+
+
+def _lista_presenca_filtrada(data, filtros):
+    colaboradores = list(_colaboradores_presenca_filtrados(filtros))
     registros = {
         p.colaborador_id: p for p in PresencaDiaria.objects.filter(
             data=data, colaborador_id__in=[c.pk for c in colaboradores],
@@ -1243,6 +1248,10 @@ def controle_presenca(request):
         'total_nao_definidos': total_nao_definidos,
         'total_definidos': len(presencas) - total_nao_definidos,
         'total_colaboradores_presenca': len(presencas),
+        'calendario': montar_calendario_presenca(
+            data_selecionada, request.GET.get('mes_calendario', ''), filtros,
+            _colaboradores_presenca_filtrados(filtros),
+        ),
     }, status=response_status)
 
 @login_required
