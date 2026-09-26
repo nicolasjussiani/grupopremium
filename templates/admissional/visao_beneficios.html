@@ -7,6 +7,7 @@
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
   <h1 class="mod-title">🚌 VT e ajuda de custo</h1>
   <div class="mod-desc">Visão exclusiva dos benefícios no período selecionado.</div>
+  <a href="{% url 'programacao_vt' %}" class="btn btn-mod6" style="margin-top:14px;">Programar VT e ajuda de custo</a>
 </div>
 
 <div class="kpi-grid" style="margin-bottom:20px;">
@@ -37,7 +38,7 @@
     <td>{{ pagamento.get_tipo_display }}{% if pagamento.recorrente %}<br><span class="badge badge-info">Recorrente</span>{% endif %}</td>
     <td>{{ pagamento.competencia|date:"d/m/Y" }} a {{ pagamento.fim_competencia|date:"d/m/Y" }}</td>
     <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
-    <td>{% if pagamento.dias_trabalhados_exibicao is not None %}<span class="badge badge-success">{{ pagamento.dias_trabalhados_exibicao|floatformat:-2 }}</span>{% else %}<span class="badge badge-warning">Não definido</span>{% endif %}</td>
+    <td>{% if pagamento.dias_trabalhados_exibicao is not None %}<span class="badge badge-success">{{ pagamento.dias_trabalhados_exibicao|floatformat:-2 }}</span>{% else %}<span class="badge badge-warning">Não definido</span>{% endif %}{% if pagamento.inicio_presencas %}<br><small>Semana anterior: {{ pagamento.inicio_presencas|date:"d/m" }} a {{ pagamento.fim_presencas|date:"d/m" }}</small>{% endif %}</td>
     <td style="max-width:190px;overflow-wrap:anywhere;">{{ pagamento.chave_pix_exibicao|default:"Não informado" }}</td>
     <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
   </tr>{% endfor %}</tbody>

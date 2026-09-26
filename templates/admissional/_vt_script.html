@@ -1,0 +1,61 @@
+<script>
+(() => {
+  document.querySelectorAll('[data-vt-panel]').forEach(panel => {
+    if (panel.dataset.ready) return;
+    panel.dataset.ready = '1';
+    const people = Array.from(panel.querySelectorAll('[data-vt-person]'));
+    const search = panel.querySelector('[data-vt-search]');
+    const benefit = panel.querySelector('[data-vt-benefit]');
+    const filters = Array.from(panel.querySelectorAll('[data-vt-filter]'));
+    let status = 'todos';
+    const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    const filter = () => {
+      const query = normalize(search.value.trim());
+      let visible = 0;
+      people.forEach(person => {
+        const match = (status === 'todos' || person.dataset.status === status)
+          && (benefit.value === 'todos' || person.dataset.benefit === benefit.value)
+          && normalize(person.dataset.search).includes(query);
+        person.hidden = !match;
+        visible += Number(match);
+      });
+      panel.querySelector('[data-vt-count]').textContent = `${visible} de ${people.length} pessoa(s)`;
+      panel.querySelector('[data-vt-empty]').hidden = visible !== 0 || people.length === 0;
+      filters.forEach(button => {
+        const active = button.dataset.vtFilter === status;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+    };
+    panel.querySelector('[data-vt-tools]').hidden = false;
+    search.addEventListener('input', filter);
+    benefit.addEventListener('change', filter);
+    filters.forEach(button => button.addEventListener('click', () => { status = button.dataset.vtFilter; filter(); }));
+    panel.querySelector('[data-vt-reset]').addEventListener('click', () => { search.value = ''; benefit.value = 'todos'; status = 'todos'; filter(); search.focus(); });
+    panel.querySelectorAll('[data-vt-form]').forEach(form => {
+      const amount = form.querySelector('[name="valor"]');
+      const note = form.querySelector('[data-vt-note]');
+      const update = () => {
+        const choice = form.querySelector('[name="decisao"]:checked')?.value;
+        amount.disabled = choice === 'nao';
+        amount.required = choice === 'pagar';
+        amount.min = choice === 'pagar' ? '0.01' : '0';
+        note.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : (amount.value ? 'Confira o valor antes de salvar.' : 'Valor semanal não informado. Preencha se for pagar.');
+      };
+      form.querySelectorAll('[name="decisao"]').forEach(input => input.addEventListener('change', update));
+      update();
+      form.addEventListener('submit', () => {
+        try { sessionStorage.setItem('vt-return', JSON.stringify({week:panel.dataset.vtWeek, person:form.querySelector('[name="pessoa_id"]').value})); } catch (_) {}
+      });
+    });
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('vt-return') || 'null');
+      if (saved && saved.week === panel.dataset.vtWeek) {
+        const person = people.find(row => row.id === `vt-pessoa-${saved.person}`);
+        if (person) { person.tabIndex = -1; requestAnimationFrame(() => { person.scrollIntoView({block:'center'}); person.focus({preventScroll:true}); }); }
+        sessionStorage.removeItem('vt-return');
+      }
+    } catch (_) {}
+  });
+})();
+</script>

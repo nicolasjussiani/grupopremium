@@ -92,7 +92,7 @@
       <td><strong>{{ p.colaborador.nome }}</strong><br><small>{{ p.colaborador.pk }} · {{ p.colaborador.unidade|default:"Não informado" }} · {{ p.colaborador.get_categoria_trabalho_display }}</small></td>
       <td>{{ p.get_tipo_display }}</td>
       <td>{{ p.competencia|date:"d/m/Y" }}{% if p.fim_competencia != p.competencia %}<br>a {{ p.fim_competencia|date:"d/m/Y" }}{% endif %}</td>
-      <td>{% if p.dias_trabalhados_exibicao is not None %}{{ p.dias_trabalhados_exibicao|floatformat:-2 }}{% else %}Não definido{% endif %}</td>
+      <td>{% if p.dias_trabalhados_exibicao is not None %}{{ p.dias_trabalhados_exibicao|floatformat:-2 }}{% else %}Não definido{% endif %}{% if p.inicio_presencas %}<br><small>Semana anterior: {{ p.inicio_presencas|date:"d/m" }} a {{ p.fim_presencas|date:"d/m" }}</small>{% endif %}</td>
       <td>{% if p.valor_diaria %}R$ {{ p.valor_diaria|floatformat:2 }}{% else %}—{% endif %}</td>
       <td class="report-pix">{{ p.chave_pix_exibicao|default:"Não informado" }}</td>
       <td>{{ p.data_vencimento|date:"d/m/Y" }}</td><td>{{ p.data_pagamento|date:"d/m/Y"|default:"—" }}</td>

@@ -30,6 +30,7 @@ from django.utils.text import get_valid_filename
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
+from .programacao_vt import segundas_no_periodo, presencas_por_pessoa, linhas_semana, resumo_semana
 from .calendario_presenca import montar_calendario_presenca
 
 
@@ -404,6 +405,15 @@ def _resumo_pendencias_pagamentos(queryset, inicio, fim):
 
 def _anexar_dias_trabalhados(pagamentos, inicio, fim):
     pagamentos = list(pagamentos)
+    semanas_vt = {}
+    for pagamento in pagamentos:
+        if pagamento.tipo in ('vale_transporte', 'ajuda_custo'):
+            segunda = pagamento.data_vencimento - timedelta(days=pagamento.data_vencimento.weekday())
+            semanas_vt.setdefault(segunda, set()).add(pagamento.colaborador_id)
+    presencas_vt = {
+        segunda: presencas_por_pessoa(ids, segunda - timedelta(days=7), segunda - timedelta(days=1))
+        for segunda, ids in semanas_vt.items()
+    }
     ids = {pagamento.colaborador_id for pagamento in pagamentos}
     presencas = {
         item['colaborador_id']: item
@@ -432,6 +442,12 @@ def _anexar_dias_trabalhados(pagamentos, inicio, fim):
         if dias is None:
             resumo = presencas.get(pagamento.colaborador_id)
             dias = resumo['total_presentes'] if resumo else None
+        if pagamento.tipo in ('vale_transporte', 'ajuda_custo'):
+            segunda = pagamento.data_vencimento - timedelta(days=pagamento.data_vencimento.weekday())
+            resumo = presencas_vt[segunda].get(pagamento.colaborador_id)
+            dias = len(resumo['datas']) if resumo and resumo['definidos'] else None
+            pagamento.inicio_presencas = segunda - timedelta(days=7)
+            pagamento.fim_presencas = segunda - timedelta(days=1)
         pagamento.dias_trabalhados_exibicao = dias
         pagamento.chave_pix_exibicao = pix
     return pagamentos
@@ -507,6 +523,10 @@ def _dados_folha(request, *, incluir_resumo=True):
     return {
         'pagamentos': pagamentos,
         'unidade_filter': unidade_filter,
+        'segundas_vt': list(segundas_no_periodo(
+            data_inicio, data_inicio + timedelta(days=min((data_fim - data_inicio).days, 1095)),
+        )),
+        'calendario_vt_limitado': (data_fim - data_inicio).days > 1095,
         'colaborador_selecionado': colaborador_selecionado,
         'filtros_query': urlencode(filtros),
         'query': query,
@@ -542,7 +562,31 @@ def _dados_folha(request, *, incluir_resumo=True):
 @login_required
 @access_required(permission='admissional.view_pagamentocolaborador', profiles=('rh', 'financeiro', 'gestor'))
 def lista_pagamentos_colaboradores(request):
-    return render(request, 'admissional/lista_pagamentos.html', _dados_folha(request))
+    contexto = _dados_folha(request)
+    segundas = contexto['segundas_vt']
+    if segundas and contexto['tipo_filter'] in ('', 'vale_transporte', 'ajuda_custo'):
+        hoje = timezone.localdate()
+        segunda = next((dia for dia in segundas if dia >= hoje), segundas[-1])
+        try:
+            escolhida = parse_date(request.GET.get('segunda_vt', ''))
+        except ValueError:
+            escolhida = None
+        if escolhida in segundas:
+            segunda = escolhida
+        contexto['vt_semana'] = {
+            'segunda': segunda,
+            'inicio_anterior': segunda - timedelta(days=7),
+            'fim_anterior': segunda - timedelta(days=1),
+            'linhas': linhas_semana(
+                segunda, busca=contexto['query'], unidade=contexto['unidade_filter'],
+                categoria=contexto['categoria_filter'],
+                tipo=contexto['tipo_filter'],
+                colaborador_id=getattr(contexto['colaborador_selecionado'], 'pk', None),
+            ),
+            'pode_editar': contexto['can_add_pagamento'] and contexto['can_edit_pagamento'],
+        }
+        contexto['vt_semana']['resumo'] = resumo_semana(contexto['vt_semana']['linhas'])
+    return render(request, 'admissional/lista_pagamentos.html', contexto)
 
 
 @login_required

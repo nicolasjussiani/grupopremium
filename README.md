@@ -54,6 +54,35 @@ ou o bucket configurado nos arquivos `.env`.
   referencia do objeto; isso evita o limite de 4,5 MB das Functions da Vercel.
 - O limite da aplicacao para upload direto e 50 MB por arquivo.
 
+## Programação semanal de VT e ajuda de custo
+
+Na Folha de Pagamento, o quadro **VT e ajuda de custo de todas as segundas-feiras** permite abrir
+cada segunda do período, inclusive quando a semana anterior ainda está pendente.
+A própria folha exibe os colaboradores da segunda selecionada, mesmo sem
+lançamentos cadastrados. Ao salvar uma decisão, mantém os filtros e atualiza os
+totais. A Base Fiscal e a visão de benefícios também oferecem acesso à programação.
+
+A interface oferece busca por nome, unidade ou cadastro, filtros por decisão e
+resumo dos valores pendentes. Os sete dias da semana anterior são exibidos com
+a situação registrada (presença, falta, atestado, folga ou sem informação). No
+celular, a revisão usa cartões individuais.
+
+A revisão inclui CLT e PJ disponíveis. O tipo do pagamento vem do cadastro:
+**Pagar VT** para CLT e **Pagar ajuda** para PJ. Selecione a opção e informe o valor,
+ou **Não precisa**. A escolha vale somente para aquela semana. Pagar VT cria
+ou atualiza um lançamento pendente; a baixa continua exigindo comprovante.
+Pagamentos já realizados não podem ser alterados pela programação.
+
+Os dias trabalhados vêm das presenças da segunda ao domingo anteriores ao
+vencimento. A tela informa as datas presentes e os dias com situação definida;
+ausência de registro não é tratada como falta. O valor é conferido pela pessoa
+responsável, sem cálculo proporcional automático.
+
+O calendário é exibido ao abrir a página, sem depender de um agendamento externo
+ou criar pagamentos durante a consulta. Ao publicar esta versão, execute
+`python manage.py migrate` para aplicar `0026_programacao_vt_semanal` antes de
+servir o novo código.
+
 ## PWA de aprovacoes no iPhone
 
 - Acesse `/mobile/` com um superusuario ou membro dos grupos `Admin_Global` ou

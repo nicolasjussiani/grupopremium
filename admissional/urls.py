@@ -14,6 +14,7 @@ urlpatterns = [
     path('colaboradores/pagamentos/', views.lista_pagamentos_colaboradores, name='lista_pagamentos_colaboradores'),
     path('colaboradores/pagamentos/relatorio/', views.relatorio_folha_pagamento, name='relatorio_folha_pagamento'),
     path('colaboradores/pagamentos/beneficios/', views.visao_beneficios_colaboradores, name='visao_beneficios_colaboradores'),
+    path('colaboradores/pagamentos/vt-semanal/', views_vt.programacao_vt, name='programacao_vt'),
     path('colaboradores/pagamentos/colaborador/<int:pk>/resumo/', views.resumo_colaborador_pagamento, name='resumo_colaborador_pagamento'),
     path('colaboradores/pagamentos/novo/', views.novo_pagamento_colaborador, name='novo_pagamento_colaborador'),
     path('colaboradores/pagamentos/<int:pk>/editar/', views.editar_pagamento_colaborador, name='editar_pagamento_colaborador'),

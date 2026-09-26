@@ -521,6 +521,10 @@ class PagamentoColaborador(models.Model):
         ):
             return None, False
         proximo_inicio = self.competencia + timedelta(days=7)
+        if ProgramacaoVT.objects.filter(
+            colaborador_id=self.colaborador_id, segunda=proximo_inicio, pagar=False,
+        ).exists():
+            return None, False
         existente = PagamentoColaborador.objects.filter(
             colaborador=self.colaborador,
             tipo=self.tipo,
@@ -544,6 +548,19 @@ class PagamentoColaborador(models.Model):
         proximo.full_clean()
         proximo.save()
         return proximo, True
+
+
+class ProgramacaoVT(models.Model):
+    colaborador = models.ForeignKey(Colaborador, on_delete=models.PROTECT)
+    segunda = models.DateField(db_index=True)
+    pagar = models.BooleanField()
+    atualizado_por = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=['colaborador', 'segunda'], name='vt_decisao_por_semana',
+        )]
 
 
 class Admissao(models.Model):

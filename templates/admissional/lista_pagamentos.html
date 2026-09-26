@@ -3,6 +3,7 @@
 {% block nav_pagamentos_colaboradores %}active{% endblock %}
 {% block topbar_title %}Folha de Pagamento{% endblock %}
 {% block extra_css %}
+{% include "admissional/_vt_estilos.html" %}
 <style>
   .pending-kpis { grid-template-columns: repeat(4, minmax(170px, 1fr)); }
   .pending-kpis .kpi-card { padding: 16px; }
@@ -76,6 +77,19 @@
   </form>
 </div>
 
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-title">VT e ajuda de custo de todas as segundas-feiras</div>
+  <p>Selecione a segunda para definir quem recebe e conferir os dias trabalhados na semana anterior. A revisão independe do pagamento das semanas anteriores.</p>
+  {% if calendario_vt_limitado %}<p>Exibindo os primeiros três anos. Ajuste o período para consultar as demais segundas-feiras.</p>{% endif %}
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for segunda in segundas_vt %}<a class="btn btn-outline" href="{% url 'programacao_vt' %}?segunda={{ segunda|date:'Y-m-d' }}">Segunda · {{ segunda|date:"d/m/Y" }}</a>{% empty %}<span>Nenhuma segunda-feira no período selecionado.</span>{% endfor %}
+    <a class="btn btn-mod6" href="{% url 'programacao_vt' %}">Próxima segunda-feira</a>
+  </div>
+</div>
+{% if vt_semana %}
+<div class="vt-period-note" style="margin:0 0 12px;"><strong>Semana trabalhada: {{ vt_semana.inicio_anterior|date:"d/m/Y" }} a {{ vt_semana.fim_anterior|date:"d/m/Y" }}</strong>Presenças registradas antes do pagamento de {{ vt_semana.segunda|date:"d/m" }}.</div>
+{% include 'admissional/_tabela_programacao_vt.html' with linhas=vt_semana.linhas segunda=vt_semana.segunda pode_editar=vt_semana.pode_editar resumo_vt=vt_semana.resumo voltar_folha=True %}
+{% endif %}
 <section aria-labelledby="titulo-resumo-pendencias">
   <div class="card" style="margin-bottom:16px;">
     <div class="card-header">
@@ -152,7 +166,7 @@
         <td><strong><a href="{% url 'documentos_colaborador' pagamento.colaborador.pk %}">{{ pagamento.colaborador.nome|default:"Não informado" }}</a></strong><div style="font-size:.74rem;color:var(--text-muted);">{{ pagamento.colaborador.unidade }} · {{ pagamento.colaborador.get_categoria_trabalho_display }}</div></td>
         <td>{{ pagamento.get_tipo_display }}</td>
         <td>{{ pagamento.competencia|date:"d/m/Y" }}{% if pagamento.fim_competencia != pagamento.competencia %}<br><small>até {{ pagamento.fim_competencia|date:"d/m/Y" }}</small>{% endif %}{% if pagamento.recorrente %}<br><span class="badge badge-info">Recorrente</span>{% endif %}</td>
-        <td>{% if pagamento.dias_trabalhados_exibicao is not None %}<span class="badge badge-success">{{ pagamento.dias_trabalhados_exibicao|floatformat:-2 }}</span>{% else %}<span class="badge badge-warning">Não definido</span>{% endif %}{% if pagamento.tipo == 'freelancer' and pagamento.valor_diaria %}<br><small>R$ {{ pagamento.valor_diaria|floatformat:2 }} por dia</small>{% endif %}</td>
+        <td>{% if pagamento.dias_trabalhados_exibicao is not None %}<span class="badge badge-success">{{ pagamento.dias_trabalhados_exibicao|floatformat:-2 }}</span>{% else %}<span class="badge badge-warning">Não definido</span>{% endif %}{% if pagamento.tipo == 'freelancer' and pagamento.valor_diaria %}<br><small>R$ {{ pagamento.valor_diaria|floatformat:2 }} por dia</small>{% endif %}{% if pagamento.inicio_presencas %}<br><small>Semana anterior: {{ pagamento.inicio_presencas|date:"d/m" }} a {{ pagamento.fim_presencas|date:"d/m" }}</small>{% endif %}</td>
         <td style="max-width:190px;overflow-wrap:anywhere;">{{ pagamento.chave_pix_exibicao|default:"Não informado" }}</td>
         <td>{{ pagamento.data_vencimento|date:"d/m/Y" }}</td>
         <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>

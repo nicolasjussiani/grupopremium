@@ -1,0 +1,64 @@
+{% load l10n %}
+<section class="vt-panel" data-vt-panel data-vt-week="{{ segunda|date:'Y-m-d' }}" aria-label="Revisão semanal de VT e ajuda de custo">
+  <header class="vt-heading">
+    <div><span class="vt-eyebrow">VT E AJUDA DE CUSTO · REVISÃO SEMANAL</span><h2>Pessoas para o pagamento de segunda-feira · {{ segunda|date:"d/m/Y" }}</h2><p>Confira a presença, escolha quem recebe e salve a decisão.</p></div>
+    <span class="vt-scope">{{ resumo_vt.clt }} CLT · {{ resumo_vt.pj }} PJ</span>
+  </header>
+  <div class="vt-metrics" aria-label="Resumo das decisões salvas">
+    <div class="vt-metric"><span>Para revisar</span><strong>{{ resumo_vt.revisar }}</strong><small>Aguardando sua decisão</small></div>
+    <div class="vt-metric"><span>Para pagar</span><strong>{{ resumo_vt.pagar }}</strong><small>R$ {{ resumo_vt.valor_pendente|floatformat:2 }} pendentes</small></div>
+    <div class="vt-metric"><span>Não recebem</span><strong>{{ resumo_vt.nao }}</strong><small>Somente nesta semana</small></div>
+    <div class="vt-metric"><span>Já pagos</span><strong>{{ resumo_vt.pago }}</strong><small>Pagamento confirmado</small></div>
+  </div>
+  <details class="vt-explanation"><summary>Quem aparece aqui e como funciona?</summary><p>Esta lista reúne colaboradores CLT e PJ disponíveis para a semana e respeita os filtros da folha. Para CLT, o benefício é VT; para PJ, ajuda de custo. Pessoas inativas, desligadas ou com admissão posterior não aparecem. A presença ajuda na conferência, mas não gera pagamento automaticamente.</p><a href="{% url 'visao_beneficios_colaboradores' %}">Ver ajuda de custo e outros benefícios →</a><p><strong>Pagar VT</strong> ou <strong>Pagar ajuda</strong> cria um pagamento pendente, conforme o cadastro da pessoa. A confirmação com comprovante é feita depois. <strong>Não precisa</strong> vale só para esta semana; não altera o cadastro ou as presenças.</p></details>
+  <div class="vt-tools" data-vt-tools hidden>
+    <div class="vt-search"><label for="vt-busca">Buscar nesta lista</label><input id="vt-busca" type="search" class="form-control" placeholder="Nome, unidade ou número do cadastro" data-vt-search autocomplete="off"></div>
+    <div class="vt-benefit-filter"><label for="vt-beneficio">Benefício</label><select id="vt-beneficio" class="form-control" data-vt-benefit><option value="todos">VT e ajuda de custo</option><option value="vale_transporte">VT · CLT</option><option value="ajuda_custo">Ajuda de custo · PJ</option></select></div>
+    <div class="vt-filter-group" aria-label="Filtrar por decisão salva">
+      <button type="button" class="vt-filter is-active" data-vt-filter="todos" aria-pressed="true">Todos <span>{{ resumo_vt.total }}</span></button>
+      <button type="button" class="vt-filter" data-vt-filter="revisar" aria-pressed="false">A revisar <span>{{ resumo_vt.revisar }}</span></button>
+      <button type="button" class="vt-filter" data-vt-filter="pagar" aria-pressed="false">Para pagar <span>{{ resumo_vt.pagar }}</span></button>
+      <button type="button" class="vt-filter" data-vt-filter="nao" aria-pressed="false">Não recebem <span>{{ resumo_vt.nao }}</span></button>
+      <button type="button" class="vt-filter" data-vt-filter="pago" aria-pressed="false">Pagos <span>{{ resumo_vt.pago }}</span></button>
+    </div>
+  </div>
+  <div class="vt-list-caption"><span data-vt-count aria-live="polite">{{ linhas|length }} pessoa(s) nesta lista</span><span>As alterações entram nos totais depois de salvar.</span></div>
+  <div class="vt-people">
+    {% for linha in linhas %}
+    <article class="vt-person" id="vt-pessoa-{{ linha.pessoa.pk }}" data-vt-person data-status="{{ linha.situacao }}" data-benefit="{{ linha.tipo_beneficio }}" data-search="{{ linha.pessoa.nome }} {{ linha.pessoa.unidade }} {{ linha.pessoa.pk }} {{ linha.pessoa.tipo_contrato }} {{ linha.nome_beneficio }}">
+      <div class="vt-identity">
+        <div class="vt-person-title"><span class="vt-avatar" aria-hidden="true">{{ linha.pessoa.nome|first|upper }}</span><div><h3>{{ linha.pessoa.nome }}</h3><p>{{ linha.pessoa.unidade|default:"Unidade não informada" }}</p></div></div>
+        <div class="vt-person-meta"><span>Cadastro #{{ linha.pessoa.pk }}</span><span>{{ linha.pessoa.get_status_display }}</span><span><strong>{{ linha.pessoa.get_tipo_contrato_display }} · {{ linha.nome_beneficio }}</strong></span></div>
+        <span class="vt-status vt-status-{{ linha.situacao }}">{% if linha.situacao == 'pago' %}Pago{% elif linha.situacao == 'pagar' %}Pendente de pagamento{% elif linha.situacao == 'nao' %}Não recebe nesta semana{% else %}A revisar{% endif %}</span>
+      </div>
+      <div class="vt-attendance">
+        <div class="vt-section-label">PRESENÇA NA SEMANA ANTERIOR</div>
+        <div class="vt-attendance-total">{% if linha.dias is not None %}<strong>{{ linha.dias }} dia{{ linha.dias|pluralize:"s" }}</strong> <span>com presença</span>{% else %}<strong>Sem presenças informadas</strong>{% endif %}</div>
+        <ul class="vt-week" aria-label="Presenças da semana anterior">
+          {% for dia in linha.dias_semana %}<li class="vt-day vt-day-{{ dia.status }}" title="{{ dia.data|date:'d/m/Y' }}: {{ dia.descricao }}" aria-label="{{ dia.nome }}, {{ dia.data|date:'d/m/Y' }}: {{ dia.descricao }}"><span>{{ dia.nome }}</span><strong>{{ dia.data|date:"d" }}</strong><span class="vt-day-mark" aria-hidden="true">{% if dia.status == 'presente' %}✓{% elif dia.status == 'falta' %}F{% elif dia.status == 'atestado' %}A{% elif dia.status == 'folga' %}○{% else %}–{% endif %}</span></li>{% endfor %}
+        </ul>
+        <p class="vt-attendance-note">{{ linha.definidos }} de 7 dias com situação definida · <span title="Dia sem registro não é falta">– não informado</span></p>
+      </div>
+      <div class="vt-decision">
+      {% if pode_editar and linha.situacao != 'pago' %}
+        <form method="post" action="{% url 'programacao_vt' %}" data-vt-form>
+          {% csrf_token %}{% if voltar_folha %}<input type="hidden" name="voltar_folha" value="1"><input type="hidden" name="filtros_folha" value="{{ request.GET.urlencode }}">{% endif %}
+          <input type="hidden" name="segunda" value="{{ segunda|date:'Y-m-d' }}"><input type="hidden" name="pessoa_id" value="{{ linha.pessoa.pk }}">
+          <fieldset class="vt-choices"><legend>Recebe {{ linha.nome_beneficio|lower }} nesta segunda?</legend>
+            <label><input type="radio" name="decisao" value="pagar" required {% if linha.decisao == 'pagar' %}checked{% endif %}><span>{% if linha.tipo_beneficio == "ajuda_custo" %}Pagar ajuda{% else %}Pagar VT{% endif %}</span></label>
+            <label><input type="radio" name="decisao" value="nao" required {% if linha.decisao == 'nao' %}checked{% endif %}><span>Não precisa</span></label>
+          </fieldset>
+          <div class="vt-value-row"><div class="vt-money"><label for="vt-valor-{{ linha.pessoa.pk }}">Valor desta semana</label><div class="vt-money-input"><span>R$</span><input id="vt-valor-{{ linha.pessoa.pk }}" type="number" name="valor" min="0" step="0.01" inputmode="decimal" placeholder="0,00" value="{{ linha.valor|default_if_none:''|unlocalize }}" {% if linha.decisao == 'pagar' %}required{% endif %} aria-describedby="vt-ajuda-{{ linha.pessoa.pk }}"></div></div><button type="submit" class="vt-save">Salvar decisão</button></div>
+          <small class="vt-value-note" id="vt-ajuda-{{ linha.pessoa.pk }}" data-vt-note>{% if linha.decisao == 'nao' %}Não haverá pagamento nesta semana.{% elif not linha.valor %}Valor semanal não informado. Preencha se for pagar.{% else %}Confira o valor antes de salvar.{% endif %}</small>
+          {% if linha.erro_edicao %}<p class="vt-form-error" role="alert">{{ linha.erro_edicao }}</p>{% endif %}
+        </form>
+      {% else %}<div class="vt-section-label">{% if linha.situacao == 'pago' %}PAGAMENTO REALIZADO{% else %}DECISÃO DA SEMANA{% endif %}</div><p class="vt-readonly">{% if linha.pagamento and linha.situacao != 'nao' %}R$ {{ linha.pagamento.valor|floatformat:2 }}{% else %}Somente consulta{% endif %}</p>{% endif %}
+      {% if linha.situacao == 'pagar' and pode_editar %}<a class="vt-payment-link" href="{% url 'marcar_pagamento_como_pago' linha.pagamento.pk %}">Confirmar pagamento com comprovante →</a>{% endif %}
+      </div>
+    </article>
+    {% empty %}<div class="vt-empty"><strong>Nenhum colaborador nesta lista</strong><p>Confira a semana e os filtros de pessoa, unidade ou benefício.</p><a href="{% url 'visao_beneficios_colaboradores' %}">Ver outros benefícios →</a></div>{% endfor %}
+  </div>
+  <div class="vt-empty" data-vt-empty hidden><strong>Nenhuma pessoa encontrada</strong><p>Tente outro nome ou selecione “Todos”.</p><button type="button" class="vt-filter" data-vt-reset>Limpar busca e situação</button></div>
+  <footer class="vt-footer">✓ Presença informada &nbsp; F Falta &nbsp; A Atestado/licença &nbsp; ○ Folga &nbsp; – Sem informação</footer>
+</section>
+{% include 'admissional/_vt_script.html' %}

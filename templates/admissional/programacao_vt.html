@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}VT e ajuda de custo — ERP Grupo PremiumBR{% endblock %}
+{% block nav_pagamentos_colaboradores %}active{% endblock %}
+{% block topbar_title %}VT e ajuda de custo semanal{% endblock %}
+{% block extra_css %}{% include 'admissional/_vt_estilos.html' %}{% endblock %}
+{% block content %}
+<header class="vt-page-header"><div><h1>VT e ajuda de custo semanal</h1><p>Uma segunda-feira de cada vez. Presenças, valores e decisões no mesmo lugar.</p></div><a class="btn btn-outline" href="{% url 'lista_pagamentos_colaboradores' %}">← Voltar para a folha</a></header>
+<form method="get" class="vt-week-picker">
+  <a class="btn btn-outline" href="?segunda={{ anterior|date:'Y-m-d' }}" aria-label="Abrir segunda-feira anterior">← Anterior</a>
+  <div><label for="segunda">Segunda-feira do pagamento</label><input class="form-control" type="date" id="segunda" name="segunda" value="{{ segunda|date:'Y-m-d' }}" step="7" min="1901-01-07" max="2099-12-28" required></div>
+  <button class="btn btn-mod6" type="submit">Abrir semana</button>
+  <a class="btn btn-outline" href="?segunda={{ proxima|date:'Y-m-d' }}" aria-label="Abrir próxima segunda-feira">Próxima →</a>
+  <p class="vt-period-note">Semana trabalhada<strong>{{ anterior|date:"d/m/Y" }} a {{ fim_anterior|date:"d/m/Y" }}</strong></p>
+</form>
+{% if erro %}<div class="card vt-form-error" role="alert" style="margin-bottom:16px;">{{ erro }}</div>{% endif %}
+{% include 'admissional/_tabela_programacao_vt.html' %}
+{% endblock %}
