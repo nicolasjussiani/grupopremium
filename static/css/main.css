@@ -613,6 +613,7 @@ body {
 
 .module-banner::before {
   content: '';
+  pointer-events: none;
   position: absolute;
   inset: 0;
   background: linear-gradient(135deg, var(--mod-color) 0%, transparent 70%);
