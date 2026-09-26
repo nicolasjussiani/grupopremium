@@ -35,14 +35,28 @@
     panel.querySelectorAll('[data-vt-form]').forEach(form => {
       const amount = form.querySelector('[name="valor"]');
       const note = form.querySelector('[data-vt-note]');
+      const total = form.querySelector('[data-vt-total]');
+      const formula = form.querySelector('[data-vt-formula]');
+      const present = Number(form.dataset.vtPresentes);
+      const currency = new Intl.NumberFormat('pt-BR', {style:'currency', currency:'BRL'});
+      const cents = raw => {
+        if (!/^\d+(?:[.,]\d{1,2})?$/.test(raw)) return null;
+        const [whole, fraction = ''] = raw.replace(',', '.').split('.');
+        return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+      };
       const update = () => {
         const choice = form.querySelector('[name="decisao"]:checked')?.value;
         amount.disabled = choice === 'nao';
         amount.required = choice === 'pagar';
         amount.min = choice === 'pagar' ? '0.01' : '0';
-        note.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : (amount.value ? 'Confira o valor antes de salvar.' : 'Valor semanal não informado. Preencha se for pagar.');
+        const baseCents = cents(amount.value);
+        const calculatedCents = baseCents === null ? null : Math.floor((baseCents * present + 3) / 7);
+        total.textContent = choice === 'nao' ? currency.format(0) : calculatedCents === null ? 'Informe o valor semanal' : currency.format(calculatedCents / 100);
+        formula.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : `${baseCents === null ? 'Valor semanal' : currency.format(baseCents / 100)} ÷ 7 × ${present} dia(s) presente(s).`;
+        note.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : (amount.value ? 'Confira o cálculo antes de salvar.' : 'Valor semanal não informado. Preencha se for pagar.');
       };
       form.querySelectorAll('[name="decisao"]').forEach(input => input.addEventListener('change', update));
+      amount.addEventListener('input', update);
       update();
       form.addEventListener('submit', () => {
         try { sessionStorage.setItem('vt-return', JSON.stringify({week:panel.dataset.vtWeek, person:form.querySelector('[name="pessoa_id"]').value})); } catch (_) {}

@@ -21,6 +21,11 @@ class ProgramacaoVTTest(TestCase):
         self.url = reverse('programacao_vt')
 
     def decidir(self, decisao='pagar', **extras):
+        if not PresencaDiaria.objects.filter(colaborador=self.pessoa).exists():
+            PresencaDiaria.objects.bulk_create([
+                PresencaDiaria(colaborador=self.pessoa, data=date(2026, 9, dia), status='presente')
+                for dia in range(21, 28)
+            ])
         return self.client.post(self.url, {
             'segunda': '2026-09-28', 'pessoa_id': self.pessoa.pk,
             'decisao': decisao, 'valor': '80.00', **extras,
@@ -211,7 +216,7 @@ class ProgramacaoVTTest(TestCase):
         pagamento = PagamentoColaborador.objects.get(colaborador=pj)
         self.assertEqual(pagamento.tipo, 'ajuda_custo')
         self.assertEqual(pagamento.status, 'pendente')
-        self.assertEqual(pagamento.valor, Decimal('120'))
+        self.assertEqual(pagamento.valor, Decimal('17.14'))
 
     def test_pj_nao_recebe_impede_recorrencia_e_respeita_filtro_da_folha(self):
         pj = Colaborador.objects.create(nome='Adriana exemplo', tipo_contrato='pj')

@@ -28,7 +28,7 @@ class DecisaoVTForm(forms.Form):
     def clean(self):
         dados = super().clean()
         if dados.get('decisao') == 'pagar' and (dados.get('valor') is None or dados['valor'] <= 0):
-            self.add_error('valor', 'Informe um valor de benefício maior que zero.')
+            self.add_error('valor', 'Informe o valor da semana completa maior que zero.')
         return dados
 
 

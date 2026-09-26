@@ -521,6 +521,12 @@ class PagamentoColaborador(models.Model):
         ):
             return None, False
         proximo_inicio = self.competencia + timedelta(days=7)
+        # Valores proporcionais precisam de uma nova revisão das presenças.
+        if ProgramacaoVT.objects.filter(
+            colaborador_id=self.colaborador_id, segunda=self.competencia,
+            valor_semana_completa__isnull=False,
+        ).exists():
+            return None, False
         if ProgramacaoVT.objects.filter(
             colaborador_id=self.colaborador_id, segunda=proximo_inicio, pagar=False,
         ).exists():
@@ -554,6 +560,8 @@ class ProgramacaoVT(models.Model):
     colaborador = models.ForeignKey(Colaborador, on_delete=models.PROTECT)
     segunda = models.DateField(db_index=True)
     pagar = models.BooleanField()
+    valor_semana_completa = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    dias_presentes = models.PositiveSmallIntegerField(null=True, blank=True)
     atualizado_por = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
     atualizado_em = models.DateTimeField(auto_now=True)
 

@@ -75,8 +75,12 @@ Pagamentos já realizados não podem ser alterados pela programação.
 
 Os dias trabalhados vêm das presenças da segunda ao domingo anteriores ao
 vencimento. A tela informa as datas presentes e os dias com situação definida;
-ausência de registro não é tratada como falta. O valor é conferido pela pessoa
-responsável, sem cálculo proporcional automático.
+ausência de registro não é tratada como falta. Informe o valor da semana completa: o sistema divide por 7 e multiplica pelos dias
+presentes, arredondando apenas o total para centavos. Falta, folga e atestado não
+contam como presença. Dias sem informação são destacados para conferência. O
+valor base e a quantidade de presenças ficam salvos por semana; o valor líquido
+não é reaproveitado como base da próxima semana. Pagamentos proporcionais
+precisam de nova revisão semanal e não geram recorrência com o valor anterior.
 
 O calendário é exibido ao abrir a página, sem depender de um agendamento externo
 ou criar pagamentos durante a consulta. Ao publicar esta versão, execute

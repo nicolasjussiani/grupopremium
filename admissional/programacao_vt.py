@@ -1,6 +1,6 @@
 """Calendário de revisão do VT, independente da baixa da semana anterior."""
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -24,6 +24,13 @@ def equipe_vt(segunda):
 
 def tipo_beneficio(colaborador):
     return 'vale_transporte' if colaborador.tipo_contrato == 'clt' else 'ajuda_custo'
+
+
+def valor_proporcional(valor_semana, dias_presentes):
+    """Arredonda apenas o total, sem arredondar a diária intermediária."""
+    return (valor_semana * Decimal(dias_presentes) / Decimal(7)).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP,
+    )
 
 
 def presencas_por_pessoa(ids, inicio, fim):
@@ -58,6 +65,11 @@ def linhas_semana(segunda, *, busca='', unidade='', categoria='', colaborador_id
     ids = [p.pk for p in equipe]
     presencas = presencas_por_pessoa(ids, segunda - timedelta(days=7), segunda - timedelta(days=1))
     decisoes = {d.colaborador_id: d for d in ProgramacaoVT.objects.filter(segunda=segunda)}
+    bases_anteriores = {}
+    for decisao_anterior in ProgramacaoVT.objects.filter(
+        colaborador_id__in=ids, segunda__lt=segunda, valor_semana_completa__isnull=False,
+    ).order_by('colaborador_id', '-segunda'):
+        bases_anteriores.setdefault(decisao_anterior.colaborador_id, decisao_anterior.valor_semana_completa)
     pagamentos = {}
     for p in PagamentoColaborador.objects.filter(
         colaborador_id__in=ids, tipo__in=('vale_transporte', 'ajuda_custo'), data_vencimento=segunda,
@@ -76,6 +88,11 @@ def linhas_semana(segunda, *, busca='', unidade='', categoria='', colaborador_id
         elif decisao and not decisao.pagar:
             situacao = 'nao'
         presenca = presencas.get(pessoa.pk, {'datas': [], 'definidos': 0, 'por_dia': {}})
+        valor_base = (
+            decisao.valor_semana_completa if decisao and decisao.valor_semana_completa is not None
+            else bases_anteriores.get(pessoa.pk, getattr(pessoa, f'{beneficio}_semanal'))
+        )
+        total_calculado = valor_proporcional(valor_base, len(presenca['datas'])) if valor_base else None
         dias_semana = []
         for indice, nome in enumerate(('Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom')):
             dia = segunda - timedelta(days=7 - indice)
@@ -86,7 +103,10 @@ def linhas_semana(segunda, *, busca='', unidade='', categoria='', colaborador_id
             })
         linhas.append({
             'pessoa': pessoa, 'pagamento': pagamento, 'situacao': situacao,
-            'valor': pagamento.valor if pagamento else getattr(pessoa, f'{beneficio}_semanal'),
+            'valor': valor_base,
+            'valor_calculado': total_calculado,
+            'dias_pendentes': 7 - presenca['definidos'],
+            'calculo_salvo': decisao if decisao and decisao.valor_semana_completa is not None else None,
             'tipo_beneficio': beneficio,
             'nome_beneficio': 'VT' if beneficio == 'vale_transporte' else 'Ajuda de custo',
             'datas': presenca['datas'], 'dias': len(presenca['datas']) if presenca['definidos'] else None,
@@ -125,12 +145,19 @@ def salvar_decisao(*, pessoa_id, segunda, pagar, valor, usuario):
     if any(p.status == 'pago' for p in pagamentos):
         raise ValidationError('Benefício já pago. O histórico não pode ser alterado pela programação.')
     if pagar:
+        if valor is None or not valor.is_finite() or valor <= 0:
+            raise ValidationError('Informe o valor da semana completa maior que zero.')
+        presenca = presencas_por_pessoa([pessoa.pk], segunda - timedelta(days=7), segunda - timedelta(days=1))
+        dias_presentes = len(presenca.get(pessoa.pk, {'datas': []})['datas'])
+        total = valor_proporcional(valor, dias_presentes)
+        if total <= 0:
+            raise ValidationError('O valor calculado é R$ 0,00. Confira as presenças ou selecione Não precisa.')
         pagamento = pagamentos[0] if pagamentos else PagamentoColaborador(
             colaborador=pessoa, tipo=beneficio, competencia=segunda,
             data_vencimento=segunda, status='pendente', criado_por=usuario,
             observacao='Selecionado na programação semanal de VT e ajuda de custo.',
         )
-        pagamento.valor = valor
+        pagamento.valor = total
         pagamento.full_clean()
         pagamento.save()
     else:
@@ -139,5 +166,8 @@ def salvar_decisao(*, pessoa_id, segunda, pagar, valor, usuario):
             pagamento.save(update_fields=['status', 'atualizado_em'])
     ProgramacaoVT.objects.update_or_create(
         colaborador=pessoa, segunda=segunda,
-        defaults={'pagar': pagar, 'atualizado_por': usuario},
+        defaults={
+            'pagar': pagar, 'atualizado_por': usuario,
+            **({'valor_semana_completa': valor, 'dias_presentes': dias_presentes} if pagar else {}),
+        },
     )
