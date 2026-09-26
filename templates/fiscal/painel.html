@@ -1,5 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Base Fiscal | ERP Grupo PremiumBR{% endblock %}
+{% block nav_financeiro %}active{% endblock %}
+{% block topbar_title %}Base Fiscal{% endblock %}
 {% block content %}
 <div class="page-header">
   <div>
@@ -9,6 +11,21 @@
   <a href="{% url 'painel_financeiro' %}" class="btn btn-secondary">Voltar ao Financeiro</a>
 </div>
 
+<nav class="fiscal-subnav" aria-label="Subseções da Base Fiscal" data-fiscal-navigation>
+  <a href="#lotes">Lotes importados</a>
+  <a href="#importacao">Importar planilha</a>
+  <a href="#beneficios">VT e ajuda de custo</a>
+</nav>
+
+<section id="beneficios" data-fiscal-section aria-label="VT e ajuda de custo">
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-title">VT e ajuda de custo semanal</div>
+  <p>Toda segunda-feira: escolha quem precisa receber e confira os dias trabalhados na semana anterior.</p>
+  {% url 'programacao_vt' as programacao_vt_url %}
+  <a href="{% if programacao_vt_url %}{{ programacao_vt_url }}{% else %}{% url 'visao_beneficios_colaboradores' %}{% endif %}" class="btn btn-mod6">{% if programacao_vt_url %}Programar VT e ajuda de custo{% else %}Ver VT e ajuda de custo{% endif %}</a>
+</div>
+</section>
+<section id="importacao" data-fiscal-section aria-label="Importar planilha">
 <div class="card" style="margin-bottom:20px;">
   <div class="card-header"><div class="card-title">Importar planilha da Fiscal</div></div>
   <form method="post" action="{% url 'importar_folha_fiscal' %}" enctype="multipart/form-data">
@@ -29,7 +46,9 @@
     </div>
   </form>
 </div>
+</section>
 
+<section id="lotes" data-fiscal-section aria-label="Lotes importados">
 <div class="card">
   <div class="card-header"><div class="card-title">Lotes importados</div><span class="badge badge-info">{{ folhas|length }}</span></div>
   <div class="table-wrap" style="border:none;">
@@ -53,4 +72,7 @@
     </table>
   </div>
 </div>
+</section>
+{% include 'fiscal/_subsecoes.html' %}
+{% if form.errors %}<script>window.location.hash = 'importacao';</script>{% endif %}
 {% endblock %}

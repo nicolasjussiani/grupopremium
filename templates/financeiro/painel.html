@@ -38,9 +38,19 @@
   <a href="{% url 'entrada_documento' %}" class="btn btn-mod6">+ Novo Documento</a>
 </div>
 
+<nav class="fiscal-subnav" aria-label="Subseções do Financeiro e Fiscal" data-fiscal-navigation>
+  <a href="#pagamentos">Pagamentos</a>
+  <a href="#documentos">Documentos</a>
+  <a href="#folha-beneficios">Folha e benefícios</a>
+  <a href="#orcamento">Orçamento e metas</a>
+  <a href="#conferencia">Conferência</a>
+  <a href="#finalizados">Finalizados</a>
+</nav>
+
+<section id="pagamentos" data-fiscal-section aria-label="Pagamentos">
 <div class="card" style="margin-top:20px;">
   <div class="card-header"><div class="card-title">Situação dos pagamentos</div></div>
-  <form method="get" class="gateway-actions" style="margin-bottom:16px;">
+  <form method="get" action="#pagamentos" class="gateway-actions" style="margin-bottom:16px;">
     <label for="filtro_pagamento">Pagamento</label>
     <select id="filtro_pagamento" name="pagamento" class="form-control">
       <option value="">Todos</option>
@@ -67,12 +77,14 @@
     </tbody>
   </table></div>
   <div class="gateway-actions">
-    {% if pagamentos.has_previous %}<a href="?pagamento={{ filtro_pagamento }}&pagina={{ pagamentos.previous_page_number }}" class="btn btn-outline">Anterior</a>{% endif %}
+    {% if pagamentos.has_previous %}<a href="?pagamento={{ filtro_pagamento }}&pagina={{ pagamentos.previous_page_number }}#pagamentos" class="btn btn-outline">Anterior</a>{% endif %}
     <span>Página {{ pagamentos.number }} de {{ pagamentos.paginator.num_pages }}</span>
-    {% if pagamentos.has_next %}<a href="?pagamento={{ filtro_pagamento }}&pagina={{ pagamentos.next_page_number }}" class="btn btn-outline">Próxima</a>{% endif %}
+    {% if pagamentos.has_next %}<a href="?pagamento={{ filtro_pagamento }}&pagina={{ pagamentos.next_page_number }}#pagamentos" class="btn btn-outline">Próxima</a>{% endif %}
   </div>
 </div>
+</section>
 
+<section id="documentos" data-fiscal-section aria-label="Documentos">
 <div class="card" style="margin-top:20px;border-left:4px solid var(--mod6-yellow);">
   <div class="card-header" style="gap:12px;flex-wrap:wrap;">
     <div>
@@ -101,7 +113,9 @@
   </div>
   {% else %}<div class="empty-state"><p>Nenhum documento de Financeiro / Fiscal foi importado.</p></div>{% endif %}
 </div>
+</section>
 
+<section id="folha-beneficios" data-fiscal-section aria-label="Folha e benefícios">
 <div class="card" style="margin-top:20px;border-left:4px solid var(--mod6-blue);">
   <div class="card-header" style="gap:12px;flex-wrap:wrap;">
     <div>
@@ -111,6 +125,8 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a href="{% url 'painel_fiscal' %}" class="btn btn-secondary">Base Fiscal</a>
       <a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn btn-mod6">Abrir folha</a>
+      {% url 'programacao_vt' as programacao_vt_url %}
+      <a href="{% if programacao_vt_url %}{{ programacao_vt_url }}{% else %}{% url 'visao_beneficios_colaboradores' %}{% endif %}" class="btn btn-outline">VT e ajuda de custo{% if programacao_vt_url %} semanal{% endif %}</a>
     </div>
   </div>
   <div class="kpi-grid" style="margin-top:14px;">
@@ -119,7 +135,9 @@
     <div class="kpi-card"><div class="kpi-label">Pendente</div><div class="kpi-value">R$ {{ folha_mes_pendente|floatformat:2 }}</div></div>
   </div>
 </div>
+</section>
 
+<section id="orcamento" data-fiscal-section aria-label="Orçamento e metas">
 {% if dashboard_budget %}
 <div class="card" style="margin-top:24px;border-top-color:var(--mod6-blue);">
   <div class="card-header">
@@ -149,9 +167,13 @@
     {% endfor %}
   </div>
 </div>
+{% else %}
+<div class="card"><div class="card-title">Orçamento e metas</div><p>Nenhum orçamento cadastrado para o mês atual.</p></div>
 {% endif %}
+</section>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px;">
+<section id="conferencia" data-fiscal-section aria-label="Conferência">
+<div class="fiscal-columns">
   <!-- Documentos Pendentes -->
   <div class="card" style="border-top-color:var(--mod6-yellow);">
     <div class="card-header">
@@ -255,6 +277,8 @@
 </div>
 
 <!-- Finalizados no mês -->
+</section>
+<section id="finalizados" data-fiscal-section aria-label="Finalizados">
 {% if finalizados_mes %}
 <div class="card" style="margin-top:20px;border-top-color:var(--success);">
   <div class="card-header">
@@ -290,5 +314,9 @@
     </table>
   </div>
 </div>
+{% else %}
+<div class="card"><div class="card-title">Finalizados no mês</div><p>Nenhum lançamento finalizado neste mês.</p></div>
 {% endif %}
+</section>
+{% include 'fiscal/_subsecoes.html' %}
 {% endblock %}

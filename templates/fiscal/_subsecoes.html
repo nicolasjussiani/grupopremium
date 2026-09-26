@@ -1,0 +1,30 @@
+<style>
+  .fiscal-subnav { display:flex; flex-wrap:wrap; gap:8px; margin:20px 0; padding:12px; background:var(--bg-base); border:1px solid var(--border-color, #dce3ee); border-radius:12px; }
+  .fiscal-subnav a { padding:10px 14px; border-radius:8px; color:var(--text-secondary); text-decoration:none; font-weight:600; }
+  .fiscal-subnav a[aria-current="true"] { background:var(--mod6-blue, #163456); color:white; }
+  .fiscal-subnav a:focus-visible { outline:3px solid var(--mod6-yellow, #e4bd45); outline-offset:2px; }
+  [data-fiscal-section][hidden] { display:none !important; }
+  .fiscal-columns { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:20px; margin-top:24px; }
+  @media (max-width:760px) { .fiscal-columns { grid-template-columns:1fr; } .fiscal-subnav a { flex:1 1 auto; text-align:center; } }
+</style>
+<script>
+(() => {
+  const navigation = document.querySelector('[data-fiscal-navigation]');
+  if (!navigation) return;
+  const links = Array.from(navigation.querySelectorAll('a[href^="#"]'));
+  const sections = Array.from(document.querySelectorAll('[data-fiscal-section]'));
+  const select = () => {
+    const requested = window.location.hash.slice(1);
+    const defaultId = links[0] && links[0].hash.slice(1);
+    const selected = sections.find(section => section.id === requested) || sections.find(section => section.id === defaultId);
+    if (!selected) return;
+    sections.forEach(section => { section.hidden = section !== selected; });
+    links.forEach(link => {
+      if (link.hash === '#' + selected.id) link.setAttribute('aria-current', 'true');
+      else link.removeAttribute('aria-current');
+    });
+  };
+  window.addEventListener('hashchange', select);
+  select();
+})();
+</script>

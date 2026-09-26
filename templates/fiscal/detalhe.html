@@ -1,5 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ folha.titulo }} | ERP Grupo PremiumBR{% endblock %}
+{% block nav_financeiro %}active{% endblock %}
+{% block topbar_title %}Base Fiscal · Detalhes do lote{% endblock %}
 {% block content %}
 <div class="page-header">
   <div>
@@ -25,6 +27,11 @@
 
 {% if folha.observacoes_importacao %}<div class="alert alert-info">{{ folha.observacoes_importacao }}</div>{% endif %}
 
+<nav class="fiscal-subnav" aria-label="Subseções do lote fiscal" data-fiscal-navigation>
+  <a href="#folha">Folha por pessoa</a>
+  <a href="#beneficios">VT e ajuda de custo</a>
+</nav>
+<section id="folha" data-fiscal-section aria-label="Folha por pessoa">
 <div class="card" style="margin-bottom:20px;">
   <div class="card-header"><div class="card-title">Folha por pessoa</div></div>
   <div class="table-wrap" style="border:none;max-height:620px;overflow:auto;">
@@ -58,7 +65,9 @@
     </table>
   </div>
 </div>
+</section>
 
+<section id="beneficios" data-fiscal-section aria-label="VT e ajuda de custo">
 <div class="card">
   <div class="card-header"><div class="card-title">Vale-transporte e ajuda de custo por semana</div></div>
   <div class="table-wrap" style="border:none;max-height:620px;overflow:auto;">
@@ -87,4 +96,6 @@
     </table>
   </div>
 </div>
+</section>
+{% include 'fiscal/_subsecoes.html' %}
 {% endblock %}
