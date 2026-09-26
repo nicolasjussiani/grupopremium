@@ -32,7 +32,7 @@ def montar_calendario_presenca(data_selecionada, mes, filtros, colaboradores):
         return '?' + urlencode({**filtros, 'data': data.isoformat(), **extra})
 
     semanas = []
-    pendentes = completos = 0
+    pendentes = dias_preenchidos = 0
     for semana in Calendar(firstweekday=6).monthdayscalendar(inicio.year, inicio.month):
         dias = []
         for numero in semana:
@@ -41,19 +41,18 @@ def montar_calendario_presenca(data_selecionada, mes, filtros, colaboradores):
                 continue
             dia = inicio.replace(day=numero)
             definidos = preenchidos.get(dia, 0)
-            faltam = total - definidos
             if not total:
                 estado, descricao, marcador = 'vazio', 'Sem colaboradores nos filtros', '—'
             elif dia > hoje:
                 estado, descricao, marcador = 'futuro', f'Data futura · {definidos} de {total} preenchidos', '·'
-            elif faltam:
+            elif not definidos:
                 estado = 'pendente'
-                descricao = f'{faltam} de {total} sem preenchimento'
+                descricao = f'{total} de {total} sem preenchimento'
                 marcador = '!'
                 pendentes += 1
             else:
-                estado, descricao, marcador = 'completo', f'{total} de {total} preenchidos', '✓'
-                completos += 1
+                estado, descricao, marcador = 'preenchido', f'{definidos} de {total} preenchidos', '✓'
+                dias_preenchidos += 1
             dias.append({
                 'numero': numero, 'estado': estado, 'marcador': marcador,
                 'descricao': f'{dia:%d/%m/%Y} · {descricao}',
@@ -71,7 +70,7 @@ def montar_calendario_presenca(data_selecionada, mes, filtros, colaboradores):
 
     return {
         'titulo': f'{MESES[inicio.month - 1]} de {inicio.year}',
-        'semanas': semanas, 'pendentes': pendentes, 'completos': completos,
+        'semanas': semanas, 'pendentes': pendentes, 'preenchidos': dias_preenchidos,
         'total': total, 'anterior': vizinho(-1), 'proximo': vizinho(1),
         'mes_selecionado': link(data_selecionada),
     }

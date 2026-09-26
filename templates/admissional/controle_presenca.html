@@ -14,9 +14,9 @@
   .presenca-calendario__dia { position:relative; display:flex; align-items:center; justify-content:center; gap:3px; min-height:34px; border:1px solid var(--border); border-radius:6px; color:var(--text-secondary); background:var(--bg-card-hover); font-size:12px; text-decoration:none; }
   .presenca-calendario__dia small { font-size:9px; }
   .presenca-calendario__dia.pendente { background:#fff5df; color:#855508; border-color:#e8cb90; }
-  .presenca-calendario__dia.completo { background:#e9f5ee; color:#21623f; border-color:#b2d9c2; }
+  .presenca-calendario__dia.preenchido { background:#e9f5ee; color:#21623f; border-color:#b2d9c2; }
   .dark-theme .presenca-calendario__dia.pendente { background:#44351c; color:#f7d68b; border-color:#806736; }
-  .dark-theme .presenca-calendario__dia.completo { background:#193e32; color:#a4e1bf; border-color:#38745b; }
+  .dark-theme .presenca-calendario__dia.preenchido { background:#193e32; color:#a4e1bf; border-color:#38745b; }
   .presenca-calendario__dia[aria-current="date"] { outline:2px solid var(--text-primary); outline-offset:1px; font-weight:700; }
   .presenca-calendario__dia:hover, .presenca-calendario a:focus-visible { outline:2px solid var(--border-active); outline-offset:1px; }
   .presenca-calendario__dia.hoje::after { content:''; position:absolute; bottom:2px; width:4px; height:4px; border-radius:50%; background:currentColor; }
@@ -85,10 +85,10 @@
     <h2 id="presenca-calendario-titulo">Calendário de preenchimento</h2>
     <p>Clique em um dia para abrir a lista e completar as presenças.</p>
     {% if calendario.total %}
-    <div class="presenca-calendario__contagem"><span><strong>{{ calendario.pendentes }}</strong> dia(s) com pendências</span><span><strong>{{ calendario.completos }}</strong> dia(s) completos</span></div>
+    <div class="presenca-calendario__contagem"><span><strong>{{ calendario.pendentes }}</strong> dia(s) com pendências</span><span><strong>{{ calendario.preenchidos }}</strong> dia(s) com preenchimento</span></div>
     {% else %}<p>Nenhum colaborador ativo encontrado para os filtros.</p>{% endif %}
-    <div class="presenca-calendario__legenda"><span>! Pendente</span><span>✓ Completo</span><span>· Futuro</span><span>Contorno: data selecionada</span></div>
-    <p>Considera os {{ calendario.total }} colaboradores ativos dos filtros, independentemente da “Situação do dia”. Pendências até hoje, incluindo fins de semana. Folga também conta como preenchimento.</p>
+    <div class="presenca-calendario__legenda"><span>! Pendente</span><span>✓ Preenchido</span><span>· Futuro</span><span>Contorno: data selecionada</span></div>
+    <p>Considera os {{ calendario.total }} colaboradores ativos dos filtros, independentemente da “Situação do dia”. Pendente somente quando nenhuma presença foi preenchida, até hoje. Basta uma presença salva para marcar o dia como preenchido, mesmo que ainda faltem colaboradores. Folga também conta.</p>
     <a class="btn btn-outline" href="{{ calendario.mes_selecionado }}">Mês da data selecionada</a>
   </div>
 </section>

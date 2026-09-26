@@ -33,17 +33,20 @@ class CalendarioPresencaTest(TestCase):
             (self.ana, 2, 'presente'), (self.bia, 2, 'indefinido'),
             (self.ana, 3, 'falta'), (self.bia, 3, 'folga'),
             (self.ana, 4, 'atestado'), (self.bia, 4, 'presente'),
+            (self.ana, 5, 'indefinido'),
         ]:
             PresencaDiaria.objects.create(colaborador=pessoa, data=date(2026, 9, numero), status=status)
         response, calendario = self.calendario()
         dias = self.dias(calendario)
         self.assertEqual(calendario['total'], 2)
-        self.assertEqual(calendario['pendentes'], 24)
-        self.assertEqual(calendario['completos'], 2)
+        self.assertEqual(calendario['pendentes'], 23)
+        self.assertEqual(calendario['preenchidos'], 3)
         self.assertIn('2 de 2 sem preenchimento', dias[1]['descricao'])
-        self.assertIn('1 de 2 sem preenchimento', dias[2]['descricao'])
-        self.assertEqual(dias[3]['estado'], 'completo')
-        self.assertEqual(dias[4]['estado'], 'completo')
+        self.assertIn('1 de 2 preenchidos', dias[2]['descricao'])
+        self.assertEqual(dias[2]['estado'], 'preenchido')
+        self.assertEqual(dias[5]['estado'], 'pendente')
+        self.assertEqual(dias[3]['estado'], 'preenchido')
+        self.assertEqual(dias[4]['estado'], 'preenchido')
         self.assertEqual(dias[26]['estado'], 'pendente')
         self.assertEqual(dias[27]['estado'], 'futuro')
         self.assertTrue(dias[25]['selecionado'])
@@ -66,7 +69,7 @@ class CalendarioPresencaTest(TestCase):
     def test_sem_colaboradores_nao_marca_pendencias(self):
         _, calendario = self.calendario(unidade='Inexistente')
         self.assertEqual(calendario['pendentes'], 0)
-        self.assertEqual(calendario['completos'], 0)
+        self.assertEqual(calendario['preenchidos'], 0)
         self.assertTrue(all(d['estado'] == 'vazio' for d in self.dias(calendario).values()))
 
     def test_navega_meses_sem_mudar_lista_e_aceita_fevereiro_bissexto(self):
@@ -86,10 +89,10 @@ class CalendarioPresencaTest(TestCase):
 
     def test_salvamento_atualiza_calendario(self):
         response = self.client.post(reverse('controle_presenca'), {
-            'data': '2026-09-25', 'q': 'Ana',
+            'data': '2026-09-25',
             f'colaborador_{self.ana.pk}': '1', f'status_{self.ana.pk}': 'presente',
         }, follow=True)
-        self.assertEqual(self.dias(response.context['calendario'])[25]['estado'], 'completo')
+        self.assertEqual(self.dias(response.context['calendario'])[25]['estado'], 'preenchido')
 
     def test_resumo_mensal_usa_duas_consultas(self):
         with self.assertNumQueries(2):
