@@ -123,6 +123,8 @@ class DetalheAprovacaoCompraTest(TestCase):
                 self.assertContains(response, 'Produto da RC')
                 self.assertContains(response, 'Modelo azul')
                 self.assertContains(response, '3,00')
+                self.assertContains(response, 'Valor não informado nesta RC')
+                self.assertContains(response, 'Total indisponível')
 
     def test_lista_de_aprovacoes_monta_rotas_com_id_antes_da_acao(self):
         response = self.client.get(reverse('aprovacoes_pendentes'))

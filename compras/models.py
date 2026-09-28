@@ -179,6 +179,10 @@ class SolicitacaoMaterial(models.Model):
         verbose_name='Requisição agrupada',
     )
     quantidade_solicitada = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Quantidade')
+    valor_unitario_estimado = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        verbose_name='Valor Unitário Informado',
+    )
     solicitante = models.CharField(max_length=200, verbose_name='Solicitante')
     solicitante_usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                              related_name='solicitacoes_material')

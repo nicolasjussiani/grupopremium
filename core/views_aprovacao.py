@@ -1,4 +1,6 @@
 """ERP Grupo PremiumBR ÔÇö Views da Linha de Aprova├º├úo"""
+from decimal import Decimal, ROUND_HALF_UP
+
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -365,7 +367,26 @@ def _contexto_detalhe(aprovacao):
 
         requisicao = aprovacao.objeto
         if isinstance(requisicao, RequisicaoCompra):
-            contexto['itens_requisicao'] = requisicao.itens.select_related('material').order_by('pk')
+            itens = list(requisicao.itens.select_related('material').order_by('pk'))
+            linhas = []
+            total = Decimal('0.00')
+            sem_valor = 0
+            for item in itens:
+                valor = item.valor_unitario_estimado
+                subtotal = None
+                if valor is None:
+                    sem_valor += 1
+                else:
+                    subtotal = (valor * item.quantidade_solicitada).quantize(
+                        Decimal('0.01'), rounding=ROUND_HALF_UP
+                    )
+                    total += subtotal
+                linhas.append({'item': item, 'subtotal': subtotal, 'tem_valor': valor is not None})
+            contexto.update({
+                'linhas_requisicao': linhas,
+                'total_requisicao': total if itens and not sem_valor else None,
+                'itens_sem_valor': sem_valor,
+            })
     return contexto
 
 

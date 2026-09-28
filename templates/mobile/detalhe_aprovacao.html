@@ -16,14 +16,15 @@
     </div>
     {% if aprovacao.descricao %}<div class="detail-description"><small>Detalhes do processo</small><p>{{ aprovacao.descricao }}</p></div>{% endif %}
 
-    {% if itens_requisicao %}
+    {% if linhas_requisicao %}
       <div class="detail-description">
         <small>Produtos solicitados</small>
         <ul>
-          {% for item in itens_requisicao %}
-            <li><strong>{{ item.material.nome }}</strong> — {{ item.quantidade_solicitada|floatformat:2 }} {{ item.material.get_unidade_medida_display }}{% if item.material.descricao %}<br>{{ item.material.descricao }}{% endif %}</li>
+          {% for linha in linhas_requisicao %}
+            <li><strong>{{ linha.item.material.nome }}</strong> — {{ linha.item.quantidade_solicitada|floatformat:2 }} {{ linha.item.material.get_unidade_medida_display }}{% if linha.item.material.descricao %}<br>{{ linha.item.material.descricao }}{% endif %}<br>{% if linha.tem_valor %}Valor unitário: R$ {{ linha.item.valor_unitario_estimado|floatformat:2 }} · Total do item: R$ {{ linha.subtotal|floatformat:2 }}{% else %}Valor não informado nesta RC{% endif %}</li>
           {% endfor %}
         </ul>
+        {% if itens_sem_valor %}<p>Total indisponível: {{ itens_sem_valor }} produto(s) sem valor registrado.</p>{% else %}<p><strong>Total informado na RC: R$ {{ total_requisicao|floatformat:2 }}</strong></p>{% endif %}
       </div>
     {% endif %}
 

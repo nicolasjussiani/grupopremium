@@ -71,17 +71,19 @@
     </div>
     {% endif %}
 
-    {% if itens_requisicao %}
+    {% if linhas_requisicao %}
     <div style="margin-top:1.25rem;">
       <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.05em;">Produtos solicitados</div>
       <ul style="margin:0;padding:0;list-style:none;">
-        {% for item in itens_requisicao %}
+        {% for linha in linhas_requisicao %}
         <li style="padding:0.65rem 0;border-bottom:1px solid var(--border);color:var(--text-primary);">
-          <strong>{{ item.material.nome }}</strong> — {{ item.quantidade_solicitada|floatformat:2 }} {{ item.material.get_unidade_medida_display }}
-          {% if item.material.descricao %}<div style="font-size:0.82rem;color:var(--text-muted);">{{ item.material.descricao }}</div>{% endif %}
+          <strong>{{ linha.item.material.nome }}</strong> — {{ linha.item.quantidade_solicitada|floatformat:2 }} {{ linha.item.material.get_unidade_medida_display }}
+          {% if linha.item.material.descricao %}<div style="font-size:0.82rem;color:var(--text-muted);">{{ linha.item.material.descricao }}</div>{% endif %}
+          {% if linha.tem_valor %}<div>Valor unitário: R$ {{ linha.item.valor_unitario_estimado|floatformat:2 }} · Total do item: R$ {{ linha.subtotal|floatformat:2 }}</div>{% else %}<div style="color:var(--text-muted);">Valor não informado nesta RC</div>{% endif %}
         </li>
         {% endfor %}
       </ul>
+      {% if itens_sem_valor %}<div style="margin-top:0.6rem;color:var(--text-muted);">Total indisponível: {{ itens_sem_valor }} produto(s) sem valor registrado.</div>{% else %}<div style="margin-top:0.7rem;font-weight:700;color:var(--text-primary);">Total informado na RC: R$ {{ total_requisicao|floatformat:2 }}</div>{% endif %}
     </div>
     {% endif %}
 

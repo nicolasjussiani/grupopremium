@@ -98,6 +98,33 @@ class RequisicaoComVariosProdutosTests(TestCase):
         self.assertEqual(self.disponivel.quantidade_estoque, Decimal('7.00'))
         self.assertEqual(self.insuficiente.quantidade_estoque, Decimal('1.00'))
 
+    def test_valores_informados_aparecem_na_aprovacao_e_na_edicao(self):
+        response = self.client.post(reverse('nova_solicitacao'), {
+            'material': [str(self.disponivel.pk), str(self.insuficiente.pk)],
+            'quantidade_solicitada': ['3', '5'],
+            'valor_unitario': ['12,50', '3,20'],
+            'unidade_destino': 'Unidade Santos',
+            'justificativa': 'Reposição mensal',
+        })
+        self.assertEqual(response.status_code, 302)
+        requisicao = RequisicaoCompra.objects.get()
+        self.assertEqual(
+            requisicao.itens.get(material=self.disponivel).valor_unitario_estimado,
+            Decimal('12.50'),
+        )
+        aprovacao = AprovacaoRegistro.objects.get(object_id=requisicao.pk, modulo='compras')
+        self.client.force_login(self.adriana)
+        for rota in ('detalhe_aprovacao', 'detalhe_aprovacao_mobile'):
+            with self.subTest(rota=rota):
+                detalhe = self.client.get(reverse(rota, args=[aprovacao.pk]))
+                self.assertContains(detalhe, 'R$ 12,50')
+                self.assertContains(detalhe, 'R$ 37,50')
+                self.assertContains(detalhe, 'R$ 53,50')
+
+        self.client.force_login(self.user)
+        edicao = self.client.get(reverse('editar_requisicao', args=[requisicao.pk]))
+        self.assertContains(edicao, 'value="12,50"')
+
     def test_impede_produto_repetido_sem_criar_dados_ou_baixar_estoque(self):
         response = self.client.post(reverse('nova_solicitacao'), {
             'material': [str(self.disponivel.pk), str(self.disponivel.pk)],

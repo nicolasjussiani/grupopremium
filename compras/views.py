@@ -191,9 +191,10 @@ def nova_solicitacao(request):
                 try:
                     v_str = item['valor'].replace('R$', '').replace('.', '').replace(',', '.').strip()
                     valor_dec = Decimal(v_str)
-                    if valor_dec < 0:
+                    if not valor_dec.is_finite() or valor_dec < 0:
                         raise ValueError
-                except:
+                    SolicitacaoMaterial._meta.get_field('valor_unitario_estimado').clean(valor_dec, None)
+                except (InvalidOperation, ValueError, ValidationError):
                     messages.error(request, f'Informe um valor unitário válido no item {numero_linha}.')
                     return render_form(itens_form)
 
@@ -248,6 +249,7 @@ def nova_solicitacao(request):
                 requisicao=requisicao,
                 material=material,
                 quantidade_solicitada=quantidade,
+                valor_unitario_estimado=valor_dec,
                 solicitante=requisicao.solicitante,
                 solicitante_usuario=request.user,
                 unidade_destino=unidade_destino,
@@ -499,7 +501,9 @@ def editar_requisicao(request, pk):
             for sol in requisicao.itens.all():
                 # Tentar achar o pedido concluído caso haja medida provisória para preencher o valor
                 valor = ''
-                if requisicao.comprovante_pagamento:
+                if sol.valor_unitario_estimado is not None:
+                    valor = str(sol.valor_unitario_estimado).replace('.', ',')
+                elif requisicao.comprovante_pagamento:
                     pedido = sol.pedidos.filter(status='concluido').first()
                     if pedido and pedido.valor_unitario:
                         valor = str(pedido.valor_unitario).replace('.', ',')
@@ -579,9 +583,10 @@ def editar_requisicao(request, pk):
                 try:
                     v_str = item['valor'].replace('R$', '').replace('.', '').replace(',', '.').strip()
                     valor_dec = Decimal(v_str)
-                    if valor_dec < 0:
+                    if not valor_dec.is_finite() or valor_dec < 0:
                         raise ValueError
-                except:
+                    SolicitacaoMaterial._meta.get_field('valor_unitario_estimado').clean(valor_dec, None)
+                except (InvalidOperation, ValueError, ValidationError):
                     messages.error(request, f'Informe um valor unitário válido no item {numero_linha}.')
                     return render_form(itens_form)
                     
@@ -635,6 +640,7 @@ def editar_requisicao(request, pk):
                 requisicao=requisicao,
                 material=material,
                 quantidade_solicitada=quantidade,
+                valor_unitario_estimado=valor_dec,
                 solicitante=requisicao.solicitante,
                 solicitante_usuario=request.user,
                 unidade_destino=unidade_destino,
