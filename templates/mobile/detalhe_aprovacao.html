@@ -28,6 +28,15 @@
       </div>
     {% endif %}
 
+    {% if observacoes_anteriores %}
+      <div class="detail-description">
+        <small>Observações das etapas anteriores</small>
+        {% for etapa in observacoes_anteriores %}
+          <p><strong>{{ etapa.aprovado_por.get_full_name|default:etapa.aprovado_por.username }} · {{ etapa.get_nivel_display }}</strong><br>{{ etapa.comentario }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+
     {% if aprovacao.esta_pendente %}
       <form method="post" action="{% url 'aprovar_registro' aprovacao.pk %}" class="mobile-decision-form approve-form">
         {% csrf_token %}<input type="hidden" name="next" value="{% url 'painel_mobile' %}">

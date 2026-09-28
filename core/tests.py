@@ -133,3 +133,22 @@ class DetalheAprovacaoCompraTest(TestCase):
         self.assertContains(response, f'/aprovacoes/0/rejeitar/')
         self.assertNotContains(response, '/aprovacoes/aprovar/0/')
         self.assertNotContains(response, '/aprovacoes/rejeitar/0/')
+
+    def test_detalhe_oferece_observacao_e_mostra_a_etapa_anterior(self):
+        detalhe = self.client.get(reverse('detalhe_aprovacao', args=[self.aprovacao.pk]))
+        self.assertContains(detalhe, 'name="comentario"')
+        self.assertContains(detalhe, 'name="motivo_rejeicao"')
+        self.assertContains(detalhe, 'A decisão vale para a RC inteira')
+
+        self.aprovacao.status = 'aprovado'
+        self.aprovacao.aprovado_por = self.aprovador
+        self.aprovacao.comentario = 'Solicitar troca da cera na próxima compra.'
+        self.aprovacao.save(update_fields=['status', 'aprovado_por', 'comentario'])
+        proxima = AprovacaoRegistro.criar_para(
+            objeto=self.aprovacao.objeto,
+            titulo='RC de Santos', modulo='compras', nivel=2,
+        )
+        for rota in ('detalhe_aprovacao', 'detalhe_aprovacao_mobile'):
+            with self.subTest(rota=rota):
+                response = self.client.get(reverse(rota, args=[proxima.pk]))
+                self.assertContains(response, 'Solicitar troca da cera na próxima compra.')

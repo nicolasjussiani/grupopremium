@@ -361,7 +361,16 @@ def detalhe_aprovacao(request, pk):
 
 
 def _contexto_detalhe(aprovacao):
-    contexto = {'aprovacao': aprovacao}
+    contexto = {
+        'aprovacao': aprovacao,
+        'observacoes_anteriores': AprovacaoRegistro.objects.filter(
+            content_type=aprovacao.content_type,
+            object_id=aprovacao.object_id,
+            modulo=aprovacao.modulo,
+            nivel__lt=aprovacao.nivel,
+            status='aprovado',
+        ).exclude(comentario='').select_related('aprovado_por').order_by('nivel'),
+    }
     if aprovacao.modulo == 'compras':
         from compras.models import RequisicaoCompra
 

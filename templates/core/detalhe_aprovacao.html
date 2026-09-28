@@ -105,37 +105,42 @@
     </div>
     {% endif %}
 
+    {% if observacoes_anteriores %}
+    <div style="margin-top:1.25rem;">
+      <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.05em;">Observações das etapas anteriores</div>
+      {% for etapa in observacoes_anteriores %}
+      <div style="border:1px solid var(--border);border-radius:8px;padding:0.85rem;margin-top:0.5rem;color:var(--text-primary);">
+        <strong>{{ etapa.aprovado_por.get_full_name|default:etapa.aprovado_por.username }} · {{ etapa.get_nivel_display }}</strong>
+        <div style="margin-top:0.35rem;white-space:pre-line;">{{ etapa.comentario }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% if aprovacao.esta_pendente %}
-    <div style="display:flex;gap:0.75rem;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);">
-      <form method="post" action="{% url 'aprovar_registro' aprovacao.pk %}" style="flex:1;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.75rem;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);">
+      <form method="post" action="{% url 'aprovar_registro' aprovacao.pk %}">
         {% csrf_token %}
         <input type="hidden" name="next" value="{% url 'aprovacoes_pendentes' %}">
+        <label for="comentarioAprovacaoDetalhe" style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;">Observação da aprovação (opcional)</label>
+        <textarea id="comentarioAprovacaoDetalhe" name="comentario" rows="3" placeholder="Registre sua observação sobre esta RC" style="width:100%;resize:vertical;border:1px solid var(--border);border-radius:8px;padding:0.7rem;background:var(--bg-card);color:var(--text-primary);margin-bottom:0.65rem;"></textarea>
         <button type="submit" style="width:100%;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:10px;padding:0.65rem;font-size:0.9rem;font-weight:600;cursor:pointer;">
           ✅ Aprovar
         </button>
       </form>
-      <form method="post" action="{% url 'rejeitar_registro' aprovacao.pk %}" style="flex:1;" id="formRejeitarDetalhe">
+      <form method="post" action="{% url 'rejeitar_registro' aprovacao.pk %}">
         {% csrf_token %}
         <input type="hidden" name="next" value="{% url 'aprovacoes_pendentes' %}">
-        <input type="hidden" name="motivo_rejeicao" id="motivoInput">
-        <button type="button" onclick="pedirMotivo()" style="width:100%;background:transparent;color:#ef4444;border:1.5px solid #ef4444;border-radius:10px;padding:0.65rem;font-size:0.9rem;font-weight:600;cursor:pointer;">
+        <label for="motivoRejeicaoDetalhe" style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;">Motivo ou observação da rejeição (obrigatório)</label>
+        <textarea id="motivoRejeicaoDetalhe" name="motivo_rejeicao" rows="3" required placeholder="Explique o que precisa ser corrigido nesta RC" style="width:100%;resize:vertical;border:1px solid var(--border);border-radius:8px;padding:0.7rem;background:var(--bg-card);color:var(--text-primary);margin-bottom:0.65rem;"></textarea>
+        <button type="submit" style="width:100%;background:transparent;color:#ef4444;border:1.5px solid #ef4444;border-radius:10px;padding:0.65rem;font-size:0.9rem;font-weight:600;cursor:pointer;">
           🚫 Rejeitar
         </button>
       </form>
     </div>
+    {% if aprovacao.modulo == 'compras' %}<p style="color:var(--text-muted);font-size:0.8rem;margin-top:0.7rem;">A decisão vale para a RC inteira. Para solicitar alteração de um produto, rejeite a RC e explique o ajuste no motivo.</p>{% endif %}
     {% endif %}
   </div>
 </div>
 
-{% if aprovacao.esta_pendente %}
-<script>
-function pedirMotivo() {
-  const motivo = prompt('Informe o motivo da rejeição:');
-  if (motivo && motivo.trim()) {
-    document.getElementById('motivoInput').value = motivo.trim();
-    document.getElementById('formRejeitarDetalhe').submit();
-  }
-}
-</script>
-{% endif %}
 {% endblock %}
