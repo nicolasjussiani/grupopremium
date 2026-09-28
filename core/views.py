@@ -8,7 +8,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.template import loader
 from django.middleware.csrf import get_token
 from django.db.models import Count, F, Q
@@ -90,7 +90,7 @@ def arquivo_central(request):
     if not _usuario_pode_ver_arquivo_central(request.user):
         raise PermissionDenied
 
-    arquivos = ArquivoImportado.objects.select_related(
+    arquivos = ArquivoImportado.objects.exclude(arquivo='').select_related(
         'content_type'
     ).prefetch_related('origens').order_by(
         F('data_documento').desc(nulls_last=True), '-criado_em', '-pk'
@@ -155,11 +155,11 @@ def arquivo_central(request):
         'status_choices': ArquivoImportado.STATUS,
         'area_choices': ArquivoImportado.AREAS,
         'origem_choices': sorted(origens_validas),
-        'total_arquivos': ArquivoImportado.objects.count(),
+        'total_arquivos': ArquivoImportado.objects.exclude(arquivo='').count(),
         'total_origens': OrigemArquivoImportado.objects.count(),
         'total_filtrados': paginator.count,
-        'total_revisar': ArquivoImportado.objects.filter(status='revisar').count(),
-        'total_vinculados': ArquivoImportado.objects.filter(status='vinculado').count(),
+        'total_revisar': ArquivoImportado.objects.exclude(arquivo='').filter(status='revisar').count(),
+        'total_vinculados': ArquivoImportado.objects.exclude(arquivo='').filter(status='vinculado').count(),
     })
 
 
@@ -189,6 +189,8 @@ def baixar_arquivo_importado(request, pk):
     arquivo = get_object_or_404(ArquivoImportado, pk=pk)
     if arquivo.importado_por_id != request.user.pk and not _usuario_pode_ver_arquivo_central(request.user):
         raise PermissionDenied
+    if not arquivo.arquivo:
+        raise Http404('Anexo excluído ou indisponível.')
     return redirect(arquivo.arquivo.url)
 
 

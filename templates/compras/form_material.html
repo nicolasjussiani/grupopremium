@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}{{ acao }} material — ERP Grupo PremiumBR{% endblock %}
 {% block nav_compras %}active{% endblock %}
 {% block topbar_title %}{{ acao }} material{% endblock %}
@@ -36,7 +37,7 @@
         <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="required">*</span>{% endif %}</label>
         {% if field.name == 'foto' and material.foto %}
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-          <img src="{{ material.foto.url }}" alt="Foto atual de {{ material.nome }}" loading="lazy" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--border);">
+          <img src="{{ material.foto.url }}" alt="Foto atual de {{ material.nome }}" loading="lazy" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--border);">{% excluir_anexo material 'foto' %}
           <span style="font-size:.82rem;color:var(--text-muted);">Foto atual. Selecione outra para substituir.</span>
         </div>
         {% endif %}

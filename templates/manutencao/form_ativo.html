@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}{% if ativo %}Editar{% else %}Novo{% endif %} Ativo — ERP Grupo PremiumBR{% endblock %}
 {% block nav_manutencao %}active{% endblock %}
 {% block topbar_title %}Cadastro de Ativo/Patrimônio{% endblock %}
@@ -63,7 +64,7 @@
       <div style="margin-bottom: 10px;">
         <a href="{{ ativo.foto.url }}" target="_blank">
           <img src="{{ ativo.foto.url }}" alt="Foto" style="max-height: 150px; border-radius: 8px; border: 1px solid var(--border);">
-        </a>
+        </a>{% excluir_anexo ativo 'foto' %}
       </div>
       {% endif %}
       <input type="file" name="foto" class="form-control" accept="image/*">

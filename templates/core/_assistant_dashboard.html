@@ -1,3 +1,4 @@
+{% load anexos %}
 <style>
   .dash-ai {
     --ai-panel: #1b1d22;
@@ -102,7 +103,7 @@
       <button class="dash-ai__upload-button" type="submit">Enviar e processar</button>
     </form>
     {% if arquivo_atual_ia %}
-    <div class="dash-ai__result"><strong>{{ arquivo_atual_ia.nome_original }}</strong><br>Categoria: {{ arquivo_atual_ia.get_categoria_display }} · Situação: {{ arquivo_atual_ia.get_status_display }}{% if arquivo_atual_ia.motivo_revisao %}<br>{{ arquivo_atual_ia.motivo_revisao }}{% endif %}<br><a href="{% url 'baixar_arquivo_importado' arquivo_atual_ia.pk %}" target="_blank" rel="noopener">Abrir documento</a></div>
+    <div class="dash-ai__result"><strong>{{ arquivo_atual_ia.nome_original }}</strong><br>Categoria: {{ arquivo_atual_ia.get_categoria_display }} · Situação: {{ arquivo_atual_ia.get_status_display }}{% if arquivo_atual_ia.motivo_revisao %}<br>{{ arquivo_atual_ia.motivo_revisao }}{% endif %}<br><a href="{% url 'baixar_arquivo_importado' arquivo_atual_ia.pk %}" target="_blank" rel="noopener">Abrir documento</a>{% excluir_anexo arquivo_atual_ia %}</div>
     {% endif %}
   </section>
 </section>

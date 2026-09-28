@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}Concluir Manutenção — ERP Grupo PremiumBR{% endblock %}
 {% block nav_manutencao %}active{% endblock %}
 {% block topbar_title %}Concluir Manutenção{% endblock %}
@@ -51,7 +52,7 @@
       <div style="margin-bottom: 10px;">
         <a href="{{ manutencao.foto_equipamento.url }}" target="_blank">
           <img src="{{ manutencao.foto_equipamento.url }}" alt="Foto do Equipamento" style="max-height: 150px; border-radius: 8px; border: 1px solid var(--border);">
-        </a>
+        </a>{% excluir_anexo manutencao 'foto_equipamento' %}
       </div>
       {% endif %}
       <input type="file" name="foto_equipamento" class="form-control" accept="image/*">

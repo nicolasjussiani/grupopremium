@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}Documentos de {{ colaborador.nome }} — ERP Grupo PremiumBR{% endblock %}
 {% block nav_colaboradores %}active{% endblock %}
 {% block topbar_title %}Documentos do colaborador{% endblock %}
@@ -72,7 +73,7 @@
         <tr>
           <td><strong>{{ anexo.label }}</strong></td>
           <td>{{ anexo.arquivo.name|default:"Arquivo armazenado" }}</td>
-          <td><a href="{% url 'baixar_anexo_colaborador' colaborador.pk anexo.campo %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Visualizar</a></td>
+          <td><a href="{% url 'baixar_anexo_colaborador' colaborador.pk anexo.campo %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Visualizar</a>{% excluir_anexo colaborador anexo.campo %}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -101,9 +102,7 @@
           <td>
             <a href="{% url 'baixar_documento_colaborador' colaborador.pk documento.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Visualizar</a>
             {% if pode_editar_documentos %}
-            <form method="post" action="{% url 'excluir_documento_colaborador' colaborador.pk documento.pk %}" style="display:inline;" onsubmit="return confirm('Remover este documento?');">
-              {% csrf_token %}<button type="submit" class="btn btn-sm btn-danger">Excluir</button>
-            </form>
+            {% excluir_anexo documento %}
             {% endif %}
           </td>
         </tr>
@@ -131,7 +130,7 @@
           <td>{{ arquivo.get_categoria_display }}{% if arquivo.subcategoria %}<div style="font-size:.72rem;color:var(--text-muted);">{{ arquivo.subcategoria }}</div>{% endif %}</td>
           <td style="max-width:360px;word-break:break-word;">{% with origem=arquivo.origens.first %}{{ origem.caminho_relativo|default:"—" }}{% endwith %}</td>
           <td>{% with origem=arquivo.origens.first %}{{ origem.modificado_em|date:"d/m/Y H:i"|default:arquivo.criado_em|date:"d/m/Y H:i" }}{% endwith %}</td>
-          <td><a href="{% url 'detalhe_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-outline">Visualizar</a></td>
+          <td><a href="{% url 'detalhe_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-outline">Visualizar</a>{% excluir_anexo arquivo %}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -158,7 +157,7 @@
           <td>{{ pagamento.data_pagamento|date:"d/m/Y"|default:"—" }}<br><span class="badge {% if pagamento.status == 'pago' %}badge-success{% elif pagamento.status == 'cancelado' %}badge-danger{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
           <td>
             {% for arquivo in pagamento.arquivos_importados.all %}
-              <a href="{% url 'detalhe_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-outline">{{ arquivo.nome_original|truncatechars:28 }}</a>{% if not forloop.last %}<br>{% endif %}
+              <a href="{% url 'detalhe_arquivo_importado' arquivo.pk %}" class="btn btn-sm btn-outline">{{ arquivo.nome_original|truncatechars:28 }}</a>{% excluir_anexo arquivo %}{% if not forloop.last %}<br>{% endif %}
             {% endfor %}
           </td>
         </tr>
@@ -188,7 +187,7 @@
           <td><span class="badge {% if folha.status == 'processada' or folha.status == 'pronta' %}badge-success{% else %}badge-warning{% endif %}">{{ folha.get_status_display }}</span></td>
           <td>
             <a href="{% url 'detalhe_folha_fiscal' folha.pk %}" class="btn btn-sm btn-mod6">Abrir folha</a>
-            <a href="{% url 'baixar_arquivo_importado' folha.arquivo_origem.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Planilha original</a>
+            {% if folha.arquivo_origem.arquivo %}<a href="{% url 'baixar_arquivo_importado' folha.arquivo_origem.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Planilha original</a>{% excluir_anexo folha.arquivo_origem %}{% else %}<span>Anexo original excluído</span>{% endif %}
           </td>
         </tr>
       {% endfor %}

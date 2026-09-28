@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}{{ requisicao.numero }} — Compras ERP{% endblock %}
 {% block nav_compras %}active{% endblock %}
 {% block topbar_title %}Detalhe da Requisição{% endblock %}
@@ -52,7 +53,7 @@
     <strong>Documento Anexo:</strong>
     <a href="{{ requisicao.documento.url }}" target="_blank" class="btn btn-sm btn-outline" style="margin-left:8px;">
       📄 Ver/Baixar Anexo
-    </a>
+    </a>{% excluir_anexo requisicao 'documento' %}
   </div>
   {% endif %}
   {% if requisicao.comprovante_pagamento %}
@@ -60,7 +61,7 @@
     <strong>Comprovante de Pagamento:</strong>
     <a href="{{ requisicao.comprovante_pagamento.url }}" target="_blank" class="btn btn-sm btn-mod5" style="margin-left:8px;">
       💲 Ver Comprovante
-    </a>
+    </a>{% excluir_anexo requisicao 'comprovante_pagamento' %}
     <span class="badge badge-warning" style="margin-left:8px;">Medida Provisória</span>
   </div>
   {% endif %}

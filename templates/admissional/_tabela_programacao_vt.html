@@ -1,3 +1,4 @@
+{% load anexos %}
 {% load l10n relatorios %}
 <section class="vt-panel" data-vt-panel data-vt-week="{{ segunda|date:'Y-m-d' }}" aria-label="Revisão semanal de VT e ajuda de custo">
   <header class="vt-heading">
@@ -63,6 +64,7 @@
         </form>
       {% else %}<div class="vt-section-label">{% if linha.situacao == 'pago' %}PAGAMENTO REALIZADO{% else %}DECISÃO DA SEMANA{% endif %}</div><p class="vt-readonly">{% if linha.pagamento and linha.situacao != 'nao' %}R$ {{ linha.pagamento.valor|floatformat:2 }}{% else %}Somente consulta{% endif %}</p>{% endif %}
       {% if linha.situacao == 'pago' and linha.calculo_salvo %}<p class="vt-saved-value">Cálculo salvo: R$ {{ linha.calculo_salvo.valor_semana_completa|floatformat:2 }} ÷ 7 × {{ linha.calculo_salvo.dias_presentes }} dia(s) presente(s).</p>{% endif %}
+      {% for anexo in linha.pagamento.arquivos_importados.all %}{% if anexo.arquivo %}<div style="margin-top:8px;"><a href="{% url 'baixar_arquivo_importado' anexo.pk %}">{{ anexo.nome_original|default:'Comprovante' }}</a>{% excluir_anexo anexo %}</div>{% endif %}{% endfor %}
       {% if linha.situacao == 'pagar' and pode_editar %}<a class="vt-payment-link" href="{% url 'marcar_pagamento_como_pago' linha.pagamento.pk %}">Confirmar pagamento com comprovante →</a>{% endif %}
       </div>
     </article>

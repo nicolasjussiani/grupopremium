@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}Revisar arquivo — ERP Grupo PremiumBR{% endblock %}
 {% block nav_arquivo_central %}active{% endblock %}
 {% block topbar_title %}Revisar arquivo importado{% endblock %}
@@ -13,7 +14,7 @@
   <div class="alert alert-warning" style="margin-bottom:20px;">
     <strong>{{ arquivo.nome_original }}</strong><br>
     {{ arquivo.motivo_revisao|default:'Confira os dados identificados automaticamente.' }}
-    <div style="margin-top:8px;"><a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank">Abrir comprovante</a></div>
+    <div style="margin-top:8px;"><a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank">Abrir comprovante</a>{% excluir_anexo arquivo %}</div>
   </div>
   <form method="post">
     {% csrf_token %}

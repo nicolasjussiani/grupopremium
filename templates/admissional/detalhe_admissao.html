@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}Admissão: {{ admissao.candidato_nome }} — ERP Grupo PremiumBR{% endblock %}
 {% block nav_admissional %}active{% endblock %}
 {% block topbar_title %}Detalhe do Processo Admissional{% endblock %}
@@ -118,9 +119,9 @@
       </div>
       {% if doc.observacao %}<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px;">{{ doc.observacao }}</div>{% endif %}
       
-      {% if doc.arquivo %}
+      {% if doc.arquivo or doc.arquivo_nuvem %}
         <div style="margin-bottom: 10px;">
-          <a href="{% url 'baixar_documento' admissao.pk doc.pk %}" target="_blank" class="btn btn-sm" style="width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text-secondary);">📄 Ver/Baixar Anexo</a>
+          <a href="{% url 'baixar_documento' admissao.pk doc.pk %}" target="_blank" class="btn btn-sm" style="width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text-secondary);">📄 Ver/Baixar Anexo</a>{% excluir_anexo doc 'arquivo_nuvem' %}
         </div>
       {% endif %}
       

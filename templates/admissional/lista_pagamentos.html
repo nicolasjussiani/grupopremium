@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}Folha de Pagamento — ERP Grupo PremiumBR{% endblock %}
 {% block nav_pagamentos_colaboradores %}active{% endblock %}
 {% block topbar_title %}Folha de Pagamento{% endblock %}
@@ -174,7 +175,7 @@
         <td>{{ pagamento.data_pagamento|date:"d/m/Y"|default:"—" }}</td>
         <td>
           {% for comprovante in pagamento.arquivos_importados.all %}
-            <a href="{% url 'baixar_arquivo_importado' comprovante.pk %}" class="btn btn-sm btn-outline" target="_blank" rel="noopener" title="{{ comprovante.nome_original }}">Comprovante {{ forloop.counter }}</a>
+            <a href="{% url 'baixar_arquivo_importado' comprovante.pk %}" class="btn btn-sm btn-outline" target="_blank" rel="noopener" title="{{ comprovante.nome_original }}">Comprovante {{ forloop.counter }}</a>{% excluir_anexo comprovante %}
           {% empty %}—{% endfor %}
         </td>
         <td>

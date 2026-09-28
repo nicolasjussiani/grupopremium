@@ -66,7 +66,7 @@ def painel_financeiro(request):
     )
     arquivos_area = ArquivoImportado.objects.filter(
         area__in=('financeiro', 'fiscal')
-    ).prefetch_related('origens').order_by('-criado_em', '-pk')
+    ).exclude(arquivo='').prefetch_related('origens').order_by('-criado_em', '-pk')
     
     dashboard_budget = []
     try:

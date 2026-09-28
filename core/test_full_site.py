@@ -261,6 +261,7 @@ class FullSiteRouteTests(TestCase):
 
     def test_todas_as_paginas_e_endpoints_get(self):
         expected_routes = (
+            ('excluir_anexo', ('admissional.colaborador', self.colaborador.pk, 'anexo_cpf'), 200),
             ('admin:index', (), 200),
             ('login', (), 302),
             ('csrf_token_json', (), 200),

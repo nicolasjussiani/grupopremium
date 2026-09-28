@@ -3,8 +3,10 @@ from django.urls import path
 from core import views
 from core import views_aprovacao
 from core import views_upload
+from core.anexos import excluir_anexo
 
 urlpatterns = [
+    path('anexos/<str:modelo>/<int:pk>/<str:campo>/excluir/', excluir_anexo, name='excluir_anexo'),
     path('', views.dashboard, name='dashboard'),
     path('ajuda/', views.ajuda, name='ajuda'),
     path('assistente/', views.assistente_erp, name='assistente_erp'),

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}Catálogo de EPIs — SESMET{% endblock %}
 {% block nav_sesmet %}active{% endblock %}
 {% block topbar_title %}Catálogo de EPIs{% endblock %}
@@ -37,7 +38,7 @@
       {% for eq in equipamentos %}
       <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);">
         <td style="padding:12px;">
-          {% if eq.foto %}<img src="{{ eq.foto.url }}" alt="{{ eq.nome }}" loading="lazy" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+          {% if eq.foto %}<img src="{{ eq.foto.url }}" alt="{{ eq.nome }}" loading="lazy" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">{% excluir_anexo eq 'foto' %}
           {% else %}<span style="color:var(--text-muted);font-size:.76rem;">Sem foto</span>{% endif %}
         </td>
         <td style="padding: 12px; font-family:monospace;">{{ eq.codigo }}</td>

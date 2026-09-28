@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}Documento {{ documento.numero_documento }} — Financeiro ERP{% endblock %}
 {% block nav_financeiro %}active{% endblock %}
 {% block topbar_title %}Detalhe do Documento Financeiro{% endblock %}
@@ -59,9 +60,9 @@
     </div>
     {% endif %}
 
-    {% if documento.arquivo_pdf %}
+    {% if documento.arquivo_pdf or documento.arquivo %}
     <div style="margin-top:14px;">
-      <a href="{% url 'download_pdf_financeiro' documento.pk %}" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;">📄 Visualizar Nota Fiscal (PDF)</a>
+      <a href="{% url 'download_pdf_financeiro' documento.pk %}" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;">📄 Visualizar Nota Fiscal (PDF)</a>{% excluir_anexo documento %}
     </div>
     {% endif %}
   </div>

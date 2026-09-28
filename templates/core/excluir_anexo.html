@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Excluir anexo{% endblock %}
+{% block topbar_title %}Excluir anexo{% endblock %}
+{% block content %}
+<div class="card" style="max-width:720px;margin:24px auto;">
+  <h1>Excluir este anexo?</h1>
+  <p style="margin:18px 0;overflow-wrap:anywhere;"><strong>{{ nome_anexo }}</strong><br>{{ campo_label }} · {{ objeto }}</p>
+  <p>O arquivo será removido deste registro. O cadastro, os valores e o histórico do registro principal serão preservados. Esta ação não pode ser desfeita.</p>
+  <p style="margin:12px 0;color:var(--text-secondary);">Se o mesmo arquivo estiver vinculado a outros registros, essas cópias serão preservadas.</p>
+  {% if erro %}<div class="alert alert-danger" role="alert">{{ erro }}</div>{% endif %}
+  <form method="post" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px;">
+    {% csrf_token %}<input type="hidden" name="confirmacao" value="{{ confirmacao }}"><input type="hidden" name="next" value="{{ next }}">
+    <button type="submit" class="btn btn-danger">Confirmar exclusão do anexo</button>
+    <a href="{{ next }}" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

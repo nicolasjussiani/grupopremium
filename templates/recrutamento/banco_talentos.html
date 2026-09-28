@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}Banco de Talentos — ERP Grupo PremiumBR{% endblock %}
 {% block nav_recrutamento %}active{% endblock %}
 {% block topbar_title %}Banco de Talentos{% endblock %}
@@ -41,8 +42,8 @@
       <tr>
         <td style="font-weight:600;">
           {{ t.nome }}
-          {% if t.arquivo_pdf %}
-            <a href="{% url 'baixar_curriculo_talento' t.pk %}" target="_blank" title="Baixar Currículo PDF" style="margin-left:8px; text-decoration:none;">📄</a>
+          {% if t.arquivo_pdf or t.arquivo %}
+            <a href="{% url 'baixar_curriculo_talento' t.pk %}" target="_blank" title="Baixar Currículo PDF" style="margin-left:8px; text-decoration:none;">📄</a>{% excluir_anexo t %}
           {% endif %}
         </td>
         <td style="color:var(--text-muted);font-size:0.85rem;">{{ t.email }}</td>

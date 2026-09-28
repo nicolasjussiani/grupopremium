@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}{{ arquivo.nome_original }} — Arquivo Central{% endblock %}
 {% block nav_arquivo_central %}active{% endblock %}
 {% block topbar_title %}Visualização de documento{% endblock %}
@@ -19,7 +20,7 @@
   <div class="card" style="padding:16px;min-height:520px;">
     <div class="card-header" style="padding:0 0 14px;">
       <div class="card-title">Pré-visualização</div>
-      {% if arquivo_url %}<a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Abrir original</a>{% endif %}
+      {% if arquivo_url %}<a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Abrir original</a>{% excluir_anexo arquivo %}{% endif %}
     </div>
     {% if not arquivo_url %}
       <div class="empty-state"><p>O arquivo não está disponível no armazenamento.</p></div>
@@ -41,7 +42,7 @@
         {% empty %}<div class="empty-state"><p>Nenhuma planilha legível foi encontrada.</p></div>{% endfor %}
       </div>
     {% else %}
-      <div class="empty-state"><p>{% if preview.error %}{{ preview.error }}{% else %}Este formato deve ser aberto no aplicativo correspondente.{% endif %}</p><a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank" rel="noopener" class="btn btn-mod6">Abrir arquivo</a></div>
+      <div class="empty-state"><p>{% if preview.error %}{{ preview.error }}{% else %}Este formato deve ser aberto no aplicativo correspondente.{% endif %}</p><a href="{% url 'baixar_arquivo_importado' arquivo.pk %}" target="_blank" rel="noopener" class="btn btn-mod6">Abrir arquivo</a>{% excluir_anexo arquivo %}</div>
     {% endif %}
   </div>
 

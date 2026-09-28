@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}Atualizar Documento — ERP Grupo PremiumBR{% endblock %}
 {% block nav_admissional %}active{% endblock %}
 {% block topbar_title %}Atualizar Documento Admissional{% endblock %}
@@ -28,10 +29,10 @@
       
       <div class="form-group" style="margin-bottom: 20px;">
         <label class="form-label">Arquivo do Documento</label>
-        {% if doc.arquivo %}
+        {% if doc.arquivo or doc.arquivo_nuvem %}
         <div style="margin-bottom: 8px; font-size: 0.9rem;">
             ✅ Arquivo atual: <strong>{{ doc.arquivo_nome|default:"Documento" }}</strong> 
-            <a href="{% url 'baixar_documento' admissao.pk doc.pk %}" target="_blank" style="margin-left:10px; color:var(--brand); text-decoration:none;">Baixar/Ver Arquivo</a>
+            <a href="{% url 'baixar_documento' admissao.pk doc.pk %}" target="_blank" style="margin-left:10px; color:var(--brand); text-decoration:none;">Baixar/Ver Arquivo</a>{% excluir_anexo doc 'arquivo_nuvem' %}
         </div>
         {% else %}
         <div style="margin-bottom: 8px; font-size: 0.85rem; color: var(--text-muted);">

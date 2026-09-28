@@ -73,7 +73,7 @@ def linhas_semana(segunda, *, busca='', unidade='', categoria='', colaborador_id
     pagamentos = {}
     for p in PagamentoColaborador.objects.filter(
         colaborador_id__in=ids, tipo__in=('vale_transporte', 'ajuda_custo'), data_vencimento=segunda,
-    ).order_by('pk'):
+    ).prefetch_related('arquivos_importados').order_by('pk'):
         chave = (p.colaborador_id, p.tipo)
         if chave not in pagamentos or p.status != 'cancelado':
             pagamentos[chave] = p

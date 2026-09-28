@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load anexos %}
 {% block title %}Materiais — Almoxarifado ERP{% endblock %}
 {% block nav_compras %}active{% endblock %}
 {% block topbar_title %}Materiais / Almoxarifado{% endblock %}
@@ -43,7 +44,7 @@
       {% for m in materiais %}
       <tr>
         <td>
-          {% if m.foto %}<img src="{{ m.foto.url }}" alt="{{ m.nome }}" loading="lazy" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+          {% if m.foto %}<img src="{{ m.foto.url }}" alt="{{ m.nome }}" loading="lazy" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">{% excluir_anexo m 'foto' %}
           {% else %}<span style="color:var(--text-muted);font-size:.76rem;">Sem foto</span>{% endif %}
         </td>
         <td style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">{{ m.codigo }}</td>
