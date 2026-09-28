@@ -16,6 +16,17 @@
     </div>
     {% if aprovacao.descricao %}<div class="detail-description"><small>Detalhes do processo</small><p>{{ aprovacao.descricao }}</p></div>{% endif %}
 
+    {% if itens_requisicao %}
+      <div class="detail-description">
+        <small>Produtos solicitados</small>
+        <ul>
+          {% for item in itens_requisicao %}
+            <li><strong>{{ item.material.nome }}</strong> — {{ item.quantidade_solicitada|floatformat:2 }} {{ item.material.get_unidade_medida_display }}{% if item.material.descricao %}<br>{{ item.material.descricao }}{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
     {% if aprovacao.esta_pendente %}
       <form method="post" action="{% url 'aprovar_registro' aprovacao.pk %}" class="mobile-decision-form approve-form">
         {% csrf_token %}<input type="hidden" name="next" value="{% url 'painel_mobile' %}">

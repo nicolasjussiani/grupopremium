@@ -142,7 +142,7 @@ def painel_mobile(request):
 @login_required
 def detalhe_aprovacao_mobile(request, pk):
     aprovacao = get_object_or_404(_aprovacoes_do_usuario(request.user), pk=pk)
-    return render(request, 'mobile/detalhe_aprovacao.html', {'aprovacao': aprovacao})
+    return render(request, 'mobile/detalhe_aprovacao.html', _contexto_detalhe(aprovacao))
 
 
 @login_required
@@ -355,7 +355,18 @@ def rejeitar_registro(request, pk):
 def detalhe_aprovacao(request, pk):
     """Exibe detalhes de uma aprova├º├úo (para modal ou p├ígina)."""
     aprovacao = get_object_or_404(_aprovacoes_do_usuario(request.user), pk=pk)
-    return render(request, 'core/detalhe_aprovacao.html', {'aprovacao': aprovacao})
+    return render(request, 'core/detalhe_aprovacao.html', _contexto_detalhe(aprovacao))
+
+
+def _contexto_detalhe(aprovacao):
+    contexto = {'aprovacao': aprovacao}
+    if aprovacao.modulo == 'compras':
+        from compras.models import RequisicaoCompra
+
+        requisicao = aprovacao.objeto
+        if isinstance(requisicao, RequisicaoCompra):
+            contexto['itens_requisicao'] = requisicao.itens.select_related('material').order_by('pk')
+    return contexto
 
 
 @login_required

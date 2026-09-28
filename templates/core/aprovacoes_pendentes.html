@@ -424,17 +424,17 @@
 
 {% block extra_js %}
 <script>
-const BASE_APROVAR = "{% url 'aprovar_registro' 0 %}".replace('/0/', '/');
-const BASE_REJEITAR = "{% url 'rejeitar_registro' 0 %}".replace('/0/', '/');
+const BASE_APROVAR = "{% url 'aprovar_registro' 0 %}";
+const BASE_REJEITAR = "{% url 'rejeitar_registro' 0 %}";
 
 function abrirModalAprovar(pk, titulo) {
   document.getElementById('modalAprovarSub').textContent = titulo;
-  document.getElementById('formAprovar').action = BASE_APROVAR + pk + '/';
+  document.getElementById('formAprovar').action = BASE_APROVAR.replace('/0/', `/${pk}/`);
   document.getElementById('modalAprovar').classList.add('active');
 }
 function abrirModalRejeitar(pk, titulo) {
   document.getElementById('modalRejeitarSub').textContent = titulo;
-  document.getElementById('formRejeitar').action = BASE_REJEITAR + pk + '/';
+  document.getElementById('formRejeitar').action = BASE_REJEITAR.replace('/0/', `/${pk}/`);
   document.getElementById('modalRejeitar').classList.add('active');
 }
 function fecharModal(id) {

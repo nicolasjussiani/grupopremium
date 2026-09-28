@@ -3,6 +3,7 @@ from django.contrib.auth.models import User, Group
 from django.urls import reverse
 from core.models import AprovacaoRegistro
 from administrativo.models import DemandaAdministrativa
+from compras.models import Material, RequisicaoCompra, SolicitacaoMaterial
 
 class AprovacaoProcessoTest(TestCase):
     def setUp(self):
@@ -94,3 +95,39 @@ class AprovacaoProcessoTest(TestCase):
         # Verifica callback
         demanda.refresh_from_db()
         self.assertEqual(demanda.status, 'informacoes_incompletas')
+
+
+class DetalheAprovacaoCompraTest(TestCase):
+    def setUp(self):
+        self.aprovador = User.objects.create_superuser('aprovador_compras', password='senha-123')
+        self.client.force_login(self.aprovador)
+        requisicao = RequisicaoCompra.objects.create(
+            solicitante='Solicitante', unidade_destino='Santos', justificativa='Reposição'
+        )
+        material = Material.objects.create(
+            nome='Produto da RC', descricao='Modelo azul', unidade_medida='cx'
+        )
+        SolicitacaoMaterial.objects.create(
+            material=material, requisicao=requisicao, quantidade_solicitada=3,
+            solicitante='Solicitante', unidade_destino='Santos', justificativa='Reposição'
+        )
+        self.aprovacao = AprovacaoRegistro.criar_para(
+            objeto=requisicao, titulo='RC de Santos', modulo='compras', nivel=1
+        )
+
+    def test_produtos_aparecem_nos_detalhes_desktop_e_mobile(self):
+        for rota in ('detalhe_aprovacao', 'detalhe_aprovacao_mobile'):
+            with self.subTest(rota=rota):
+                response = self.client.get(reverse(rota, args=[self.aprovacao.pk]))
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'Produto da RC')
+                self.assertContains(response, 'Modelo azul')
+                self.assertContains(response, '3,00')
+
+    def test_lista_de_aprovacoes_monta_rotas_com_id_antes_da_acao(self):
+        response = self.client.get(reverse('aprovacoes_pendentes'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'/aprovacoes/0/aprovar/')
+        self.assertContains(response, f'/aprovacoes/0/rejeitar/')
+        self.assertNotContains(response, '/aprovacoes/aprovar/0/')
+        self.assertNotContains(response, '/aprovacoes/rejeitar/0/')

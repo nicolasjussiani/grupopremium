@@ -71,6 +71,20 @@
     </div>
     {% endif %}
 
+    {% if itens_requisicao %}
+    <div style="margin-top:1.25rem;">
+      <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.05em;">Produtos solicitados</div>
+      <ul style="margin:0;padding:0;list-style:none;">
+        {% for item in itens_requisicao %}
+        <li style="padding:0.65rem 0;border-bottom:1px solid var(--border);color:var(--text-primary);">
+          <strong>{{ item.material.nome }}</strong> — {{ item.quantidade_solicitada|floatformat:2 }} {{ item.material.get_unidade_medida_display }}
+          {% if item.material.descricao %}<div style="font-size:0.82rem;color:var(--text-muted);">{{ item.material.descricao }}</div>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
     {% if aprovacao.comentario %}
     <div style="margin-top:1rem;">
       <div style="font-size:0.82rem;font-weight:600;color:#10b981;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.05em;">✅ Comentário da Aprovação</div>
