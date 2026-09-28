@@ -129,7 +129,7 @@ class RequisicaoCompra(models.Model):
         """Após a decisão final, atende do estoque ou encaminha para compra."""
         if self.status != 'aguardando_ceo':
             raise ValidationError('A requisição não está aguardando a aprovação final.')
-        itens = list(self.itens.select_related('material').select_for_update())
+        itens = list(self.itens.filter(status='pendente').select_related('material').select_for_update())
         materiais = {
             material.pk: material
             for material in Material.objects.select_for_update().filter(
@@ -222,6 +222,33 @@ class SolicitacaoMaterial(models.Model):
     @property
     def numero(self):
         return f'SOL-{self.pk:06d}' if self.pk else 'SOL-NOVO'
+
+
+class DecisaoItemRequisicao(models.Model):
+    DECISOES = [
+        ('aprovado', 'Aprovado'),
+        ('rejeitado', 'Desaprovado'),
+    ]
+
+    aprovacao = models.ForeignKey(
+        'core.AprovacaoRegistro', on_delete=models.CASCADE,
+        related_name='decisoes_itens_requisicao',
+    )
+    item = models.ForeignKey(
+        SolicitacaoMaterial, on_delete=models.CASCADE,
+        related_name='decisoes_aprovacao',
+    )
+    decisao = models.CharField(max_length=10, choices=DECISOES)
+    observacao = models.TextField(blank=True)
+    decidido_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    decidido_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['aprovacao', 'item'], name='compras_decisao_unica_por_etapa_item',
+            ),
+        ]
 
 
 class PedidoCompra(models.Model):

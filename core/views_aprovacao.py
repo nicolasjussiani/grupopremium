@@ -4,7 +4,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.db.models import Count, Q
 from django.db import transaction
@@ -301,6 +301,10 @@ def aprovar_registro(request, pk):
         status='pendente',
     )
 
+    if aprovacao.modulo == 'compras' and aprovacao.decisoes_itens_requisicao.exists():
+        messages.error(request, 'Há decisões por produto nesta RC. Conclua a análise no detalhe da aprovação.')
+        return redirect('detalhe_aprovacao', pk=pk)
+
     comentario = request.POST.get('comentario', '').strip()
     aprovacao.status = 'aprovado'
     aprovacao.aprovado_por = request.user
@@ -331,6 +335,10 @@ def rejeitar_registro(request, pk):
         status='pendente',
     )
 
+    if aprovacao.modulo == 'compras' and aprovacao.decisoes_itens_requisicao.exists():
+        messages.error(request, 'Há decisões por produto nesta RC. Conclua a análise no detalhe da aprovação.')
+        return redirect('detalhe_aprovacao', pk=pk)
+
     motivo = request.POST.get('motivo_rejeicao', '').strip()
     if not motivo:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -353,6 +361,110 @@ def rejeitar_registro(request, pk):
     return _redirect_seguro(request)
 
 
+def _requisicao_da_aprovacao(aprovacao):
+    from compras.models import RequisicaoCompra
+
+    requisicao = aprovacao.objeto
+    if aprovacao.modulo != 'compras' or not isinstance(requisicao, RequisicaoCompra):
+        raise Http404('Esta aprovação não pertence a uma RC.')
+    return requisicao
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def decidir_item_requisicao(request, pk, item_pk):
+    from compras.models import DecisaoItemRequisicao
+
+    aprovacao = get_object_or_404(
+        _aprovacoes_do_usuario(request.user).select_for_update(), pk=pk, status='pendente'
+    )
+    requisicao = _requisicao_da_aprovacao(aprovacao)
+    item = get_object_or_404(
+        requisicao.itens.select_for_update(), pk=item_pk, status='pendente'
+    )
+    decisao = request.POST.get('decisao')
+    observacao = request.POST.get('observacao', '').strip()
+    if decisao not in {'aprovado', 'rejeitado'}:
+        messages.error(request, 'Escolha aprovar ou desaprovar o produto.')
+        return _redirect_seguro(request)
+    if decisao == 'rejeitado' and not observacao:
+        messages.error(request, 'Informe o motivo para desaprovar este produto.')
+        return _redirect_seguro(request)
+
+    DecisaoItemRequisicao.objects.update_or_create(
+        aprovacao=aprovacao,
+        item=item,
+        defaults={
+            'decisao': decisao,
+            'observacao': observacao,
+            'decidido_por': request.user,
+        },
+    )
+    messages.success(request, 'Decisão do produto salva. Conclua a análise quando terminar.')
+    return _redirect_seguro(request)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def concluir_itens_requisicao(request, pk):
+    from compras.models import DecisaoItemRequisicao
+    from core.approval_workflow import avancar_para_ceo
+
+    aprovacao = get_object_or_404(
+        _aprovacoes_do_usuario(request.user).select_for_update(), pk=pk, status='pendente'
+    )
+    requisicao = _requisicao_da_aprovacao(aprovacao)
+    esperado = 'aguardando_adriana' if aprovacao.nivel == 1 else 'aguardando_ceo'
+    if requisicao.status != esperado:
+        messages.error(request, 'O estado desta RC mudou. Atualize a página antes de decidir.')
+        return _redirect_seguro(request)
+
+    itens = list(requisicao.itens.select_for_update().filter(status='pendente'))
+    if not itens:
+        messages.error(request, 'Esta RC não tem produtos pendentes para análise.')
+        return _redirect_seguro(request)
+    decisoes = {
+        decisao.item_id: decisao
+        for decisao in DecisaoItemRequisicao.objects.select_for_update().filter(
+            aprovacao=aprovacao, item_id__in=[item.pk for item in itens]
+        )
+    }
+    faltantes = [item for item in itens if item.pk not in decisoes]
+    if faltantes and request.POST.get('aprovar_restantes') == '1':
+        for item in faltantes:
+            decisao = DecisaoItemRequisicao.objects.create(
+                aprovacao=aprovacao, item=item, decisao='aprovado', decidido_por=request.user
+            )
+            decisoes[item.pk] = decisao
+    elif faltantes:
+        messages.error(request, f'Decida os {len(faltantes)} produto(s) restantes antes de concluir.')
+        return _redirect_seguro(request)
+
+    rejeitados = [item for item in itens if decisoes[item.pk].decisao == 'rejeitado']
+    aprovacao.aprovado_por = request.user
+    aprovacao.decidido_em = timezone.now()
+    if len(rejeitados) == len(itens):
+        aprovacao.status = 'rejeitado'
+        aprovacao.motivo_rejeicao = 'Todos os produtos foram desaprovados individualmente.'
+        aprovacao.save(update_fields=['status', 'aprovado_por', 'decidido_em', 'motivo_rejeicao'])
+        requisicao.rejeitar()
+        messages.warning(request, 'Todos os produtos foram desaprovados. RC rejeitada.')
+    else:
+        for item in rejeitados:
+            item.status = 'cancelado'
+            item.obs = decisoes[item.pk].observacao
+            item.save(update_fields=['status', 'obs', 'atualizado_em'])
+        aprovacao.status = 'aprovado'
+        aprovacao.comentario = request.POST.get('comentario', '').strip()
+        aprovacao.save(update_fields=['status', 'aprovado_por', 'decidido_em', 'comentario'])
+        if avancar_para_ceo(aprovacao) is None:
+            requisicao.aprovar(request.user)
+        messages.success(request, f'Análise concluída: {len(itens) - len(rejeitados)} produto(s) aprovados e {len(rejeitados)} desaprovados.')
+    return _redirect_seguro(request)
+
+
 @login_required
 def detalhe_aprovacao(request, pk):
     """Exibe detalhes de uma aprova├º├úo (para modal ou p├ígina)."""
@@ -372,30 +484,74 @@ def _contexto_detalhe(aprovacao):
         ).exclude(comentario='').select_related('aprovado_por').order_by('nivel'),
     }
     if aprovacao.modulo == 'compras':
-        from compras.models import RequisicaoCompra
+        from compras.models import DecisaoItemRequisicao, PedidoCompra, RequisicaoCompra
 
         requisicao = aprovacao.objeto
         if isinstance(requisicao, RequisicaoCompra):
             itens = list(requisicao.itens.select_related('material').order_by('pk'))
+            decisoes = {
+                decisao.item_id: decisao
+                for decisao in DecisaoItemRequisicao.objects.filter(aprovacao=aprovacao)
+            }
+            decisoes_anteriores = {
+                decisao.item_id: decisao
+                for decisao in DecisaoItemRequisicao.objects.filter(
+                    aprovacao__content_type=aprovacao.content_type,
+                    aprovacao__object_id=aprovacao.object_id,
+                    aprovacao__nivel__lt=aprovacao.nivel,
+                ).order_by('aprovacao__nivel')
+            }
             linhas = []
             total = Decimal('0.00')
+            total_selecionado = Decimal('0.00')
             sem_valor = 0
+            sem_valor_selecionado = 0
+            ativos = 0
+            selecionados = 0
+            pendentes_decisao = 0
             for item in itens:
                 valor = item.valor_unitario_estimado
                 subtotal = None
-                if valor is None:
+                if item.status != 'cancelado':
+                    ativos += 1
+                if valor is None and item.status != 'cancelado':
                     sem_valor += 1
-                else:
+                elif valor is not None:
                     subtotal = (valor * item.quantidade_solicitada).quantize(
                         Decimal('0.01'), rounding=ROUND_HALF_UP
                     )
-                    total += subtotal
-                linhas.append({'item': item, 'subtotal': subtotal, 'tem_valor': valor is not None})
+                    if item.status != 'cancelado':
+                        total += subtotal
+                pode_decidir = aprovacao.esta_pendente() and item.status == 'pendente'
+                if pode_decidir and item.pk not in decisoes:
+                    pendentes_decisao += 1
+                decisao_atual = decisoes.get(item.pk)
+                if decisao_atual and decisao_atual.decisao == 'aprovado':
+                    selecionados += 1
+                    if subtotal is None:
+                        sem_valor_selecionado += 1
+                    else:
+                        total_selecionado += subtotal
+                linhas.append({
+                    'item': item,
+                    'subtotal': subtotal,
+                    'tem_valor': valor is not None,
+                    'decisao': decisao_atual,
+                    'decisao_anterior': decisoes_anteriores.get(item.pk),
+                    'pode_decidir': pode_decidir,
+                })
             contexto.update({
                 'linhas_requisicao': linhas,
-                'total_requisicao': total if itens and not sem_valor else None,
+                'total_requisicao': total if ativos and not sem_valor else None,
                 'itens_sem_valor': sem_valor,
+                'pendentes_decisao': pendentes_decisao,
+                'tem_decisoes_itens': bool(decisoes),
+                'linhas_selecionadas': selecionados,
+                'total_selecionado': total_selecionado if selecionados and not sem_valor_selecionado else None,
+                'sem_valor_selecionado': sem_valor_selecionado,
             })
+        elif isinstance(requisicao, PedidoCompra):
+            contexto['pedido_compra'] = requisicao
     return contexto
 
 

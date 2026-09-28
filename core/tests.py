@@ -136,9 +136,9 @@ class DetalheAprovacaoCompraTest(TestCase):
 
     def test_detalhe_oferece_observacao_e_mostra_a_etapa_anterior(self):
         detalhe = self.client.get(reverse('detalhe_aprovacao', args=[self.aprovacao.pk]))
+        self.assertContains(detalhe, 'name="observacao"')
+        self.assertContains(detalhe, 'Desaprovar esta linha')
         self.assertContains(detalhe, 'name="comentario"')
-        self.assertContains(detalhe, 'name="motivo_rejeicao"')
-        self.assertContains(detalhe, 'A decisão vale para a RC inteira')
 
         self.aprovacao.status = 'aprovado'
         self.aprovacao.aprovado_por = self.aprovador

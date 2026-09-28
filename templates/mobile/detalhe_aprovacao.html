@@ -21,11 +21,34 @@
         <small>Produtos solicitados</small>
         <ul>
           {% for linha in linhas_requisicao %}
-            <li><strong>{{ linha.item.material.nome }}</strong> — {{ linha.item.quantidade_solicitada|floatformat:2 }} {{ linha.item.material.get_unidade_medida_display }}{% if linha.item.material.descricao %}<br>{{ linha.item.material.descricao }}{% endif %}<br>{% if linha.tem_valor %}Valor unitário: R$ {{ linha.item.valor_unitario_estimado|floatformat:2 }} · Total do item: R$ {{ linha.subtotal|floatformat:2 }}{% else %}Valor não informado nesta RC{% endif %}</li>
+            <li>
+              <strong>{{ linha.item.material.nome }}</strong> — {{ linha.item.quantidade_solicitada|floatformat:2 }} {{ linha.item.material.get_unidade_medida_display }}{% if linha.item.material.descricao %}<br>{{ linha.item.material.descricao }}{% endif %}<br>{% if linha.tem_valor %}Valor unitário: R$ {{ linha.item.valor_unitario_estimado|floatformat:2 }} · Total do item: R$ {{ linha.subtotal|floatformat:2 }}{% else %}Valor não informado nesta RC{% endif %}
+              {% if linha.decisao %}<p><strong>{{ linha.decisao.get_decisao_display }} nesta etapa</strong>{% if linha.decisao.observacao %}: {{ linha.decisao.observacao }}{% endif %}</p>{% endif %}
+              {% if linha.decisao_anterior %}<p>Etapa anterior: {{ linha.decisao_anterior.get_decisao_display }}{% if linha.decisao_anterior.observacao %} — {{ linha.decisao_anterior.observacao }}{% endif %}</p>{% endif %}
+              {% if linha.pode_decidir %}
+                <form method="post" action="{% url 'decidir_item_requisicao' aprovacao.pk linha.item.pk %}" class="mobile-decision-form">
+                  {% csrf_token %}<input type="hidden" name="next" value="{% url 'detalhe_aprovacao_mobile' aprovacao.pk %}">
+                  <label for="aprovarItem{{ linha.item.pk }}">Observação da aprovação (opcional)</label>
+                  <textarea id="aprovarItem{{ linha.item.pk }}" name="observacao" rows="2"></textarea>
+                  <button type="submit" name="decisao" value="aprovado">✓ Aprovar esta linha</button>
+                </form>
+                <form method="post" action="{% url 'decidir_item_requisicao' aprovacao.pk linha.item.pk %}" class="mobile-decision-form">
+                  {% csrf_token %}<input type="hidden" name="next" value="{% url 'detalhe_aprovacao_mobile' aprovacao.pk %}">
+                  <label for="rejeitarItem{{ linha.item.pk }}">Motivo para desaprovar (obrigatório)</label>
+                  <textarea id="rejeitarItem{{ linha.item.pk }}" name="observacao" rows="2" required></textarea>
+                  <button type="submit" name="decisao" value="rejeitado" class="reject-button">× Desaprovar esta linha</button>
+                </form>
+              {% elif linha.item.status == 'cancelado' %}<p><strong>Produto cancelado; não seguirá para compra.</strong></p>{% endif %}
+            </li>
           {% endfor %}
         </ul>
         {% if itens_sem_valor %}<p>Total indisponível: {{ itens_sem_valor }} produto(s) sem valor registrado.</p>{% else %}<p><strong>Total informado na RC: R$ {{ total_requisicao|floatformat:2 }}</strong></p>{% endif %}
+        {% if aprovacao.esta_pendente and tem_decisoes_itens %}<p>{{ linhas_selecionadas }} linha(s) escolhida(s) para aprovação.{% if linhas_selecionadas %} {% if sem_valor_selecionado %}Total selecionado indisponível: há linha sem valor.{% else %}Total selecionado: R$ {{ total_selecionado|floatformat:2 }}{% endif %}{% endif %}</p>{% endif %}
       </div>
+    {% endif %}
+
+    {% if pedido_compra %}
+      <div class="detail-description"><small>Linha do pedido</small><p><strong>{{ pedido_compra.solicitacao.material.nome }}</strong> — {{ pedido_compra.solicitacao.quantidade_solicitada|floatformat:2 }} {{ pedido_compra.solicitacao.material.get_unidade_medida_display }}<br>Valor unitário: R$ {{ pedido_compra.valor_unitario|floatformat:2 }} · Total: R$ {{ pedido_compra.valor_total|floatformat:2 }}</p></div>
     {% endif %}
 
     {% if observacoes_anteriores %}
@@ -38,11 +61,21 @@
     {% endif %}
 
     {% if aprovacao.esta_pendente %}
+    {% if linhas_requisicao %}
+      <form method="post" action="{% url 'concluir_itens_requisicao' aprovacao.pk %}" class="mobile-decision-form">
+        {% csrf_token %}<input type="hidden" name="next" value="{% url 'painel_mobile' %}">
+        <label for="comentarioConclusaoMobile">Observação geral (opcional)</label>
+        <textarea id="comentarioConclusaoMobile" name="comentario" rows="2"></textarea>
+        <p>{% if pendentes_decisao %}Faltam {{ pendentes_decisao }} linha(s) para decidir.{% else %}Todas as linhas foram decididas.{% endif %}</p>
+        <button type="submit">Concluir decisões das linhas</button>
+        {% if pendentes_decisao %}<button type="submit" name="aprovar_restantes" value="1">Aprovar as restantes e concluir</button>{% endif %}
+      </form>
+    {% else %}
       <form method="post" action="{% url 'aprovar_registro' aprovacao.pk %}" class="mobile-decision-form approve-form">
         {% csrf_token %}<input type="hidden" name="next" value="{% url 'painel_mobile' %}">
         <label for="comentario">Comentário opcional</label>
         <textarea id="comentario" name="comentario" rows="3" placeholder="Registre uma observação sobre a aprovação"></textarea>
-        <button type="submit">✓ Aprovar processo</button>
+        <button type="submit">{% if pedido_compra %}✓ Aprovar esta linha do pedido{% else %}✓ Aprovar processo{% endif %}</button>
       </form>
       <details class="reject-panel">
         <summary>Rejeitar este processo</summary>
@@ -50,9 +83,10 @@
           {% csrf_token %}<input type="hidden" name="next" value="{% url 'painel_mobile' %}">
           <label for="motivo">Motivo da rejeição</label>
           <textarea id="motivo" name="motivo_rejeicao" rows="3" required placeholder="Explique o que precisa ser corrigido"></textarea>
-          <button class="reject-button" type="submit">Confirmar rejeição</button>
+          <button class="reject-button" type="submit">{% if pedido_compra %}Desaprovar esta linha do pedido{% else %}Confirmar rejeição{% endif %}</button>
         </form>
       </details>
+    {% endif %}
     {% else %}
       <div class="decision-complete">Esta solicitação já foi {{ aprovacao.get_status_display|lower }}.</div>
     {% endif %}

@@ -119,10 +119,11 @@ class LogicaPedidoCompraTests(TestCase):
             404,
         )
         self.client.force_login(self.aprovador)
-        self.assertEqual(
-            self.client.get(reverse('detalhe_aprovacao', args=[nivel_adriana.pk])).status_code,
-            200,
-        )
+        detalhe = self.client.get(reverse('detalhe_aprovacao', args=[nivel_adriana.pk]))
+        self.assertEqual(detalhe.status_code, 200)
+        self.assertContains(detalhe, 'Linha do pedido')
+        self.assertContains(detalhe, 'Aprovar esta linha do pedido')
+        self.assertContains(detalhe, 'Desaprovar esta linha do pedido')
         self.client.post(reverse('aprovar_registro', args=[nivel_adriana.pk]))
         nivel_ceo = AprovacaoRegistro.objects.get(object_id=pedido.pk, nivel=2)
         self.assertEqual(

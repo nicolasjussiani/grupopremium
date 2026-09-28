@@ -46,8 +46,8 @@
     </div>
 
     <div class="gateway-box">
-      <div class="gateway-question">Compra aprovada?</div>
-      <p style="font-size:0.82rem;color:var(--text-secondary);">SIM → Pedido emitido ao fornecedor | NÃO → Retorna para nova cotação</p>
+      <div class="gateway-question">Aprovar este produto do pedido?</div>
+      <p style="font-size:0.82rem;color:var(--text-secondary);">Cada pedido contém um produto. Ao desaprovar, ele retorna para nova cotação.</p>
     </div>
 
     <form method="post" style="margin-top:20px;">
@@ -58,14 +58,14 @@
       </div>
       <div class="gateway-actions">
         <button type="submit" name="acao" value="aprovar" class="btn btn-success">
-          ✅ Aprovar Compra
+          ✅ Aprovar esta linha
         </button>
         <button type="button" class="btn btn-danger" onclick="
           document.getElementById('motivoReprovacao').style.display='block';
           document.querySelector('[name=acao][value=reprovar]').style.display='inline-flex';
           this.style.display='none';
-        ">⛔ Reprovar</button>
-        <button type="submit" name="acao" value="reprovar" class="btn btn-danger" style="display:none;">Confirmar Reprovação</button>
+        ">⛔ Desaprovar esta linha</button>
+        <button type="submit" name="acao" value="reprovar" class="btn btn-danger" style="display:none;">Confirmar desaprovação</button>
         <a href="{% url 'detalhe_solicitacao' pedido.solicitacao.pk %}" class="btn btn-outline">← Cancelar</a>
       </div>
     </form>

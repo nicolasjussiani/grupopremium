@@ -80,10 +80,35 @@
           <strong>{{ linha.item.material.nome }}</strong> — {{ linha.item.quantidade_solicitada|floatformat:2 }} {{ linha.item.material.get_unidade_medida_display }}
           {% if linha.item.material.descricao %}<div style="font-size:0.82rem;color:var(--text-muted);">{{ linha.item.material.descricao }}</div>{% endif %}
           {% if linha.tem_valor %}<div>Valor unitário: R$ {{ linha.item.valor_unitario_estimado|floatformat:2 }} · Total do item: R$ {{ linha.subtotal|floatformat:2 }}</div>{% else %}<div style="color:var(--text-muted);">Valor não informado nesta RC</div>{% endif %}
+          {% if linha.decisao %}<div style="font-weight:700;margin-top:0.35rem;color:{% if linha.decisao.decisao == 'aprovado' %}#059669{% else %}#dc2626{% endif %};">{{ linha.decisao.get_decisao_display }} nesta etapa{% if linha.decisao.observacao %}: {{ linha.decisao.observacao }}{% endif %}</div>{% endif %}
+          {% if linha.decisao_anterior %}<div style="font-size:0.82rem;color:var(--text-muted);">Etapa anterior: {{ linha.decisao_anterior.get_decisao_display }}{% if linha.decisao_anterior.observacao %} — {{ linha.decisao_anterior.observacao }}{% endif %}</div>{% endif %}
+          {% if linha.pode_decidir %}
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0.6rem;margin-top:0.75rem;">
+            <form method="post" action="{% url 'decidir_item_requisicao' aprovacao.pk linha.item.pk %}">
+              {% csrf_token %}<input type="hidden" name="next" value="{% url 'detalhe_aprovacao' aprovacao.pk %}">
+              <textarea name="observacao" rows="2" placeholder="Observação da aprovação (opcional)" aria-label="Observação para aprovar {{ linha.item.material.nome }}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.55rem;background:var(--bg-card);color:var(--text-primary);"></textarea>
+              <button type="submit" name="decisao" value="aprovado" style="width:100%;margin-top:0.35rem;background:#059669;color:white;border:0;border-radius:8px;padding:0.55rem;cursor:pointer;">✓ Aprovar esta linha</button>
+            </form>
+            <form method="post" action="{% url 'decidir_item_requisicao' aprovacao.pk linha.item.pk %}">
+              {% csrf_token %}<input type="hidden" name="next" value="{% url 'detalhe_aprovacao' aprovacao.pk %}">
+              <textarea name="observacao" rows="2" required placeholder="Motivo para desaprovar (obrigatório)" aria-label="Motivo para desaprovar {{ linha.item.material.nome }}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.55rem;background:var(--bg-card);color:var(--text-primary);"></textarea>
+              <button type="submit" name="decisao" value="rejeitado" style="width:100%;margin-top:0.35rem;background:white;color:#dc2626;border:1px solid #dc2626;border-radius:8px;padding:0.55rem;cursor:pointer;">× Desaprovar esta linha</button>
+            </form>
+          </div>
+          {% elif linha.item.status == 'cancelado' %}<div style="font-weight:700;color:#dc2626;">Produto cancelado; não seguirá para compra.</div>{% endif %}
         </li>
         {% endfor %}
       </ul>
       {% if itens_sem_valor %}<div style="margin-top:0.6rem;color:var(--text-muted);">Total indisponível: {{ itens_sem_valor }} produto(s) sem valor registrado.</div>{% else %}<div style="margin-top:0.7rem;font-weight:700;color:var(--text-primary);">Total informado na RC: R$ {{ total_requisicao|floatformat:2 }}</div>{% endif %}
+      {% if aprovacao.esta_pendente and tem_decisoes_itens %}<div style="margin-top:0.4rem;color:var(--text-primary);">{{ linhas_selecionadas }} linha(s) escolhida(s) para aprovação.{% if linhas_selecionadas %} {% if sem_valor_selecionado %}Total selecionado indisponível: há linha sem valor.{% else %}Total selecionado: <strong>R$ {{ total_selecionado|floatformat:2 }}</strong>{% endif %}{% endif %}</div>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if pedido_compra %}
+    <div style="margin-top:1.25rem;padding:0.85rem;border:1px solid var(--border);border-radius:8px;color:var(--text-primary);">
+      <strong>Linha do pedido: {{ pedido_compra.solicitacao.material.nome }}</strong>
+      <div>{{ pedido_compra.solicitacao.quantidade_solicitada|floatformat:2 }} {{ pedido_compra.solicitacao.material.get_unidade_medida_display }} · {{ pedido_compra.fornecedor }}</div>
+      <div>Valor unitário: R$ {{ pedido_compra.valor_unitario|floatformat:2 }} · Total: R$ {{ pedido_compra.valor_total|floatformat:2 }}</div>
     </div>
     {% endif %}
 
@@ -118,6 +143,18 @@
     {% endif %}
 
     {% if aprovacao.esta_pendente %}
+    {% if linhas_requisicao %}
+    <form method="post" action="{% url 'concluir_itens_requisicao' aprovacao.pk %}" style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);">
+      {% csrf_token %}<input type="hidden" name="next" value="{% url 'aprovacoes_pendentes' %}">
+      <label for="comentarioConclusao" style="display:block;font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;">Observação geral da análise (opcional)</label>
+      <textarea id="comentarioConclusao" name="comentario" rows="2" style="width:100%;resize:vertical;border:1px solid var(--border);border-radius:8px;padding:0.7rem;background:var(--bg-card);color:var(--text-primary);"></textarea>
+      <p style="color:var(--text-muted);font-size:0.82rem;margin:0.7rem 0;">{% if pendentes_decisao %}Faltam {{ pendentes_decisao }} linha(s) para decidir. Suas escolhas ainda podem ser alteradas.{% else %}Todas as linhas foram decididas. Confira as escolhas antes de concluir.{% endif %}</p>
+      <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+        <button type="submit" style="background:#0d2149;color:white;border:0;border-radius:8px;padding:0.7rem 1rem;cursor:pointer;">Concluir decisões das linhas</button>
+        {% if pendentes_decisao %}<button type="submit" name="aprovar_restantes" value="1" style="background:#059669;color:white;border:0;border-radius:8px;padding:0.7rem 1rem;cursor:pointer;">Aprovar as restantes e concluir</button>{% endif %}
+      </div>
+    </form>
+    {% else %}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.75rem;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);">
       <form method="post" action="{% url 'aprovar_registro' aprovacao.pk %}">
         {% csrf_token %}
@@ -125,7 +162,7 @@
         <label for="comentarioAprovacaoDetalhe" style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;">Observação da aprovação (opcional)</label>
         <textarea id="comentarioAprovacaoDetalhe" name="comentario" rows="3" placeholder="Registre sua observação sobre esta RC" style="width:100%;resize:vertical;border:1px solid var(--border);border-radius:8px;padding:0.7rem;background:var(--bg-card);color:var(--text-primary);margin-bottom:0.65rem;"></textarea>
         <button type="submit" style="width:100%;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:10px;padding:0.65rem;font-size:0.9rem;font-weight:600;cursor:pointer;">
-          ✅ Aprovar
+          {% if pedido_compra %}✅ Aprovar esta linha do pedido{% else %}✅ Aprovar{% endif %}
         </button>
       </form>
       <form method="post" action="{% url 'rejeitar_registro' aprovacao.pk %}">
@@ -134,11 +171,11 @@
         <label for="motivoRejeicaoDetalhe" style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;">Motivo ou observação da rejeição (obrigatório)</label>
         <textarea id="motivoRejeicaoDetalhe" name="motivo_rejeicao" rows="3" required placeholder="Explique o que precisa ser corrigido nesta RC" style="width:100%;resize:vertical;border:1px solid var(--border);border-radius:8px;padding:0.7rem;background:var(--bg-card);color:var(--text-primary);margin-bottom:0.65rem;"></textarea>
         <button type="submit" style="width:100%;background:transparent;color:#ef4444;border:1.5px solid #ef4444;border-radius:10px;padding:0.65rem;font-size:0.9rem;font-weight:600;cursor:pointer;">
-          🚫 Rejeitar
+          {% if pedido_compra %}🚫 Desaprovar esta linha do pedido{% else %}🚫 Rejeitar{% endif %}
         </button>
       </form>
     </div>
-    {% if aprovacao.modulo == 'compras' %}<p style="color:var(--text-muted);font-size:0.8rem;margin-top:0.7rem;">A decisão vale para a RC inteira. Para solicitar alteração de um produto, rejeite a RC e explique o ajuste no motivo.</p>{% endif %}
+    {% endif %}
     {% endif %}
   </div>
 </div>
