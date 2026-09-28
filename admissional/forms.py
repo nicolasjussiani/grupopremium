@@ -52,13 +52,17 @@ class ColaboradorForm(forms.ModelForm):
                 widget=forms.HiddenInput(),
             )
         for name, field in self.fields.items():
-            # Os demais dados podem ser completados depois; a data de inicio
-            # e obrigatoria em novos cadastros (definida abaixo).
+            # Os demais dados podem ser completados depois; data de inicio e PIX
+            # sao obrigatorios em novos cadastros (definidos abaixo).
             if not name.startswith('anexo_') and not name.startswith('direct_upload_'):
                 field.required = False
             field.widget.attrs['class'] = 'form-control'
             if name.startswith('anexo_'):
                 field.widget.attrs['accept'] = '.pdf,.png,.jpg,.jpeg'
+        pix = self.fields['chave_pix']
+        pix.required = self.instance._state.adding
+        pix.error_messages['required'] = 'Informe a chave PIX do colaborador.'
+        pix.help_text = 'Informe CPF/CNPJ, telefone, e-mail ou chave aleatória.'
         data_admissao = self.fields['data_admissao']
         data_admissao.required = self.instance._state.adding
         data_admissao.label = 'Data de início / admissão'

@@ -7,7 +7,7 @@
 {% block content %}
 <div class="module-banner mod-banner-2" style="margin-bottom:20px;">
   <h1 class="mod-title">🏢 {{ acao }} Colaborador</h1>
-  <div class="mod-desc">{% if form.fields.data_admissao.required %}Informe a data de início e envie um documento para cadastrar o colaborador.{% else %}Atualize os dados e documentos do colaborador.{% endif %}</div>
+  <div class="mod-desc">{% if form.fields.data_admissao.required %}Informe a data de início, a chave PIX e envie um documento para cadastrar o colaborador.{% else %}Atualize os dados e documentos do colaborador.{% endif %}</div>
 </div>
 
 <div class="card collaborator-form-card">
@@ -25,7 +25,7 @@
         <span class="form-section-icon" aria-hidden="true">01</span>
         <div>
           <h2 id="dados-colaborador-title">Dados do colaborador</h2>
-          <p>{% if form.fields.data_admissao.required %}A data de início é obrigatória. Os demais dados podem ser preenchidos depois.{% else %}Complete os dados pessoais e profissionais quando estiverem disponíveis.{% endif %}</p>
+          <p>{% if form.fields.data_admissao.required %}A data de início e a chave PIX são obrigatórias. Os demais dados podem ser preenchidos depois.{% else %}Complete os dados pessoais e profissionais quando estiverem disponíveis.{% endif %}</p>
         </div>
       </div>
       <div class="collaborator-fields-grid">

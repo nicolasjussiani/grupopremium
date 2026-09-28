@@ -34,6 +34,7 @@ def _make_user(username='testuser', password='testpass123'):
 def _colaborador_data(**overrides):
     """Retorna dados minimos validos para criar um Colaborador."""
     base = {
+        'chave_pix': 'colaborador@example.com',
         'nome': 'Joao da Silva',
         'cpf': '111.222.333-44',
         'rg': '',
@@ -514,14 +515,14 @@ class TestColaboradorForm(TestCase):
 
     def test_novo_cadastro_aceita_data_e_um_documento(self):
         form = ColaboradorForm(
-            data={'data_admissao': '2026-09-01'},
+            data={'data_admissao': '2026-09-01', 'chave_pix': 'pessoa@example.com'},
             files={'anexo_cpf': _documento()}, require_document=True,
         )
         self.assertTrue(form.is_valid(), form.errors)
 
     def test_novo_cadastro_reconhece_upload_direto(self):
         form = ColaboradorForm(
-            data={'direct_upload_anexo_cpf': 'token-assinado', 'data_admissao': '2026-09-01'},
+            data={'direct_upload_anexo_cpf': 'token-assinado', 'data_admissao': '2026-09-01', 'chave_pix': 'pessoa@example.com'},
             require_document=True,
         )
         self.assertTrue(form.is_valid(), form.errors)

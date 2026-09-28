@@ -25,7 +25,7 @@ class DocumentoColaboradorTests(TestCase):
 
     def test_email_opcional_e_pis_ctps_fora_do_formulario(self):
         form = ColaboradorForm(data={
-            'nome': 'Pessoa sem email', 'cpf': '111.222.333-44', 'email': '',
+            'chave_pix': '12345678900', 'nome': 'Pessoa sem email', 'cpf': '111.222.333-44', 'email': '',
             'tipo_contrato': 'clt', 'cargo': 'Auxiliar', 'unidade': 'Matriz',
             'marca': 'eco_premium', 'data_admissao': date.today(), 'status': 'ativo',
         })

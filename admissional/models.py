@@ -160,6 +160,8 @@ class Colaborador(models.Model):
         verbose_name='Ajuda de custo semanal',
     )
     
+    chave_pix = models.CharField(max_length=200, blank=True, verbose_name='Chave PIX')
+
     # Anexos de documentos
     anexo_cpf = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo CPF/CNPJ (Frente)')
     anexo_cpf_verso = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo CPF/CNPJ (Verso)')
