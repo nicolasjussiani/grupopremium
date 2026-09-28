@@ -33,6 +33,23 @@ class RequisicaoComVariosProdutosTests(TestCase):
             estoque_minimo='2.00',
         )
 
+    def test_painel_mostra_requisicoes_anteriores_as_dez_mais_recentes(self):
+        requisicoes = [
+            RequisicaoCompra.objects.create(
+                solicitante='Comprador Premium',
+                unidade_destino=f'Unidade {indice}',
+                justificativa='Histórico de compras',
+            )
+            for indice in range(12)
+        ]
+
+        response = self.client.get(reverse('painel_compras'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'requisicoes-scroll')
+        self.assertContains(response, requisicoes[0].numero)
+        self.assertEqual(len(response.context['requisicoes_recentes']), 12)
+
     def aprovar_requisicao(self, requisicao):
         nivel_adriana = AprovacaoRegistro.objects.get(
             object_id=requisicao.pk, nivel=1, destinatario=self.adriana

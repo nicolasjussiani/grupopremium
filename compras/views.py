@@ -4,7 +4,7 @@ import re
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import F
+from django.db.models import Count, F
 from django.db import IntegrityError, transaction
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from .models import Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial
@@ -38,7 +38,9 @@ def painel_compras(request):
         status__in=['pendente', 'em_analise'])
     pedidos_abertos = PedidoCompra.objects.exclude(
         status__in=['concluido', 'reprovado'])
-    requisicoes_recentes = RequisicaoCompra.objects.prefetch_related('itens').all()[:10]
+    requisicoes_recentes = RequisicaoCompra.objects.annotate(
+        total_itens=Count('itens')
+    ).order_by('-criado_em', '-pk')
 
     return render(request, 'compras/painel.html', {
         'materiais_criticos': materiais_criticos,
