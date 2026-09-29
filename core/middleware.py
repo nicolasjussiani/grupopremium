@@ -1,7 +1,9 @@
 import logging
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 
@@ -52,6 +54,17 @@ class AcessoModuloMiddleware(MiddlewareMixin):
                 perfil_obj.ultimo_acesso = agora
 
         path = request.path_info
+        # Este perfil continua restrito mesmo com grupos antigos associados.
+        if perfil == 'entregas_consulta':
+            consulta = reverse('consulta_entregas')
+            if request.method in {'GET', 'HEAD'}:
+                if path in {reverse('dashboard'), reverse('login')}:
+                    return redirect('consulta_entregas')
+                if path in {consulta, reverse('csrf_token_json')} or path.startswith('/static/'):
+                    return None
+            if path == reverse('logout') and request.method == 'POST':
+                return None
+            raise PermissionDenied('Este acesso permite apenas consultar materiais liberados para entrega.')
         if path.startswith(self.ROTAS_LIVRES):
             return None
 

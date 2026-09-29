@@ -1,0 +1,47 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Materiais para entrega · Grupo PremiumBR</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; background:#f3f5f7; color:#182b39; font:16px system-ui,sans-serif; }
+    main { max-width:1000px; margin:auto; padding:24px 18px; }
+    header,.filters { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+    h1 { font-size:1.6rem; margin-bottom:8px; } h2 { font-size:1.2rem; }
+    p { line-height:1.5; } .muted { color:#516373; }
+    .filters,article,.empty { padding:20px; background:white; border:1px solid #dbe2e7; border-radius:12px; margin:20px 0; }
+    select,button,a.button { padding:10px 14px; border:1px solid #bdcbd4; border-radius:6px; font:inherit; background:white; color:#182b39; }
+    button { cursor:pointer; } a { color:#12576c; }
+    .items { display:grid; gap:12px; } .item { padding-top:12px; border-top:1px solid #e1e7eb; }
+    .item strong { display:block; margin-bottom:6px; }
+    @media print { header form,.filters { display:none; } body { background:white; } article { break-inside:avoid; } }
+  </style>
+</head>
+<body><main>
+  <header>
+    <div><span class="muted">Grupo PremiumBR · Consulta de entregas</span><h1>Materiais liberados para entrega</h1></div>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Sair</button></form>
+  </header>
+  <p class="muted">Materiais de RCs aprovadas, agrupados por unidade para organizar sua rota. Confira a situação de cada item: a aprovação da RC não significa que uma compra externa já esteja disponível no estoque. Este acesso permite somente leitura.</p>
+  <form method="get" class="filters">
+    <label for="unidade">Unidade de destino</label>
+    <select name="unidade" id="unidade"><option value="">Todas as unidades</option>
+      {% for nome in unidades %}<option value="{{ nome }}" {% if unidade == nome %}selected{% endif %}>{{ nome }}</option>{% endfor %}
+    </select>
+    <button type="submit">Filtrar</button><a href="{% url 'consulta_entregas' %}">Limpar filtro</a>
+  </form>
+  {% regroup itens by unidade_destino as destinos %}
+  {% for destino in destinos %}
+    <article><h2>{{ destino.grouper }}</h2><div class="items">
+      {% for item in destino.list %}
+        <div class="item"><strong>{{ item.material.nome }}</strong>
+          <div>{{ item.quantidade_solicitada }} {{ item.material.get_unidade_medida_display }} · {{ item.material.codigo }}</div>
+          <p class="muted">{% if item.requisicao %}{{ item.requisicao.numero }} · {% endif %}{{ item.get_status_display }}</p>
+        </div>
+      {% endfor %}
+    </div></article>
+  {% empty %}<p class="empty">Nenhum material liberado para entrega{% if unidade %} nesta unidade{% endif %}.</p>{% endfor %}
+</main></body></html>

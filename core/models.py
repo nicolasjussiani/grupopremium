@@ -172,6 +172,7 @@ class PerfilUsuario(models.Model):
         ('sesmet', 'SESMET / Segurança do Trabalho'),
         ('compras', 'Compras / Almoxarifado'),
         ('estoque_compras', 'Estoque, EPI e Compras'),
+        ('entregas_consulta', 'Entregas — somente consulta'),
         ('operacional', 'Operacional'),
     ]
     MARCAS = [
