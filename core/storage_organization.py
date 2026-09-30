@@ -212,7 +212,10 @@ def organize_instance_files(instance, *, dry_run=False, known_names=None):
         transaction.on_commit(
             lambda storage=storage, source_name=source_name: delete_if_unreferenced(
                 storage, source_name
-            )
+            ),
+            # A cópia já está salva. Uma falha na limpeza não deve transformar
+            # um cadastro confirmado em erro 500 (nem induzir novo cadastro).
+            robust=True,
         )
 
     return moved

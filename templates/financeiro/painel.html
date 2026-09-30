@@ -130,7 +130,8 @@
 <div class="card" style="margin-top:20px;border-left:4px solid var(--mod6-blue);">
   <div class="card-header" style="gap:12px;flex-wrap:wrap;">
     <div>
-      <div class="card-title">Folha de pagamento do mês</div>
+      <div class="card-title">Folha de pagamento atual</div>
+      <p class="form-help">VT e ajuda de custo da semana atual; demais pagamentos do mês atual.</p>
       <div style="font-size:.8rem;color:var(--text-muted);">{{ folha_mes_quantidade }} pagamento(s) · Benefícios: R$ {{ folha_mes_beneficios|floatformat:2 }}</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -144,6 +145,11 @@
     <div class="kpi-card"><div class="kpi-label">Total da folha</div><div class="kpi-value">R$ {{ folha_mes_total|floatformat:2 }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Pago</div><div class="kpi-value">R$ {{ folha_mes_pago|floatformat:2 }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Pendente</div><div class="kpi-value">R$ {{ folha_mes_pendente|floatformat:2 }}</div></div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title">Pagamentos atrasados</div>
+    <p>{{ folha_atrasada_quantidade }} pagamento(s) de períodos encerrados · <strong>R$ {{ folha_atrasada_total|floatformat:2 }}</strong></p>
+    <a href="{% url 'lista_pagamentos_colaboradores' %}?visao=atrasados" class="btn btn-outline">Ver pagamentos atrasados</a>
   </div>
 </div>
 </section>

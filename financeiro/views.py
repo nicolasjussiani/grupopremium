@@ -21,6 +21,7 @@ from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.utils.text import get_valid_filename
 from admissional.models import Colaborador, PagamentoColaborador
+from admissional.periodos_pagamentos import pagamentos_atuais, pagamentos_atrasados
 from core.models import ArquivoImportado
 
 
@@ -58,18 +59,17 @@ def painel_financeiro(request):
         finalizado_em__year=timezone.now().year,
     )
     # Calcula Orcamento/Budget do Mês
-    mes_atual = timezone.now().date().replace(day=1)
+    mes_atual = timezone.localdate().replace(day=1)
     if mes_atual.month == 12:
         proximo_mes = mes_atual.replace(year=mes_atual.year + 1, month=1)
     else:
         proximo_mes = mes_atual.replace(month=mes_atual.month + 1)
     fim_mes = proximo_mes - timedelta(days=1)
-    folha_mes = PagamentoColaborador.objects.filter(
-        Q(data_pagamento__range=(mes_atual, fim_mes))
-        | Q(data_pagamento__isnull=True, data_vencimento__range=(mes_atual, fim_mes))
-    ).exclude(status='cancelado').exclude(
+    folha_base = PagamentoColaborador.objects.exclude(
         colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO
     )
+    folha_mes = pagamentos_atuais(folha_base, timezone.localdate())
+    folha_atrasada = pagamentos_atrasados(folha_base, timezone.localdate())
     resumo_folha = folha_mes.aggregate(
         total=Sum('valor'),
         pago=Sum('valor', filter=Q(status='pago')),
@@ -124,6 +124,8 @@ def painel_financeiro(request):
         'total_lancado_mes': sum(l.valor for l in finalizados_mes),
         'dashboard_budget': dashboard_budget,
         'folha_mes_quantidade': folha_mes.count(),
+        'folha_atrasada_quantidade': folha_atrasada.count(),
+        'folha_atrasada_total': folha_atrasada.aggregate(total=Sum('valor'))['total'] or 0,
         'folha_mes_total': resumo_folha['total'] or 0,
         'folha_mes_pago': resumo_folha['pago'] or 0,
         'folha_mes_pendente': resumo_folha['pendente'] or 0,

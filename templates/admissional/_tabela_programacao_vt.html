@@ -72,12 +72,18 @@
         </form>
       {% else %}<div class="vt-section-label">{% if linha.situacao == 'pago' %}PAGAMENTO REALIZADO{% else %}DECISÃO DA SEMANA{% endif %}</div><p class="vt-readonly">{% if linha.pagamento and linha.situacao != 'nao' %}R$ {{ linha.pagamento.valor|floatformat:2 }}{% else %}Somente consulta{% endif %}</p>{% endif %}
       {% if linha.situacao == 'pago' and linha.calculo_salvo %}<p class="vt-saved-value">{% if linha.calculo_salvo.antecipado %}Antecipação salva: {{ linha.calculo_salvo.dias_previstos }} dias previstos; {{ linha.calculo_salvo.faltas_descontar }} faltas descontadas.{% else %}Cálculo anterior salvo: R$ {{ linha.calculo_salvo.valor_semana_completa|floatformat:2 }} ÷ 7 × {{ linha.calculo_salvo.dias_presentes }} dia(s) presente(s).{% endif %}</p>{% endif %}
-      {% if linha.situacao == 'pagar' and pode_editar %}<a class="vt-payment-link" href="{% url 'marcar_pagamento_como_pago' linha.pagamento.pk %}">Confirmar pagamento com comprovante →</a>{% endif %}
+      {% if linha.situacao == 'pagar' and pode_editar %}<a class="vt-payment-link" href="{% url 'marcar_pagamento_como_pago' linha.pagamento.pk %}?next={{ request.get_full_path|urlencode }}">Confirmar pagamento com comprovante →</a>{% endif %}
+      {% if linha.tipo_beneficio == 'vale_transporte' %}<a class="vt-payment-link" href="{% url 'historico_vt_colaborador' linha.pessoa.pk %}">Ver histórico de VT e comprovantes →</a>{% endif %}
       </div>
     </article>
     {% empty %}<div class="vt-empty"><strong>Nenhum colaborador nesta lista</strong><p>Confira a semana e os filtros de pessoa, unidade ou benefício.</p><a href="{% url 'visao_beneficios_colaboradores' %}">Ver outros benefícios →</a></div>{% endfor %}
   </div>
   <div class="vt-empty" data-vt-empty hidden><strong>Nenhuma pessoa encontrada</strong><p>Tente outro nome ou selecione “Todos”.</p><button type="button" class="vt-filter" data-vt-reset>Limpar busca e situação</button></div>
+  <nav class="vt-pagination" data-vt-pagination hidden aria-label="Páginas da revisão semanal">
+    <button type="button" class="vt-filter" data-vt-previous>← Anterior</button>
+    <span data-vt-page aria-live="polite"></span>
+    <button type="button" class="vt-filter" data-vt-next>Próxima →</button>
+  </nav>
   <footer class="vt-footer">✓ Presença informada &nbsp; F Falta &nbsp; A Atestado/licença &nbsp; ○ Folga &nbsp; – Sem informação</footer>
 </section>
 {% include 'admissional/_vt_script.html' %}

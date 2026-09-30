@@ -1,4 +1,5 @@
 import logging
+import re
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
@@ -72,7 +73,9 @@ class AcessoModuloMiddleware(MiddlewareMixin):
             return None
 
         acesso_folha_financeiro = (
-            path.startswith('/admissional/colaboradores/pagamentos/')
+            (path.startswith('/admissional/colaboradores/pagamentos/') or re.fullmatch(
+                r'/admissional/colaboradores/[0-9]+/pagamentos/vale-transporte/', path,
+            ))
             and (
                 perfil == 'financeiro'
                 or request.user.has_perm('admissional.view_pagamentocolaborador')

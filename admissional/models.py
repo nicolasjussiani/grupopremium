@@ -135,6 +135,10 @@ class Colaborador(models.Model):
     status = models.CharField(max_length=20, choices=STATUS, default='ativo')
     pis_pasep = models.CharField(max_length=20, blank=True, verbose_name='PIS/PASEP')
     ctps = models.CharField(max_length=30, blank=True, verbose_name='CTPS')
+    chave_pix = models.CharField(
+        max_length=180, blank=True, verbose_name='Chave PIX',
+        help_text='CPF, CNPJ, e-mail, telefone ou chave aleatória informada pelo colaborador.',
+    )
     salario = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -161,25 +165,25 @@ class Colaborador(models.Model):
     )
     
     # Anexos de documentos
-    anexo_cpf = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo CPF/CNPJ (Frente)')
-    anexo_cpf_verso = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo CPF/CNPJ (Verso)')
+    anexo_cpf = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo CPF/CNPJ (Frente)')
+    anexo_cpf_verso = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo CPF/CNPJ (Verso)')
     
-    anexo_rg = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo RG (Frente)')
-    anexo_rg_verso = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo RG (Verso)')
+    anexo_rg = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo RG (Frente)')
+    anexo_rg_verso = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo RG (Verso)')
     
-    anexo_pis = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo PIS/PASEP (Frente)')
-    anexo_pis_verso = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo PIS/PASEP (Verso)')
+    anexo_pis = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo PIS/PASEP (Frente)')
+    anexo_pis_verso = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo PIS/PASEP (Verso)')
     
-    anexo_ctps = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo CTPS (Frente)')
-    anexo_ctps_verso = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo CTPS (Verso)')
+    anexo_ctps = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo CTPS (Frente)')
+    anexo_ctps_verso = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo CTPS (Verso)')
     
-    anexo_titulo = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo Título de Eleitor (Frente)')
-    anexo_titulo_verso = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo Título de Eleitor (Verso)')
+    anexo_titulo = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo Título de Eleitor (Frente)')
+    anexo_titulo_verso = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo Título de Eleitor (Verso)')
     
-    anexo_reservista = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo Reservista (Frente)')
-    anexo_reservista_verso = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo Reservista (Verso)')
+    anexo_reservista = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo Reservista (Frente)')
+    anexo_reservista_verso = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo Reservista (Verso)')
     
-    anexo_aso = models.FileField(upload_to='colaboradores/docs/', null=True, blank=True, verbose_name='Anexo ASO (Atestado de Saúde Ocupacional)')
+    anexo_aso = models.FileField(upload_to='colaboradores/docs/', max_length=255, null=True, blank=True, verbose_name='Anexo ASO (Atestado de Saúde Ocupacional)')
     
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)

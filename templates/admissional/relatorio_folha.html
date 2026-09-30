@@ -41,8 +41,8 @@
     <div class="report-note">Grupo PremiumBR · Folha de pagamento</div>
     <h1>{% if colaborador_selecionado %}Relatório individual{% else %}Relatório geral{% endif %}</h1>
     {% if colaborador_selecionado %}<p><strong>{{ colaborador_selecionado.nome }}</strong> · Código {{ colaborador_selecionado.pk }} · {{ colaborador_selecionado.unidade|default:"Unidade não informada" }}</p>{% endif %}
-    <p>{{ data_inicio|date:"d/m/Y" }} a {{ data_fim|date:"d/m/Y" }} · Emitido em {{ gerado_em|date:"d/m/Y H:i" }}</p>
-    <p class="report-note">Equipe atual. Período pela data do pagamento; quando não preenchida, pelo vencimento.</p>
+    <p>{% if visao == 'atual' %}VT/ajuda: {{ segunda_atual|date:"d/m/Y" }} a {{ domingo_atual|date:"d/m/Y" }} · Demais: {{ mes_atual|date:"m/Y" }}{% elif visao == 'atrasados' %}Pagamentos atrasados{% else %}{{ data_inicio|date:"d/m/Y" }} a {{ data_fim|date:"d/m/Y" }}{% endif %} · Emitido em {{ gerado_em|date:"d/m/Y H:i" }}</p>
+    <p class="report-note">Equipe atual. Pagos pela data do pagamento; pendentes, cancelados e pagos sem data pelo vencimento.</p>
     <p class="report-note">{% if query %}Busca: {{ query }} · {% endif %}{% if unidade_filter %}Unidade: {{ unidade_filter }} · {% endif %}Tipo: {% for v, l in tipo_choices %}{% if v == tipo_filter %}{{ l }}{% endif %}{% endfor %}{% if not tipo_filter %}Todos{% endif %} · Situação: {% for v, l in status_choices %}{% if v == status_filter %}{{ l }}{% endif %}{% endfor %}{% if not status_filter %}Pagos e pendentes{% endif %} · Categoria: {% for v, l in categoria_choices %}{% if v == categoria_filter %}{{ l }}{% endif %}{% endfor %}{% if not categoria_filter %}Fixos e freelancers{% endif %}</p>
   </div>
   <div class="report-actions report-no-print">
@@ -51,6 +51,8 @@
   </div>
 </div>
 <form method="get" class="card report-section report-no-print">
+  <input type="hidden" name="visao" value="historico">
+  <p class="report-note">Os filtros abaixo geram uma consulta histórica pelo intervalo informado.</p>
   <div class="report-filters">
     <div><label for="rel-pessoa">Pessoa</label><select id="rel-pessoa" name="colaborador" class="form-control"><option value="">Todas — relatório geral</option>{% for c in colaboradores %}<option value="{{ c.pk }}" {% if colaborador_selecionado.pk == c.pk %}selected{% endif %}>{{ c.nome }} · {{ c.pk }}{% if c.unidade %} · {{ c.unidade }}{% endif %}</option>{% endfor %}</select></div>
     <div><label for="rel-inicio">Data inicial</label><input id="rel-inicio" type="date" name="data_inicio" value="{{ data_inicio|date:'Y-m-d' }}" class="form-control" required></div>

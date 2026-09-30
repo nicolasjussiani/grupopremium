@@ -7,7 +7,27 @@
     const search = panel.querySelector('[data-vt-search]');
     const benefit = panel.querySelector('[data-vt-benefit]');
     const filters = Array.from(panel.querySelectorAll('[data-vt-filter]'));
+    const pagination = panel.querySelector('[data-vt-pagination]');
+    const previous = panel.querySelector('[data-vt-previous]');
+    const next = panel.querySelector('[data-vt-next]');
+    const pageLabel = panel.querySelector('[data-vt-page]');
+    const storageKey = `vt-list:${location.pathname}:${panel.dataset.vtWeek}`;
+    const pageSize = 6;
+    let page = 1;
     let status = 'todos';
+    let saved = null;
+    try {
+      saved = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
+      if (saved) {
+        search.value = typeof saved.search === 'string' ? saved.search : '';
+        benefit.value = ['todos', 'vale_transporte', 'ajuda_custo'].includes(saved.benefit) ? saved.benefit : 'todos';
+        status = filters.some(button => button.dataset.vtFilter === saved.status) ? saved.status : 'todos';
+        page = Number.isInteger(saved.page) && saved.page > 0 ? saved.page : 1;
+      }
+    } catch (_) {}
+    const remember = () => {
+      try { sessionStorage.setItem(storageKey, JSON.stringify({search:search.value, benefit:benefit.value, status, page})); } catch (_) {}
+    };
     const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
     const exportLink = panel.querySelector('[data-vt-export]');
     const exportBase = exportLink?.href;
@@ -33,29 +53,43 @@
     };
     const filter = () => {
       const query = normalize(search.value.trim());
-      let visible = 0;
-      people.forEach(person => {
-        const match = (status === 'todos' || person.dataset.status === status)
+      const matching = people.filter(person => (status === 'todos' || person.dataset.status === status)
           && (benefit.value === 'todos' || person.dataset.benefit === benefit.value)
-          && normalize(person.dataset.search).includes(query);
-        person.hidden = !match;
-        visible += Number(match);
-      });
-      report(people.filter(person => !person.hidden));
-      panel.querySelector('[data-vt-count]').textContent = `${visible} de ${people.length} pessoa(s)`;
-      panel.querySelector('[data-vt-empty]').hidden = visible !== 0 || people.length === 0;
+          && normalize(person.dataset.search).includes(query));
+      const pages = Math.max(1, Math.ceil(matching.length / pageSize));
+      page = Math.min(page, pages);
+      const visible = new Set(matching.slice((page - 1) * pageSize, page * pageSize));
+      people.forEach(person => { person.hidden = !visible.has(person); });
+      panel.querySelector('[data-vt-count]').textContent = `${matching.length} de ${people.length} pessoa(s) · ${visible.size} nesta página`;
+      panel.querySelector('[data-vt-empty]').hidden = matching.length !== 0 || people.length === 0;
+      pagination.hidden = pages < 2;
+      previous.disabled = page === 1;
+      next.disabled = page === pages;
+      pageLabel.textContent = `Página ${page} de ${pages}`;
+      report(matching);
       filters.forEach(button => {
         const active = button.dataset.vtFilter === status;
         button.classList.toggle('is-active', active);
         button.setAttribute('aria-pressed', String(active));
       });
+      remember();
+      return matching;
     };
     panel.querySelector('[data-vt-tools]').hidden = false;
-    search.addEventListener('input', filter);
-    benefit.addEventListener('change', filter);
-    filters.forEach(button => button.addEventListener('click', () => { status = button.dataset.vtFilter; filter(); }));
-    panel.querySelector('[data-vt-reset]').addEventListener('click', () => { search.value = ''; benefit.value = 'todos'; status = 'todos'; filter(); search.focus(); });
-    panel.querySelectorAll('[data-vt-form]').forEach(form => {
+    search.addEventListener('input', () => { page = 1; filter(); });
+    benefit.addEventListener('change', () => { page = 1; filter(); });
+    filters.forEach(button => button.addEventListener('click', () => { status = button.dataset.vtFilter; page = 1; filter(); }));
+    panel.querySelector('[data-vt-reset]').addEventListener('click', () => { search.value = ''; benefit.value = 'todos'; status = 'todos'; page = 1; filter(); search.focus(); });
+    const changePage = offset => {
+      page += offset; filter();
+      const first = people.find(person => !person.hidden);
+      if (first) { first.tabIndex = -1; first.focus({preventScroll:true}); first.scrollIntoView({block:'start'}); }
+    };
+    previous.addEventListener('click', () => changePage(-1));
+    next.addEventListener('click', () => changePage(1));
+    const forms = Array.from(panel.querySelectorAll('[data-vt-form]'));
+    let submitting = null;
+    forms.forEach(form => {
       const amount = form.querySelector('[name="valor"]');
       const note = form.querySelector('[data-vt-note]');
       const total = form.querySelector('[data-vt-total]');
@@ -67,6 +101,9 @@
         const [whole, fraction = ''] = raw.replace(',', '.').split('.');
         return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
       };
+      const value = () => JSON.stringify([form.querySelector('[name="decisao"]:checked')?.value || '', ...Array.from(form.querySelectorAll('input[type=number]'), input => input.value)]);
+      const initial = value();
+      const person = form.closest('[data-vt-person]');
       const update = () => {
         const choice = form.querySelector('[name="decisao"]:checked')?.value;
         amount.disabled = choice === 'nao';
@@ -86,19 +123,33 @@
         total.textContent = choice === 'nao' ? currency.format(0) : calculated === null ? 'Informe jornada e dias previstos' : currency.format(calculated);
         formula.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : `Semanal ÷ ${jornada || '?'} × ${previstosRaw || '?'} dias previstos − ${faltas} faltas anteriores − outros descontos.`;
         note.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : (amount.value ? 'Confira o cálculo antes de salvar.' : 'Valor semanal não informado. Preencha se for pagar.');
+        person.dataset.dirty = String(value() !== initial);
+        if (person.dataset.dirty === 'true') note.textContent = 'Alteração não salva. Clique em Salvar decisão.';
       };
       form.querySelectorAll('[name="decisao"]').forEach(input => input.addEventListener('change', update));
       form.querySelectorAll('input[type=number]').forEach(input => input.addEventListener('input', update));
       update();
       form.addEventListener('submit', () => {
+        submitting = form;
+        remember();
         try { sessionStorage.setItem('vt-return', JSON.stringify({week:panel.dataset.vtWeek, person:form.querySelector('[name="pessoa_id"]').value})); } catch (_) {}
       });
     });
+    window.addEventListener('beforeunload', event => {
+      const unsaved = forms.some(form => form !== submitting && form.closest('[data-vt-person]').dataset.dirty === 'true');
+      submitting = null;
+      if (unsaved) { event.preventDefault(); event.returnValue = ''; }
+    });
+    let matching = filter();
     try {
-      const saved = JSON.parse(sessionStorage.getItem('vt-return') || 'null');
-      if (saved && saved.week === panel.dataset.vtWeek) {
-        const person = people.find(row => row.id === `vt-pessoa-${saved.person}`);
-        if (person) { person.tabIndex = -1; requestAnimationFrame(() => { person.scrollIntoView({block:'center'}); person.focus({preventScroll:true}); }); }
+      const returned = JSON.parse(sessionStorage.getItem('vt-return') || 'null');
+      if (returned && returned.week === panel.dataset.vtWeek) {
+        const person = matching.find(row => row.id === `vt-pessoa-${returned.person}`);
+        if (person) {
+          page = Math.floor(matching.indexOf(person) / pageSize) + 1; filter();
+          person.tabIndex = -1;
+          requestAnimationFrame(() => { person.scrollIntoView({block:'center'}); person.focus({preventScroll:true}); });
+        }
         sessionStorage.removeItem('vt-return');
       }
     } catch (_) {}

@@ -32,18 +32,20 @@
 {% block content %}
 <div style="margin-bottom:16px"><a href="{% url 'programacao_salarios' %}" class="btn btn-mod6">Calcular salários do mês</a></div>
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
-  <h1 class="mod-title">💵 Folha de Pagamento</h1>
+  <h1 class="mod-title">{% if visao == 'atrasados' %}Pagamentos atrasados{% else %}💵 Folha de Pagamento{% endif %}</h1>
   <div class="mod-desc">Acompanhe somente a equipe atual, os dias trabalhados, o PIX e a confirmação de cada pagamento.</div>
-  <a href="{% url 'relatorio_folha_pagamento' %}?{{ filtros_query }}" class="btn btn-mod6" style="margin-top:14px;">Relatório geral da folha</a>
+  <a href="{% url 'relatorio_folha_pagamento' %}?{{ filtros_query }}" class="btn btn-mod6" style="margin-top:14px;">{% if visao == 'atrasados' %}Relatório dos atrasados{% else %}Relatório geral da folha{% endif %}</a>
 </div>
 
+{% include 'admissional/_periodo_folha.html' %}
 <div class="kpi-grid" style="margin-bottom:20px;">
   <div class="kpi-card"><div class="kpi-label">Total pendente</div><div class="kpi-value">R$ {{ total_pendente|floatformat:2 }}</div></div>
-  <div class="kpi-card"><div class="kpi-label">Total pago</div><div class="kpi-value">R$ {{ total_pago|floatformat:2 }}</div></div>
+  {% if visao != 'atrasados' %}<div class="kpi-card"><div class="kpi-label">Total pago</div><div class="kpi-value">R$ {{ total_pago|floatformat:2 }}</div></div>{% endif %}
 </div>
 
 <div class="card" style="margin-bottom:20px;">
   <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+    <input type="hidden" name="visao" value="{{ visao }}">
     {% if unidade_filter %}<input type="hidden" name="unidade" value="{{ unidade_filter }}">{% endif %}
     {% if colaborador_selecionado %}<input type="hidden" name="colaborador" value="{{ colaborador_selecionado.pk }}">{% endif %}
     <div style="flex:1;min-width:220px;">
@@ -57,13 +59,13 @@
         {% for valor, descricao in tipo_choices %}<option value="{{ valor }}" {% if tipo_filter == valor %}selected{% endif %}>{{ descricao }}</option>{% endfor %}
       </select>
     </div>
-    <div style="min-width:170px;">
+    {% if visao != 'atrasados' %}<div style="min-width:170px;">
       <label for="status-pagamento">Situação</label>
       <select id="status-pagamento" class="form-control" name="status">
-        <option value="">Todas</option>
+        <option value="">Pagos e pendentes</option>
         {% for valor, descricao in status_choices %}<option value="{{ valor }}" {% if status_filter == valor %}selected{% endif %}>{{ descricao }}</option>{% endfor %}
       </select>
-    </div>
+    </div>{% endif %}
     <div style="min-width:170px;">
       <label for="categoria-pagamento">Categoria</label>
       <select id="categoria-pagamento" class="form-control" name="categoria">
@@ -71,22 +73,22 @@
         {% for valor, descricao in categoria_choices %}<option value="{{ valor }}" {% if categoria_filter == valor %}selected{% endif %}>{{ descricao }}</option>{% endfor %}
       </select>
     </div>
-    <div><label for="data-inicio">Data inicial</label><input id="data-inicio" class="form-control" type="date" name="data_inicio" value="{{ data_inicio|date:'Y-m-d' }}"></div>
-    <div><label for="data-fim">Data final</label><input id="data-fim" class="form-control" type="date" name="data_fim" value="{{ data_fim|date:'Y-m-d' }}"></div>
+    {% if visao == 'historico' %}<div><label for="data-inicio">Data inicial</label><input id="data-inicio" class="form-control" type="date" name="data_inicio" value="{{ data_inicio|date:'Y-m-d' }}"></div>
+    <div><label for="data-fim">Data final</label><input id="data-fim" class="form-control" type="date" name="data_fim" value="{{ data_fim|date:'Y-m-d' }}"></div>{% endif %}
     <button class="btn btn-mod6" type="submit">Pesquisar</button>
-    <a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn">Mês atual</a>
+    <a href="{% url 'lista_pagamentos_colaboradores' %}?visao={{ visao }}" class="btn">Limpar filtros</a>
   </form>
 </div>
 
-<div class="card" style="margin-bottom:20px;">
-  <div class="card-title">VT e ajuda de custo de todas as segundas-feiras</div>
+{% if visao != 'atrasados' %}<div class="card" style="margin-bottom:20px;">
+  <div class="card-title">{% if visao == 'atual' %}VT e ajuda de custo da semana atual{% else %}VT e ajuda de custo de todas as segundas-feiras{% endif %}</div>
   <p>Selecione a segunda da semana que será paga. Informe os dias previstos e confira as faltas já pagas da semana anterior para descontar.</p>
   {% if calendario_vt_limitado %}<p>Exibindo os primeiros três anos. Ajuste o período para consultar as demais segundas-feiras.</p>{% endif %}
   <div style="display:flex;flex-wrap:wrap;gap:8px;">
     {% for segunda in segundas_vt %}<a class="btn btn-outline" href="{% url 'programacao_vt' %}?segunda={{ segunda|date:'Y-m-d' }}">Segunda · {{ segunda|date:"d/m/Y" }}</a>{% empty %}<span>Nenhuma segunda-feira no período selecionado.</span>{% endfor %}
-    <a class="btn btn-mod6" href="{% url 'programacao_vt' %}">Próxima segunda-feira</a>
+    <a class="btn btn-mod6" href="{% url 'programacao_vt' %}">Semana atual</a>
   </div>
-</div>
+</div>{% endif %}
 {% if vt_semana %}
 <div class="vt-period-note" style="margin:0 0 12px;"><strong>Semana trabalhada: {{ vt_semana.inicio_anterior|date:"d/m/Y" }} a {{ vt_semana.fim_anterior|date:"d/m/Y" }}</strong>Presenças registradas antes do pagamento de {{ vt_semana.segunda|date:"d/m" }}.</div>
 {% include 'admissional/_tabela_programacao_vt.html' with linhas=vt_semana.linhas segunda=vt_semana.segunda pode_editar=vt_semana.pode_editar resumo_vt=vt_semana.resumo voltar_folha=True %}
@@ -96,7 +98,7 @@
     <div class="card-header">
       <div>
         <div class="card-title" id="titulo-resumo-pendencias">Pendências de salário e benefícios</div>
-        <div style="font-size:.8rem;color:var(--text-muted);margin-top:4px;">Valores ainda não pagos no período de {{ data_inicio|date:"d/m/Y" }} a {{ data_fim|date:"d/m/Y" }}.</div>
+        <div style="font-size:.8rem;color:var(--text-muted);margin-top:4px;">{% if visao == 'atual' %}Pendências da semana atual de VT/ajuda e do mês atual dos demais tipos.{% elif visao == 'atrasados' %}Pendências de períodos encerrados.{% else %}Valores ainda não pagos no período de {{ data_inicio|date:"d/m/Y" }} a {{ data_fim|date:"d/m/Y" }}.{% endif %} Este resumo considera salário, VT e ajuda de custo, independentemente dos filtros de tipo e situação.</div>
       </div>
       <span class="badge badge-warning">{{ resumo_pendencias.quantidade }} lançamento{{ resumo_pendencias.quantidade|pluralize:"s" }}</span>
     </div>
@@ -182,7 +184,7 @@
           <a href="{% url 'relatorio_folha_pagamento' %}?{{ filtros_query }}&amp;colaborador={{ pagamento.colaborador_id }}" class="btn btn-sm btn-outline">Relatório individual</a>
           {% if can_edit_pagamento %}
             {% if pagamento.status == 'pendente' %}
-            <a href="{% url 'marcar_pagamento_como_pago' pagamento.pk %}" class="btn btn-sm btn-success">Marcar como pago</a>
+            <a href="{% url 'marcar_pagamento_como_pago' pagamento.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-success">Marcar como pago</a>
             <form method="post" action="{% url 'retirar_pagamento_folha' pagamento.pk %}" style="display:inline;" onsubmit="return confirm('Retirar este lançamento da folha? O histórico será preservado.');">
               {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline">Retirar da folha</button>
             </form>

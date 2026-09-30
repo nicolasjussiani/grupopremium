@@ -56,7 +56,7 @@ def programacao_vt(request):
     if segunda is None:
         if request.method == 'POST' or request.GET.get('segunda'):
             return HttpResponseBadRequest('Data inválida.')
-        segunda = hoje + timedelta(days=(-hoje.weekday()) % 7)
+        segunda = hoje - timedelta(days=hoje.weekday())
     if segunda.weekday() != 0 or not 1901 <= segunda.year <= 2099:
         return HttpResponseBadRequest('Selecione uma segunda-feira entre 1901 e 2099.')
     erro = ''
@@ -86,7 +86,7 @@ def programacao_vt(request):
                 if request.POST.get('voltar_folha') == '1':
                     enviados = QueryDict(request.POST.get('filtros_folha', ''))
                     filtros = QueryDict('', mutable=True)
-                    for campo in ('data_inicio', 'data_fim', 'q', 'tipo', 'status', 'categoria', 'unidade', 'colaborador'):
+                    for campo in ('data_inicio', 'data_fim', 'q', 'tipo', 'status', 'categoria', 'unidade', 'colaborador', 'visao'):
                         if campo in enviados:
                             filtros[campo] = enviados[campo]
                     filtros['segunda_vt'] = segunda.isoformat()

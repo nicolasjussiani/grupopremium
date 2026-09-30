@@ -10,7 +10,8 @@
 </div>
 
 <div class="card" style="max-width:900px;margin:0 auto;">
-  <div id="resumo-colaborador" class="alert alert-info" style="display:none;margin-bottom:18px;">
+  {% if pagamento.status == 'pago' %}<p class="alert alert-info" data-persistent-alert>Pagamento já realizado: os dados financeiros devem ser preservados. Você pode acrescentar observações e comprovantes.</p>{% endif %}
+  <div id="resumo-colaborador" class="alert alert-info" data-persistent-alert style="display:none;margin-bottom:18px;">
     <strong id="resumo-nome"></strong>
     <span id="resumo-detalhes"></span>
     <strong id="resumo-dias" style="margin-left:8px;"></strong>
@@ -18,7 +19,7 @@
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     {% if form.non_field_errors %}
-      <div class="alert alert-error">{{ form.non_field_errors.0 }}</div>
+      <div class="alert alert-error" data-persistent-alert>{{ form.non_field_errors.0 }}</div>
     {% endif %}
     <div class="collaborator-fields-grid">
       {% for field in form %}
@@ -75,9 +76,24 @@
   const valor = document.getElementById('id_valor');
   const resumo = document.getElementById('resumo-colaborador');
   const baseUrl = "{% url 'resumo_colaborador_pagamento' 0 %}";
+  const pago = {% if pagamento.status == 'pago' %}true{% else %}false{% endif %};
+  let tipoAnterior = tipo.value;
+  let resumoController;
+
+  if (pago) {
+    // Preserva os valores enviados, com controles visivelmente bloqueados.
+    document.querySelectorAll('.collaborator-fields-grid input, .collaborator-fields-grid select').forEach(campo => {
+      if (campo.name && campo.type !== 'checkbox') {
+        const espelho = document.createElement('input');
+        espelho.type = 'hidden'; espelho.name = campo.name; espelho.value = campo.value;
+        campo.form.appendChild(espelho);
+      }
+      campo.disabled = true;
+    });
+  }
 
   function atualizarRecorrencia() {
-    if (!tipo || !recorrente) return;
+    if (!tipo || !recorrente || pago) return;
     const semanal = tipo.value === 'vale_transporte' || tipo.value === 'ajuda_custo';
     recorrente.checked = semanal;
     recorrente.disabled = true;
@@ -105,7 +121,12 @@
     const salario = tipo && tipo.value === 'salario';
     ['grupo-dias_trabalhados', 'grupo-valor_diaria'].forEach(function (id) {
       const grupo = document.getElementById(id);
-      if (grupo) grupo.style.display = freelancer || (salario && id === 'grupo-dias_trabalhados') ? '' : 'none';
+      if (grupo) grupo.style.display = freelancer || (salario && id === 'grupo-dias_trabalhados') || grupo.querySelector('.field-error') ? '' : 'none';
+    });
+    if (pago) return;
+    [diasTrabalhados, valorDiaria].forEach(campo => {
+      campo.disabled = !freelancer && !(salario && campo === diasTrabalhados);
+      campo.required = freelancer;
     });
     if (valor) valor.readOnly = freelancer;
     atualizarSalario();
@@ -121,6 +142,7 @@
   let sugestao = null;
   const camposSalario = ['salario_base', 'gratificacao', 'faltas', 'outros_descontos'];
   function atualizarSalario() {
+    if (pago) return;
     const ativo = tipo.value === 'salario';
     camposSalario.forEach(nome => { document.getElementById('grupo-' + nome).hidden = !ativo; });
     const painel = document.getElementById('calculo-salario');
@@ -149,16 +171,20 @@
     atualizarSalario();
   });
   async function atualizarResumo() {
+    if (resumoController) resumoController.abort();
+    resumo.style.display = 'none';
     if (!colaborador || !colaborador.value) {
       resumo.style.display = 'none';
       return;
     }
     const params = new URLSearchParams();
+    if (tipo) params.set('tipo', tipo.value);
     if (inicio.value) params.set('data_inicio', inicio.value);
     if (fim.value) params.set('data_fim', fim.value);
     const url = baseUrl.replace('/0/resumo/', '/' + colaborador.value + '/resumo/') + '?' + params.toString();
+    resumoController = new AbortController();
     try {
-      const resposta = await fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+      const resposta = await fetch(url, {signal: resumoController.signal, headers: {'X-Requested-With': 'XMLHttpRequest'}});
       if (!resposta.ok) return;
       const dados = await resposta.json();
       sugestao = dados;
@@ -175,16 +201,18 @@
       document.getElementById('resumo-dias').textContent = textoDias;
       resumo.style.display = 'block';
     } catch (erro) {
-      resumo.style.display = 'none';
+      if (erro.name !== 'AbortError') resumo.style.display = 'none';
     }
   }
   [colaborador, inicio, fim].forEach(function (campo) {
-    if (campo) campo.addEventListener('change', atualizarResumo);
+    if (campo) campo.addEventListener('change', function () { atualizarRecorrencia(); atualizarResumo(); });
   });
-  if (inicio) inicio.addEventListener('change', atualizarRecorrencia);
   if (tipo) tipo.addEventListener('change', function () {
+    if (tipoAnterior === 'freelancer' && tipo.value !== 'freelancer') valor.value = '';
+    tipoAnterior = tipo.value;
     atualizarRecorrencia();
     atualizarFreelancer();
+    atualizarResumo();
   });
   [diasTrabalhados, valorDiaria].forEach(function (campo) {
     if (campo) campo.addEventListener('input', atualizarFreelancer);
