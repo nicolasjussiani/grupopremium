@@ -200,6 +200,8 @@ def editar_detalhamento_arquivo(request, pk):
     arquivo = get_object_or_404(ArquivoImportado.objects.select_for_update(), pk=pk)
     form = DetalhamentoArquivoForm(request.POST if request.method == 'POST' else None, instance=arquivo)
     if request.method == 'POST' and form.is_valid():
+        if {'area', 'categoria', 'subcategoria'}.intersection(form.changed_data):
+            arquivo.metadados = {**(arquivo.metadados or {}), 'classificacao_manual': True}
         if 'data_documento' in form.changed_data:
             arquivo.metadados = {**(arquivo.metadados or {}), 'origem_data_documento': 'revisao_manual'}
         form.save()
