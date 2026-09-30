@@ -66,8 +66,11 @@ def exportar_vt(request):
         ('Início das presenças', 'data', 20), ('Fim das presenças', 'data', 20),
         ('Situação', 'texto', 25), ('Valor da semana completa', 'moeda', 25),
         ('Dias presentes atuais', 'numero', 20), ('Dias sem informação', 'numero', 20),
-        ('Cálculo atual (não salvo)', 'moeda', 25), ('Valor do pagamento salvo', 'moeda', 26),
+        ('Antecipação atual (não salva)', 'moeda', 25), ('Valor do pagamento salvo', 'moeda', 26),
         ('Valor base salvo no cálculo', 'moeda', 27), ('Dias presentes salvos', 'numero', 23),
+        ('Jornada salva', 'numero', 18), ('Dias previstos salvos', 'numero', 22),
+        ('Faltas descontadas salvas', 'numero', 25), ('Diária do desconto salva', 'moeda', 24),
+        ('Outros descontos salvos', 'moeda', 24),
     ] + [(dia, 'texto', 20) for dia in ('Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo')]
     dados = []
     for l in linhas:
@@ -75,10 +78,14 @@ def exportar_vt(request):
         dados.append([
             p.pk, p.nome, p.unidade, p.get_tipo_contrato_display(), l['nome_beneficio'], segunda,
             segunda - timedelta(days=7), segunda - timedelta(days=1), SITUACOES[l['situacao']],
-            l['valor'], l['dias'], l['dias_pendentes'], l['valor_calculado'],
+            l['valor'], l['dias'], l['dias_pendentes'], l['valor_antecipado'],
             pagamento.valor if pagamento and l['situacao'] in ('pagar', 'pago') else None,
             calculo.valor_semana_completa if calculo else None,
             calculo.dias_presentes if calculo else None,
+            calculo.dias_jornada if calculo else None, calculo.dias_previstos if calculo else None,
+            calculo.faltas_descontar if calculo and calculo.antecipado else None,
+            calculo.diaria_desconto if calculo else None,
+            calculo.desconto_adicional if calculo and calculo.antecipado else None,
             *[dia['descricao'] for dia in l['dias_semana']],
         ])
     filtros = ', '.join(f'{k}: {v}' for k, v in request.GET.items() if k in {
@@ -87,6 +94,6 @@ def exportar_vt(request):
     return exportar_xlsx(
         titulo='VT e ajuda de custo',
         contexto=f'Semana de {segunda:%d/%m/%Y}. {len(linhas)} pessoas. {filtros}\n'
-                 'Gráficos de valores usam pagamentos salvos; o cálculo atual é somente uma simulação pelas presenças registradas.',
+                 'Gráficos de valores usam pagamentos salvos; a antecipação atual é uma simulação pelos dias previstos e descontos revisados.',
         abas=[('Colaboradores', colunas, dados)], graficos=graficos_vt(linhas), nome=f'vt-ajuda-{segunda:%Y-%m-%d}',
     )

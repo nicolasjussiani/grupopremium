@@ -2,9 +2,11 @@
 from django.urls import path
 from admissional import views
 from admissional import views_vt
+from admissional.views_salarios import programacao_salarios
 from admissional.exportacoes import exportar_vt
 
 urlpatterns = [
+    path('colaboradores/pagamentos/salarios/', programacao_salarios, name='programacao_salarios'),
     path('colaboradores/pagamentos/vt-semanal/exportar/', exportar_vt, name='exportar_vt_xlsx'),
     path('', views.lista_admissoes, name='lista_admissoes'),
     path('<int:pk>/', views.detalhe_admissao, name='detalhe_admissao'),

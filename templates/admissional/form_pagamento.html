@@ -31,13 +31,16 @@
         {% if field.name == 'competencia_fim' %}<small class="form-help">A competência pode variar de uma data até outra.</small>{% endif %}
         {% if field.name == 'data_vencimento' %}<small class="form-help">Para VT e ajuda de custo, o vencimento é ajustado automaticamente para segunda-feira.</small>{% endif %}
         {% if field.name == 'recorrente' %}<small class="form-help">Use para VT ou ajuda de custo semanal. Ao pagar, a semana seguinte será criada automaticamente.</small>{% endif %}
-        {% if field.name == 'dias_trabalhados' %}<small class="form-help">Para freelancer, informe quantos dias foram efetivamente trabalhados.</small>{% endif %}
+        {% if field.help_text %}<small class="form-help">{{ field.help_text }}</small>{% endif %}
         {% if field.name == 'valor_diaria' %}<small class="form-help">O total do freelancer será calculado automaticamente: dias × diária.</small>{% endif %}
         {% if field.name == 'chave_pix' %}<small class="form-help">Informe a chave usada neste pagamento, sem presumir que seja o CPF.</small>{% endif %}
         {% if field.errors %}<div class="field-error">{{ field.errors.0 }}</div>{% endif %}
       </div>
       {% endfor %}
     </div>
+    <div id="calculo-salario" class="alert alert-info" data-persistent-alert hidden aria-live="polite"></div>
+    <p id="datas-faltas" class="form-help"></p>
+    <button type="button" id="usar-presencas" class="btn btn-outline" hidden>Usar sugestão da presença (editável)</button>
     <section class="form-group" style="margin-top:20px;">
       <label class="form-label" for="id_comprovante_folha">Adicionar comprovante de pagamento</label>
       <input id="id_comprovante_folha" type="file" name="comprovante_folha" accept=".pdf,.png,.jpg,.jpeg" class="form-control">
@@ -99,11 +102,13 @@
 
   function atualizarFreelancer() {
     const freelancer = tipo && tipo.value === 'freelancer';
+    const salario = tipo && tipo.value === 'salario';
     ['grupo-dias_trabalhados', 'grupo-valor_diaria'].forEach(function (id) {
       const grupo = document.getElementById(id);
-      if (grupo) grupo.style.display = freelancer ? '' : 'none';
+      if (grupo) grupo.style.display = freelancer || (salario && id === 'grupo-dias_trabalhados') ? '' : 'none';
     });
     if (valor) valor.readOnly = freelancer;
+    atualizarSalario();
     if (freelancer) {
       const dias = numero(diasTrabalhados);
       const diaria = numero(valorDiaria);
@@ -113,6 +118,36 @@
     }
   }
 
+  let sugestao = null;
+  const camposSalario = ['salario_base', 'gratificacao', 'faltas', 'outros_descontos'];
+  function atualizarSalario() {
+    const ativo = tipo.value === 'salario';
+    camposSalario.forEach(nome => { document.getElementById('grupo-' + nome).hidden = !ativo; });
+    const painel = document.getElementById('calculo-salario');
+    painel.hidden = !ativo;
+    if (!ativo) return;
+    const base = numero(document.getElementById('id_salario_base'));
+    const dias = numero(diasTrabalhados);
+    const falta = numero(document.getElementById('id_faltas')) || 0;
+    const grat = numero(document.getElementById('id_gratificacao')) || 0;
+    const desc = numero(document.getElementById('id_outros_descontos')) || 0;
+    valor.readOnly = Number.isFinite(base);
+    if (Number.isFinite(base) && Number.isFinite(dias)) {
+      const total = base / 30 * (dias - falta) + grat - desc;
+      valor.value = total.toFixed(2).replace('.', ',');
+      painel.textContent = `Salário ÷ 30 × (${dias} dias − ${falta} faltas) + gratificação integral − outros descontos = ${total.toLocaleString('pt-BR', {style:'currency',currency:'BRL'})}. Confira antes de salvar.`;
+    } else {
+      painel.textContent = 'Informe o salário mensal e os dias do período. As faltas serão descontadas separadamente, uma única vez.';
+    }
+  }
+  camposSalario.forEach(nome => document.getElementById('id_' + nome).addEventListener('input', atualizarSalario));
+  diasTrabalhados.addEventListener('input', atualizarSalario);
+  document.getElementById('usar-presencas').addEventListener('click', () => {
+    if (!sugestao || sugestao.dias_trabalhados === null) return;
+    diasTrabalhados.value = Math.min(30, sugestao.dias_trabalhados + sugestao.faltas.length);
+    document.getElementById('id_faltas').value = sugestao.faltas.length;
+    atualizarSalario();
+  });
   async function atualizarResumo() {
     if (!colaborador || !colaborador.value) {
       resumo.style.display = 'none';
@@ -126,6 +161,12 @@
       const resposta = await fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
       if (!resposta.ok) return;
       const dados = await resposta.json();
+      sugestao = dados;
+      document.getElementById('datas-faltas').textContent = 'Faltas registradas: ' + (dados.faltas.length ? dados.faltas.map(d => d.split('-').reverse().join('/')).join(', ') : 'nenhuma') + '. Os campos de cálculo podem ser corrigidos sem alterar a lista de presença.';
+      document.getElementById('usar-presencas').hidden = tipo.value !== 'salario' || dados.dias_trabalhados === null;
+      const base = document.getElementById('id_salario_base');
+      if ({% if pagamento %}false{% else %}true{% endif %} && tipo.value === 'salario' && !base.value && dados.salario_base) base.value = dados.salario_base;
+      atualizarSalario();
       document.getElementById('resumo-nome').textContent = dados.nome + ' — ';
       document.getElementById('resumo-detalhes').textContent = dados.categoria + ' · ' + dados.tipo_contrato + ' · ' + dados.periodo;
       const textoDias = dados.dias_trabalhados === null

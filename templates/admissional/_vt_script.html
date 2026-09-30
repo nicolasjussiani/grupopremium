@@ -73,13 +73,22 @@
         amount.required = choice === 'pagar';
         amount.min = choice === 'pagar' ? '0.01' : '0';
         const baseCents = cents(amount.value);
-        const calculatedCents = baseCents === null ? null : Math.floor((baseCents * present + 3) / 7);
-        total.textContent = choice === 'nao' ? currency.format(0) : calculatedCents === null ? 'Informe o valor semanal' : currency.format(calculatedCents / 100);
-        formula.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : `${baseCents === null ? 'Valor semanal' : currency.format(baseCents / 100)} ÷ 7 × ${present} dia(s) presente(s).`;
+        const jornada = Number(form.elements.dias_jornada.value);
+        const previstosRaw = form.elements.dias_previstos.value;
+        const previstos = Number(previstosRaw);
+        const faltas = Number(form.elements.faltas_descontar.value || 0);
+        const diariaRaw = form.elements.diaria_desconto.value;
+        const desconto = Number(form.elements.desconto_adicional.value || 0);
+        const diaria = diariaRaw === '' ? (baseCents / 100 / jornada) : Number(diariaRaw);
+        const valido = baseCents !== null && jornada >= 1 && jornada <= 7 && previstosRaw !== '' && previstos >= 0 && previstos <= jornada;
+        const calculated = valido ? (baseCents / 100 / jornada * previstos - diaria * faltas - desconto) : null;
+        for (const nome of ['dias_jornada', 'dias_previstos']) form.elements[nome].required = choice === 'pagar';
+        total.textContent = choice === 'nao' ? currency.format(0) : calculated === null ? 'Informe jornada e dias previstos' : currency.format(calculated);
+        formula.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : `Semanal ÷ ${jornada || '?'} × ${previstosRaw || '?'} dias previstos − ${faltas} faltas anteriores − outros descontos.`;
         note.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : (amount.value ? 'Confira o cálculo antes de salvar.' : 'Valor semanal não informado. Preencha se for pagar.');
       };
       form.querySelectorAll('[name="decisao"]').forEach(input => input.addEventListener('change', update));
-      amount.addEventListener('input', update);
+      form.querySelectorAll('input[type=number]').forEach(input => input.addEventListener('input', update));
       update();
       form.addEventListener('submit', () => {
         try { sessionStorage.setItem('vt-return', JSON.stringify({week:panel.dataset.vtWeek, person:form.querySelector('[name="pessoa_id"]').value})); } catch (_) {}

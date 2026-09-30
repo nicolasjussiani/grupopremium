@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Cálculo de salários{% endblock %}
+{% block nav_pagamentos_colaboradores %}active{% endblock %}
+{% block topbar_title %}Folha salarial{% endblock %}
+{% block content %}
+<h1>Cálculo de salários</h1>
+<p>Salário ÷ 30 × (dias do período − faltas) + gratificação integral − outros descontos.</p>
+<p>As presenças são uma sugestão editável. Confira os dias antes de salvar; dias sem registro não são tratados como falta.</p>
+<form method="get" class="card" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:20px">
+  <label>Mês da folha <input type="month" name="mes" value="{{ mes }}" required class="form-control"></label>
+  <button class="btn btn-mod6">Abrir mês</button><a href="{% url 'lista_pagamentos_colaboradores' %}">Voltar à folha</a>
+  <strong>Total salvo: R$ {{ total|floatformat:2 }}</strong>
+</form>
+{% if erro %}<p class="alert alert-error" data-persistent-alert>{{ erro }}</p>{% endif %}
+{% for linha in linhas %}
+<article class="card" style="margin-bottom:18px">
+  <h2>{{ linha.pessoa.nome }}</h2><p>{{ linha.pessoa.unidade }} · {{ linha.pessoa.get_tipo_contrato_display }}</p>
+  <p>{{ linha.presentes }} presença(s) registrada(s). Faltas registradas: {% for dia in linha.faltas %}<strong>{{ dia|date:'d/m/Y' }}</strong>{% if not forloop.last %}, {% endif %}{% empty %}nenhuma{% endfor %}.</p>
+  {% if linha.pagamento %}<p>Salário salvo: <strong>R$ {{ linha.pagamento.valor|floatformat:2 }}</strong> · {{ linha.pagamento.get_status_display }}</p>{% endif %}
+  {% if pode_editar and linha.pagamento.status != 'pago' %}
+  <form method="post" data-salario-form>{% csrf_token %}
+    <input type="hidden" name="mes" value="{{ mes }}"><input type="hidden" name="pessoa_id" value="{{ linha.pessoa.pk }}">
+    {% if linha.erros %}<div class="alert alert-error" data-persistent-alert>{{ linha.erros }}</div>{% endif %}
+    <div class="collaborator-fields-grid">
+    {% for campo in linha.campos %}<div class="form-group"><label class="form-label">{{ campo.label }}{{ campo }}</label>{% if campo.help_text %}<small>{{ campo.help_text }}</small>{% endif %}</div>{% endfor %}
+    </div>
+    <p data-salario-total aria-live="polite">Informe os valores para calcular.</p>
+    <button type="submit" class="btn btn-mod6">Salvar salário pendente</button>
+  </form>
+  {% else %}<p>Somente consulta. O cálculo de um salário pago é preservado.</p>
+  {% if linha.pagamento.salario_base %}<p>Base: R$ {{ linha.pagamento.salario_base|floatformat:2 }} · Dias: {{ linha.pagamento.dias_trabalhados }} · Faltas: {{ linha.pagamento.faltas }} · Gratificação: R$ {{ linha.pagamento.gratificacao|floatformat:2 }} · Outros descontos: R$ {{ linha.pagamento.outros_descontos|floatformat:2 }}</p>{% endif %}{% endif %}
+</article>
+{% empty %}<p>Nenhum colaborador disponível neste mês.</p>{% endfor %}
+<script>
+document.querySelectorAll('[data-salario-form]').forEach(form => {
+  const ler = nome => { const v = form.elements[nome].value.trim(); return v ? Number(v.includes(',') ? v.replace(/\./g,'').replace(',','.') : v) : 0; };
+  const atualizar = () => {
+    const valor = ler('salario_base') / 30 * (ler('dias_trabalhados') - ler('faltas')) + ler('gratificacao') - ler('outros_descontos');
+    form.querySelector('[data-salario-total]').textContent = 'Prévia a pagar: ' + valor.toLocaleString('pt-BR', {style:'currency',currency:'BRL'});
+  };
+  form.addEventListener('input', atualizar); atualizar();
+});
+</script>
+{% endblock %}

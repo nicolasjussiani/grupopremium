@@ -61,7 +61,7 @@ class ExportacoesPlanilhaTest(TestCase):
         row = next(k[1:] for k, v in cells.items() if k.startswith('B') and v == 'Ána Exemplo')
         other = next(k[1:] for k, v in cells.items() if k.startswith('B') and v == 'Beatriz')
         self.assertEqual(cells['J'+row], 140)
-        self.assertEqual(cells['M'+row], 20)  # cálculo atual, uma presença
+        self.assertNotIn('M'+row, cells)  # Sem jornada definida, não inventa antecipação.
         self.assertEqual(cells['N'+row], 100)  # pago, cinco presenças salvas
         self.assertEqual(cells['P'+row], 5)
         self.assertNotIn('K'+other, cells)  # sem presenças informadas não vira zero
