@@ -39,7 +39,7 @@
 </div>
 
 <nav class="fiscal-subnav" aria-label="Subseções do Financeiro e Fiscal" data-fiscal-navigation>
-  <a href="#pagamentos">Pagamentos</a>
+  <a href="#pagamentos">Contas a pagar e receber</a>
   <a href="#documentos">Documentos</a>
   <a href="#folha-beneficios">Folha e benefícios</a>
   <a href="#orcamento">Orçamento e metas</a>
@@ -49,9 +49,20 @@
 
 <section id="pagamentos" data-fiscal-section aria-label="Pagamentos">
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><div class="card-title">Situação dos pagamentos</div></div>
+  <div class="card-header"><div class="card-title">Contas a pagar e receber</div></div>
+  <div class="kpi-grid" style="margin-bottom:16px;">
+    <a class="kpi-card" style="text-decoration:none;color:inherit;" href="?fluxo=saidas&amp;pagamento=a_pagar#pagamentos"><span class="kpi-label" style="display:block;margin-bottom:6px;">A pagar · saídas</span><strong>R$ {{ resumo_contas.a_pagar|default:0|floatformat:2 }}</strong></a>
+    <a class="kpi-card" style="text-decoration:none;color:inherit;" href="?fluxo=entradas&amp;pagamento=a_receber#pagamentos"><span class="kpi-label" style="display:block;margin-bottom:6px;">A receber · entradas</span><strong>R$ {{ resumo_contas.a_receber|default:0|floatformat:2 }}</strong></a>
+    <a class="kpi-card" style="text-decoration:none;color:inherit;" href="?fluxo=classificar#pagamentos"><span class="kpi-label" style="display:block;margin-bottom:6px;">A classificar</span><strong>{{ total_classificar }} documento(s)</strong></a>
+  </div>
+  <nav class="gateway-actions" aria-label="Fluxo financeiro" style="margin-bottom:16px;">
+    <a class="btn {% if fluxo == 'saidas' %}btn-mod6{% else %}btn-outline{% endif %}" href="?fluxo=saidas#pagamentos">Saídas · contas a pagar</a>
+    <a class="btn {% if fluxo == 'entradas' %}btn-mod6{% else %}btn-outline{% endif %}" href="?fluxo=entradas#pagamentos">Entradas · notas a receber</a>
+    <a class="btn {% if fluxo == 'classificar' %}btn-mod6{% else %}btn-outline{% endif %}" href="?fluxo=classificar#pagamentos">A classificar</a>
+    <a class="btn btn-outline" href="?fluxo=todos#pagamentos">Todos</a>
+  </nav>
   <form method="get" action="#pagamentos" class="gateway-actions" style="margin-bottom:16px;">
-    <label for="filtro_pagamento">Pagamento</label>
+    <input type="hidden" name="fluxo" value="{{ fluxo }}"><label for="filtro_pagamento">Situação</label>
     <select id="filtro_pagamento" name="pagamento" class="form-control">
       <option value="">Todos</option>
       {% for valor, rotulo in situacoes_pagamento %}
@@ -60,9 +71,9 @@
     </select>
     <button type="submit" class="btn btn-mod6">Filtrar</button>
   </form>
-  <p class="form-help">Registros antigos aparecem como Não informado até que o pagamento seja conferido.</p>
+  <p class="form-help">Registros sem classificação ficam separados dos totais de entrada e saída. Abra o documento para conferir e informar a situação.</p>
   <div class="table-wrap"><table>
-    <thead><tr><th>Documento / Descrição</th><th>Valor</th><th>Vencimento</th><th>Pagamento</th><th>Pago em</th><th></th></tr></thead>
+    <thead><tr><th>Documento / Descrição</th><th>Valor</th><th>Vencimento</th><th>Situação</th><th>Pagamento / recebimento</th><th></th></tr></thead>
     <tbody>
       {% for doc in pagamentos %}
       <tr>
@@ -77,9 +88,9 @@
     </tbody>
   </table></div>
   <div class="gateway-actions">
-    {% if pagamentos.has_previous %}<a href="?pagamento={{ filtro_pagamento }}&pagina={{ pagamentos.previous_page_number }}#pagamentos" class="btn btn-outline">Anterior</a>{% endif %}
+    {% if pagamentos.has_previous %}<a href="?fluxo={{ fluxo }}&amp;pagamento={{ filtro_pagamento }}&amp;pagina={{ pagamentos.previous_page_number }}#pagamentos" class="btn btn-outline">Anterior</a>{% endif %}
     <span>Página {{ pagamentos.number }} de {{ pagamentos.paginator.num_pages }}</span>
-    {% if pagamentos.has_next %}<a href="?pagamento={{ filtro_pagamento }}&pagina={{ pagamentos.next_page_number }}#pagamentos" class="btn btn-outline">Próxima</a>{% endif %}
+    {% if pagamentos.has_next %}<a href="?fluxo={{ fluxo }}&amp;pagamento={{ filtro_pagamento }}&amp;pagina={{ pagamentos.next_page_number }}#pagamentos" class="btn btn-outline">Próxima</a>{% endif %}
   </div>
 </div>
 </section>
@@ -91,7 +102,7 @@
       <div class="card-title">Documentos enviados ao Financeiro / Fiscal</div>
       <div style="font-size:.8rem;color:var(--text-muted);">{{ total_arquivos_area }} arquivo(s) organizados no acervo central.</div>
     </div>
-    <a href="{% url 'arquivo_central' %}?area=financeiro" class="btn btn-mod6">Ver acervo completo</a>
+    <a href="{% url 'arquivo_central' %}?area=financeiro" class="btn btn-mod6">Arquivos financeiros</a><a href="{% url 'arquivo_central' %}?area=fiscal" class="btn btn-outline">Arquivos fiscais</a>
   </div>
   {% if arquivos_area %}
   <div class="table-wrap" style="border:none;">
@@ -100,7 +111,7 @@
       <tbody>
       {% for arquivo in arquivos_area %}
         <tr>
-          <td><strong>{{ arquivo.nome_original|truncatechars:42 }}</strong><div style="font-size:.72rem;color:var(--text-muted);">{{ arquivo.criado_em|date:"d/m/Y H:i" }}</div></td>
+          <td><strong>{{ arquivo.nome_original|truncatechars:42 }}</strong><div style="font-size:.72rem;color:var(--text-muted);">Documento: {{ arquivo.data_documento|date:"d/m/Y"|default:"data a conferir" }}</div></td>
           <td>{{ arquivo.get_area_display }}</td>
           <td>{{ arquivo.get_categoria_display }}{% if arquivo.subcategoria %}<div style="font-size:.72rem;color:var(--text-muted);">{{ arquivo.subcategoria }}</div>{% endif %}</td>
           <td style="max-width:300px;word-break:break-word;">{% with origem=arquivo.origens.first %}{{ origem.caminho_relativo|default:"—"|truncatechars:65 }}{% endwith %}</td>

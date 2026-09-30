@@ -275,8 +275,6 @@ def _data_documento(metadados, origem=None):
         encontrada = _data(metadados.get(chave))
         if encontrada:
             return encontrada, chave
-    if origem and origem.modificado_em:
-        return origem.modificado_em.date(), 'arquivo_modificado'
     return None, ''
 
 
@@ -561,6 +559,8 @@ def processar_arquivo(arquivo, *, usuario=None, usar_ocr=True, forcar=False):
         'caracteres': len(texto),
     }
     data_documento, origem_data = _data_documento(metadados, origem)
+    if (arquivo.metadados or {}).get('origem_data_documento') == 'revisao_manual':
+        data_documento, origem_data = arquivo.data_documento, 'revisao_manual'
     if data_documento:
         metadados['data_documento'] = data_documento.isoformat()
         metadados['origem_data_documento'] = origem_data
@@ -568,8 +568,9 @@ def processar_arquivo(arquivo, *, usuario=None, usar_ocr=True, forcar=False):
     arquivo.metadados = metadados
     arquivo.data_documento = data_documento
     arquivo.processado_em = timezone.now()
-    _vincular_pagamento(arquivo, usuario, metadados, caminho)
-    _vincular_financeiro(arquivo, usuario, metadados)
+    if not metadados.get('somente_acervo'):
+        _vincular_pagamento(arquivo, usuario, metadados, caminho)
+        _vincular_financeiro(arquivo, usuario, metadados)
     arquivo.metadados = metadados
     arquivo.save(update_fields=[
         'categoria', 'subcategoria', 'content_type', 'object_id', 'status',

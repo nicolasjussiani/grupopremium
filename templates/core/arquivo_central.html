@@ -17,11 +17,14 @@
   <div class="kpi-card"><div class="kpi-label">Precisam de revisão</div><div class="kpi-value">{{ total_revisar }}</div></div>
 </div>
 
+<nav class="gateway-actions" aria-label="Arquivos por departamento" style="margin-bottom:20px;">
+  {% for item in areas_resumo %}<a href="?area={{ item.valor }}" class="btn {% if area_filter == item.valor %}btn-mod6{% else %}btn-outline{% endif %}">{{ item.rotulo }} ({{ item.total }})</a>{% endfor %}
+</nav>
 <div class="card" style="margin-bottom:20px;">
   <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
     <div style="flex:1;min-width:240px;">
       <label for="busca-arquivo">Pesquisar</label>
-      <input id="busca-arquivo" class="form-control" type="search" name="q" value="{{ query }}" placeholder="Nome, pasta ou tipo">
+      <input id="busca-arquivo" class="form-control" type="search" name="q" value="{{ query }}" placeholder="Nome, descrição, observações ou pasta">
     </div>
     <div style="min-width:210px;">
       <label for="categoria-arquivo">Categoria</label>

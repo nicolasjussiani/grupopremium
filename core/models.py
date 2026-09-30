@@ -101,6 +101,8 @@ class ArquivoImportado(models.Model):
     subcategoria = models.CharField(max_length=60, blank=True)
     area = models.CharField(max_length=20, choices=AREAS, default='geral', db_index=True)
     nome_original = models.CharField(max_length=255)
+    descricao = models.CharField(max_length=300, blank=True, verbose_name='Descrição')
+    observacoes = models.TextField(blank=True, verbose_name='Observações e detalhamento')
     arquivo = models.FileField(upload_to='arquivo_central/%Y/%m/', max_length=500)
     sha256 = models.CharField(max_length=64, unique=True)
     tamanho = models.PositiveBigIntegerField(default=0)

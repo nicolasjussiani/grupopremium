@@ -30,7 +30,7 @@ from core.models import (
     OrigemArquivoImportado, PerfilUsuario, Notificacao, Unidade,
 )
 from core.forms import (
-    FornecedorForm, RevisaoPagamentoImportadoForm, UnidadeForm, UsuarioERPForm,
+    FornecedorForm, RevisaoPagamentoImportadoForm, UnidadeForm, UsuarioERPForm, DetalhamentoArquivoForm,
 )
 from recrutamento.models import Vaga, Candidato
 from admissional.models import (
@@ -129,6 +129,8 @@ def arquivo_central(request):
             | Q(origens__caminho_relativo__icontains=query)
             | Q(subcategoria__icontains=query)
             | Q(texto_extraido__icontains=query)
+            | Q(descricao__icontains=query)
+            | Q(observacoes__icontains=query)
         ).distinct()
     data_inicio = parse_date(request.GET.get('data_inicio', ''))
     data_fim = parse_date(request.GET.get('data_fim', ''))
@@ -141,6 +143,7 @@ def arquivo_central(request):
     page = paginator.get_page(request.GET.get('page'))
     for arquivo in page.object_list:
         _configurar_vinculo_arquivo(arquivo)
+    totais_area = dict(ArquivoImportado.objects.values_list('area').annotate(total=Count('pk')))
     return render(request, 'core/arquivo_central.html', {
         'page': page,
         'arquivos': page.object_list,
@@ -154,6 +157,10 @@ def arquivo_central(request):
         'categoria_choices': ArquivoImportado.CATEGORIAS,
         'status_choices': ArquivoImportado.STATUS,
         'area_choices': ArquivoImportado.AREAS,
+        'areas_resumo': [
+            {'valor': valor, 'rotulo': rotulo, 'total': totais_area.get(valor, 0)}
+            for valor, rotulo in ArquivoImportado.AREAS
+        ],
         'origem_choices': sorted(origens_validas),
         'total_arquivos': ArquivoImportado.objects.count(),
         'total_origens': OrigemArquivoImportado.objects.count(),
@@ -181,7 +188,24 @@ def detalhe_arquivo_importado(request, pk):
         'arquivo': arquivo,
         'arquivo_url': arquivo_url,
         'preview': preparar_preview(arquivo),
+        'pode_editar': user_has_access(request.user, permission='core.change_arquivoimportado', profiles=('admin', 'rh', 'financeiro', 'gestor')),
     })
+
+
+@login_required
+@transaction.atomic
+def editar_detalhamento_arquivo(request, pk):
+    if not user_has_access(request.user, permission='core.change_arquivoimportado', profiles=('admin', 'rh', 'financeiro', 'gestor')):
+        raise PermissionDenied
+    arquivo = get_object_or_404(ArquivoImportado.objects.select_for_update(), pk=pk)
+    form = DetalhamentoArquivoForm(request.POST if request.method == 'POST' else None, instance=arquivo)
+    if request.method == 'POST' and form.is_valid():
+        if 'data_documento' in form.changed_data:
+            arquivo.metadados = {**(arquivo.metadados or {}), 'origem_data_documento': 'revisao_manual'}
+        form.save()
+        messages.success(request, 'Organização e detalhamento atualizados. O arquivo original e os lançamentos foram preservados.')
+        return redirect('detalhe_arquivo_importado', pk=pk)
+    return render(request, 'core/editar_detalhamento_arquivo.html', {'form': form, 'arquivo': arquivo})
 
 
 @login_required

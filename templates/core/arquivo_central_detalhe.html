@@ -47,8 +47,10 @@
 
   <div style="display:grid;gap:16px;">
     <div class="card">
-      <div class="card-header"><div class="card-title">Organização</div></div>
+      <div class="card-header"><div class="card-title">Organização</div>{% if pode_editar %}<a class="btn btn-sm btn-outline" href="{% url 'editar_detalhamento_arquivo' arquivo.pk %}">Editar detalhes</a>{% endif %}</div>
       <div style="display:grid;gap:10px;font-size:.86rem;">
+        <div><strong>Descrição:</strong> {{ arquivo.descricao|default:"—" }}</div>
+        <div style="white-space:pre-wrap;overflow-wrap:anywhere;"><strong>Observações:</strong> {{ arquivo.observacoes|default:"—" }}</div>
         <div><strong>Área:</strong> {{ arquivo.get_area_display }}</div>
         <div><strong>Categoria:</strong> {{ arquivo.get_categoria_display }}</div>
         <div><strong>Tipo:</strong> {{ arquivo.subcategoria|default:"—" }}</div>

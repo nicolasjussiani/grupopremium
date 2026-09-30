@@ -68,11 +68,10 @@ class DirectUploadTokenTests(TestCase):
         with self.assertRaises(ValidationError):
             verify_direct_upload(request, 'curriculo_pdf')
 
-    def test_upload_financeiro_aceita_somente_pdf(self):
-        with self.assertRaises(ValidationError):
-            validate_upload_metadata(
-                'arquivo_pdf', 'nota.png', 'image/png', 100,
-            )
+    def test_upload_financeiro_aceita_pdf_e_imagens(self):
+        for nome, mime in [('nota.png', 'image/png'), ('pix.jpg', 'image/jpeg')]:
+            pasta, extensao, tamanho = validate_upload_metadata('arquivo_pdf', nome, mime, 100)
+            self.assertEqual(pasta, '_temporarios/financeiro/documentos')
 
         pasta, extensao, tamanho = validate_upload_metadata(
             'arquivo_pdf', 'nota.pdf', 'application/pdf', 100,

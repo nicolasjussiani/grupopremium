@@ -1,29 +1,44 @@
 from django import forms
+from .models import DocumentoFinanceiro
 
 
 class PagamentoDocumentoForm(forms.Form):
     situacao_pagamento = forms.ChoiceField(
-        label='Situação do pagamento',
-        choices=[('', 'Selecione...'), ('a_pagar', 'A pagar'), ('pago', 'Pago')],
+        label='Fluxo e situação',
+        choices=[('', 'Selecione...'), ('nao_informado', 'A classificar'),
+                 ('Saídas', [('a_pagar', 'A pagar'), ('pago', 'Pago')]),
+                 ('Entradas', [('a_receber', 'A receber'), ('recebido', 'Recebido')])],
         initial='a_pagar',
         widget=forms.Select(attrs={'class': 'form-control'}),
     )
     data_pagamento = forms.DateField(
-        label='Data do pagamento', required=False,
+        label='Data do pagamento / recebimento', required=False,
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}, format='%Y-%m-%d'),
     )
 
     def clean(self):
         dados = super().clean()
-        if dados.get('situacao_pagamento') == 'pago' and not dados.get('data_pagamento'):
-            self.add_error('data_pagamento', 'Informe a data em que o pagamento foi realizado.')
-        if dados.get('situacao_pagamento') == 'a_pagar':
+        if dados.get('situacao_pagamento') in ('pago', 'recebido') and not dados.get('data_pagamento'):
+            self.add_error('data_pagamento', 'Informe a data em que o pagamento ou recebimento foi realizado.')
+        if dados.get('situacao_pagamento') in ('a_pagar', 'a_receber', 'nao_informado'):
             dados['data_pagamento'] = None
         return dados
 
     @classmethod
     def para_documento(cls, documento):
         return cls(initial={
-            'situacao_pagamento': '' if documento.situacao_pagamento == 'nao_informado' else documento.situacao_pagamento,
+            'situacao_pagamento': documento.situacao_pagamento,
             'data_pagamento': documento.data_pagamento,
         })
+
+
+class DetalhamentoDocumentoForm(forms.ModelForm):
+    class Meta:
+        model = DocumentoFinanceiro
+        fields = ('descricao', 'observacoes', 'centro_custo', 'unidade')
+        widgets = {'observacoes': forms.Textarea(attrs={'rows': 5})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'
