@@ -13,6 +13,7 @@
   }
   .request-rule strong { color:var(--mod5-purple); display:block; margin-bottom:2px; }
   .request-items { display:grid; gap:12px; margin-top:12px; }
+  .maintenance-items { display:grid; gap:12px; margin-top:12px; }
   .request-item {
     display:grid; grid-template-columns:minmax(200px, 1fr) 100px 140px 42px; gap:12px;
     align-items:start; padding:16px; background:var(--bg-secondary);
@@ -22,13 +23,15 @@
     grid-column:1 / -1; color:var(--text-muted); font-size:.72rem; font-weight:700;
     text-transform:uppercase; letter-spacing:.06em;
   }
+  .maintenance-item { display:grid; grid-template-columns:minmax(220px, .8fr) minmax(250px, 1.4fr) 42px; gap:12px; align-items:start; padding:16px; background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-md); }
   .stock-note { min-height:18px; margin-top:6px; color:var(--text-muted); font-size:.76rem; }
   .remove-item { min-width:42px; height:42px; padding:0; align-self:28px; }
   .request-footer { display:flex; gap:10px; flex-wrap:wrap; margin-top:20px; }
   @media (max-width: 680px) {
-    .request-item { grid-template-columns:1fr 86px; }
+    .request-item, .maintenance-item { grid-template-columns:1fr 86px; }
     .request-item-number { grid-column:1 / -1; }
     .request-product { grid-column:1 / -1; }
+    .maintenance-equipment, .maintenance-problem { grid-column:1 / -1; }
     .remove-item { align-self:end; }
     .request-footer .btn { width:100%; text-align:center; }
   }
@@ -36,7 +39,7 @@
 
 <div class="module-banner mod-banner-5" style="margin-bottom:20px;">
   <div class="mod-title">📋 {% if is_edit %}Editar{% else %}Nova{% endif %} Requisição de Compra</div>
-  <div class="mod-desc">{% if is_edit %}Altere os dados ou produtos desta requisição.{% else %}Inclua vários produtos em uma única requisição para a mesma unidade.{% endif %}</div>
+  <div class="mod-desc">{% if is_edit %}Altere os dados desta requisição.{% else %}Inclua produtos de consumo e solicitações de manutenção para a mesma unidade.{% endif %}</div>
 </div>
 
 <div class="request-shell">
@@ -62,7 +65,7 @@
           <input type="text" name="unidade_destino" class="form-control" required maxlength="100"
                  value="{{ post_data.unidade_destino|default:'' }}"
                  placeholder="Selecione ou informe a unidade" list="unidadesCadastradas">
-          <small style="color:var(--text-muted);">Esta unidade será aplicada a todos os produtos.</small>
+          <small style="color:var(--text-muted);">Esta unidade será aplicada a todos os produtos e equipamentos.</small>
         </div>
         <div class="form-group form-full">
           <label class="form-label">Justificativa <span class="required">*</span></label>
@@ -86,10 +89,39 @@
         </div>
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
+      <section style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div class="form-label" style="margin:0;">Manutenção de equipamentos</div>
+            <small style="color:var(--text-muted);">Solicite manutenção para máquinas ou ferramentas cadastradas. Esses itens ficam separados do estoque de produtos.</small>
+          </div>
+          <button type="button" class="btn btn-outline" id="addMaintenance">+ Adicionar manutenção</button>
+        </div>
+        {% if not equipamentos %}<p style="margin:12px 0 0;color:var(--text-muted);">Nenhum equipamento cadastrado. <a href="{% url 'lista_equipamentos_manutencao' %}">Abra a área Manutenção para cadastrar máquinas e ferramentas.</a></p>{% endif %}
+        <div class="maintenance-items" id="maintenanceItems">
+          {% for item in manutencoes_form %}
+          <div class="maintenance-item">
+            <div class="form-group maintenance-equipment" style="margin:0;">
+              <label class="form-label">Máquina ou ferramenta</label>
+              <select name="manutencao_equipamento" class="form-control maintenance-select">
+                <option value="">Selecione o equipamento...</option>
+                {% for equipamento in equipamentos %}<option value="{{ equipamento.pk }}" {% if item.equipamento_id == equipamento.pk|stringformat:"s" %}selected{% endif %}>{{ equipamento.nome }}{% if equipamento.codigo %} · {{ equipamento.codigo }}{% endif %}{% if equipamento.localizacao %} · {{ equipamento.localizacao }}{% endif %}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-group maintenance-problem" style="margin:0;">
+              <label class="form-label">O que precisa de manutenção?</label>
+              <textarea name="manutencao_problema" class="form-control" rows="2" placeholder="Descreva o defeito ou serviço necessário">{{ item.problema|default:'' }}</textarea>
+            </div>
+            <button type="button" class="btn btn-outline remove-maintenance" aria-label="Remover manutenção" title="Remover manutenção">×</button>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
         <div>
-          <div class="form-label" style="margin:0;">Produtos <span class="required">*</span></div>
-          <small style="color:var(--text-muted);">Até 30 produtos diferentes.</small>
+          <div class="form-label" style="margin:0;">Produtos de consumo</div>
+          <small style="color:var(--text-muted);">Somente materiais de consumo, limpeza, escritório e categorias relacionadas.</small>
         </div>
         <button type="button" class="btn btn-outline" id="addItem">+ Adicionar produto</button>
       </div>
@@ -100,7 +132,7 @@
           <div class="request-item-number">Item <span>{{ forloop.counter }}</span></div>
           <div class="form-group request-product" style="margin:0;">
             <label class="form-label">Produto</label>
-            <select name="material" class="form-control material-select" required>
+            <select name="material" class="form-control material-select">
               <option value="">Selecione o produto...</option>
               {% for m in materiais %}
               <option value="{{ m.pk }}" {% if item.material_id == m.pk|stringformat:"s" %}selected{% endif %}
@@ -115,7 +147,7 @@
           </div>
           <div class="form-group" style="margin:0;">
             <label class="form-label">Quantidade <span class="required">*</span></label>
-            <input type="number" name="quantidade_solicitada" class="form-control quantity-input" required
+            <input type="number" name="quantidade_solicitada" class="form-control quantity-input"
                    min="0.01" step="0.01" value="{{ item.quantidade|default:'1' }}">
             <div class="stock-note"></div>
           </div>
@@ -143,7 +175,7 @@
     <div class="request-item-number">Item <span></span></div>
     <div class="form-group request-product" style="margin:0;">
       <label class="form-label">Produto</label>
-      <select name="material" class="form-control material-select" required>
+      <select name="material" class="form-control material-select">
         <option value="">Selecione o produto...</option>
         {% for m in materiais %}
         <option value="{{ m.pk }}" data-estoque="{{ m.quantidade_estoque }}"
@@ -157,7 +189,7 @@
     </div>
     <div class="form-group" style="margin:0;">
       <label class="form-label">Quantidade <span class="required">*</span></label>
-      <input type="number" name="quantidade_solicitada" class="form-control quantity-input" required min="0.01" step="0.01" value="1">
+      <input type="number" name="quantidade_solicitada" class="form-control quantity-input" min="0.01" step="0.01" value="1">
       <div class="stock-note"></div>
     </div>
     <div class="form-group" style="margin:0;">
@@ -169,12 +201,32 @@
   </div>
 </template>
 
+<template id="maintenanceItemTemplate">
+  <div class="maintenance-item">
+    <div class="form-group maintenance-equipment" style="margin:0;">
+      <label class="form-label">Máquina ou ferramenta</label>
+      <select name="manutencao_equipamento" class="form-control maintenance-select">
+        <option value="">Selecione o equipamento...</option>
+        {% for equipamento in equipamentos %}<option value="{{ equipamento.pk }}">{{ equipamento.nome }}{% if equipamento.codigo %} · {{ equipamento.codigo }}{% endif %}{% if equipamento.localizacao %} · {{ equipamento.localizacao }}{% endif %}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group maintenance-problem" style="margin:0;">
+      <label class="form-label">O que precisa de manutenção?</label>
+      <textarea name="manutencao_problema" class="form-control" rows="2" placeholder="Descreva o defeito ou serviço necessário"></textarea>
+    </div>
+    <button type="button" class="btn btn-outline remove-maintenance" aria-label="Remover manutenção" title="Remover manutenção">×</button>
+  </div>
+</template>
+
 <script>
 (function () {
   const container = document.getElementById('requestItems');
   const template = document.getElementById('requestItemTemplate');
   const addButton = document.getElementById('addItem');
   const form = document.getElementById('requestForm');
+  const maintenanceContainer = document.getElementById('maintenanceItems');
+  const maintenanceTemplate = document.getElementById('maintenanceItemTemplate');
+  const addMaintenance = document.getElementById('addMaintenance');
 
   function updateRows() {
     const items = container.querySelectorAll('.request-item');
@@ -272,6 +324,18 @@
     bindRow(row);
     updateRows();
     row.querySelector('.material-select').focus();
+  });
+
+  function bindMaintenanceRow(row) {
+    row.querySelector('.remove-maintenance').addEventListener('click', () => row.remove());
+  }
+  maintenanceContainer.querySelectorAll('.maintenance-item').forEach(bindMaintenanceRow);
+  addMaintenance.addEventListener('click', () => {
+    if (maintenanceContainer.querySelectorAll('.maintenance-item').length >= 30) return;
+    const row = maintenanceTemplate.content.firstElementChild.cloneNode(true);
+    maintenanceContainer.appendChild(row);
+    bindMaintenanceRow(row);
+    row.querySelector('.maintenance-select').focus();
   });
 
   form.addEventListener('submit', (event) => {

@@ -38,6 +38,7 @@
     {% if perms.compras.add_material %}<a href="{% url 'novo_material' %}" class="btn btn-mod5">+ Novo Material</a>{% endif %}
     <a href="{% url 'nova_solicitacao' %}" class="btn btn-mod5">+ Nova Solicitação</a>
     <a href="{% url 'lista_materiais' %}" class="btn btn-outline">📦 Materiais</a>
+    <a href="{% url 'lista_equipamentos_manutencao' %}" class="btn btn-outline">🛠 Manutenção ({{ total_equipamentos_manutencao }})</a>
   </div>
 </div>
 
@@ -64,8 +65,8 @@
         <tr>
           <td style="font-family:monospace;font-weight:700;">{{ requisicao.numero }}</td>
           <td>{{ requisicao.unidade_destino }}</td>
-          <td>{{ requisicao.itens.count }}</td>
-          <td><span class="badge {% if requisicao.status == 'aprovada' %}badge-success{% elif requisicao.status == 'rejeitada' %}badge-danger{% else %}badge-warning{% endif %}">{{ requisicao.get_status_display }}</span></td>
+          <td>{{ requisicao.itens.count|add:requisicao.manutencoes.count }}</td>
+          <td><span class="badge {% if requisicao.status == 'aprovada' or requisicao.status == 'pedido' %}badge-success{% elif requisicao.status == 'rejeitada' %}badge-danger{% else %}badge-warning{% endif %}">{{ requisicao.get_status_display }}</span></td>
           <td>{{ requisicao.solicitante }}</td>
           <td>{{ requisicao.criado_em|date:"d/m/Y H:i" }}</td>
           <td><a href="{% url 'detalhe_requisicao' requisicao.pk %}" class="btn btn-sm btn-outline">Ver</a></td>

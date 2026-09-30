@@ -74,6 +74,33 @@ class Material(models.Model):
         return self.quantidade_estoque <= self.estoque_minimo
 
 
+class EquipamentoManutencao(models.Model):
+    """Máquinas e ferramentas cadastradas para abrir solicitações de manutenção."""
+
+    TIPOS = [
+        ('maquina', 'Máquina'),
+        ('ferramenta', 'Ferramenta'),
+        ('equipamento', 'Equipamento'),
+    ]
+
+    nome = models.CharField(max_length=200, verbose_name='Nome')
+    tipo = models.CharField(max_length=20, choices=TIPOS, default='equipamento')
+    codigo = models.CharField(max_length=40, blank=True, verbose_name='Código / patrimônio')
+    localizacao = models.CharField(max_length=150, blank=True, verbose_name='Unidade / localização')
+    descricao = models.TextField(blank=True, verbose_name='Descrição')
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['nome']
+        verbose_name = 'Equipamento de manutenção'
+        verbose_name_plural = 'Equipamentos de manutenção'
+
+    def __str__(self):
+        return f'{self.nome} ({self.codigo})' if self.codigo else self.nome
+
+
 class RequisicaoCompra(models.Model):
     """Agrupa vários materiais destinados à mesma unidade."""
 
@@ -81,6 +108,7 @@ class RequisicaoCompra(models.Model):
         ('aguardando_adriana', 'Aguardando aprovação da Adriana'),
         ('aguardando_ceo', 'Aguardando aprovação do CEO'),
         ('aprovada', 'Aprovada'),
+        ('pedido', 'Pedido'),
         ('rejeitada', 'Rejeitada'),
     ]
 
@@ -146,6 +174,7 @@ class RequisicaoCompra(models.Model):
             else:
                 item.status = 'compra_externa'
             item.save(update_fields=['status', 'atendida_por', 'atualizado_em'])
+        self.manutencoes.filter(status='pendente').update(status='aguardando_manutencao')
         self.status = 'aprovada'
         self.save(update_fields=['status', 'atualizado_em'])
 
@@ -153,6 +182,7 @@ class RequisicaoCompra(models.Model):
         if self.status not in {'aguardando_adriana', 'aguardando_ceo'}:
             raise ValidationError('A requisição não está aguardando aprovação.')
         self.itens.filter(status='pendente').update(status='cancelado')
+        self.manutencoes.filter(status='pendente').update(status='cancelada')
         self.status = 'rejeitada'
         self.save(update_fields=['status', 'atualizado_em'])
 
@@ -220,6 +250,35 @@ class SolicitacaoMaterial(models.Model):
         return f'SOL-{self.pk:06d}' if self.pk else 'SOL-NOVO'
 
 
+class SolicitacaoManutencao(models.Model):
+    STATUS = [
+        ('pendente', 'Aguardando aprovação da RC'),
+        ('aguardando_manutencao', 'Aguardando manutenção'),
+        ('em_manutencao', 'Em manutenção'),
+        ('concluida', 'Concluída'),
+        ('cancelada', 'Cancelada'),
+    ]
+
+    requisicao = models.ForeignKey(
+        RequisicaoCompra, on_delete=models.CASCADE, related_name='manutencoes'
+    )
+    equipamento = models.ForeignKey(
+        EquipamentoManutencao, on_delete=models.PROTECT, related_name='solicitacoes'
+    )
+    problema = models.TextField(verbose_name='Manutenção necessária')
+    status = models.CharField(max_length=30, choices=STATUS, default='pendente')
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'Solicitação de manutenção'
+        verbose_name_plural = 'Solicitações de manutenção'
+
+    def __str__(self):
+        return f'{self.equipamento} — {self.get_status_display()}'
+
+
 class PedidoCompra(models.Model):
     CENTAVOS = Decimal('0.01')
     STATUS = [
@@ -227,7 +286,7 @@ class PedidoCompra(models.Model):
         ('aguardando_aprovacao', 'Aguardando Aprovação'),
         ('aprovado', 'Aprovado'),
         ('reprovado', 'Reprovado — Nova Cotação'),
-        ('pedido_emitido', 'Pedido Emitido ao Fornecedor'),
+        ('pedido_emitido', 'Pedido'),
         ('aguardando_recebimento', 'Aguardando Recebimento'),
         ('recebido_conferencia', 'Recebido — Em Conferência'),
         ('entrada_estoque', 'Entrada no Estoque'),

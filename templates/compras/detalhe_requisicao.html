@@ -20,12 +20,12 @@
 
 <div class="module-banner mod-banner-5" style="margin-bottom:20px;">
   <div class="mod-title">📋 {{ requisicao.numero }}</div>
-  <div class="mod-desc">{{ total_itens }} produto{{ total_itens|pluralize }} para {{ requisicao.unidade_destino }} · {{ requisicao.get_status_display }}</div>
+  <div class="mod-desc">{{ total_itens }} item{{ total_itens|pluralize }} para {{ requisicao.unidade_destino }} · {{ requisicao.get_status_display }}</div>
 </div>
 
 <div class="request-summary">
   <div class="request-summary-item">
-    <small>Status da aprovação</small>
+    <small>Status da requisição</small>
     <strong>{{ requisicao.get_status_display }}</strong>
   </div>
   <div class="request-summary-item">
@@ -41,6 +41,21 @@
     <strong>{{ requisicao.criado_em|date:"d/m/Y H:i" }}</strong>
   </div>
 </div>
+
+{% if manutencoes %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><div class="card-title">🛠 Manutenções solicitadas</div><span class="badge badge-primary">{{ manutencoes|length }}</span></div>
+  <div class="table-wrap" style="border:none;">
+    <table>
+      <thead><tr><th>Equipamento</th><th>Tipo</th><th>Código</th><th>Manutenção necessária</th><th>Status</th></tr></thead>
+      <tbody>{% for item in manutencoes %}<tr>
+        <td><strong>{{ item.equipamento.nome }}</strong></td><td>{{ item.equipamento.get_tipo_display }}</td><td>{{ item.equipamento.codigo|default:'—' }}</td>
+        <td>{{ item.problema }}</td><td><span class="badge {% if item.status == 'concluida' %}badge-success{% elif item.status == 'cancelada' %}badge-danger{% else %}badge-warning{% endif %}">{{ item.get_status_display }}</span></td>
+      </tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
 <div class="card" style="margin-bottom:20px;">
   <div class="card-header">
@@ -68,7 +83,7 @@
 
 <div class="card">
   <div class="card-header">
-    <div class="card-title">Produtos da requisição</div>
+    <div class="card-title">Produtos de consumo</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;">
       {% if total_estoque %}<span class="badge badge-success">{{ total_estoque }} pelo estoque</span>{% endif %}
       {% if total_compra %}<span class="badge badge-primary">{{ total_compra }} para compra</span>{% endif %}
@@ -133,7 +148,7 @@
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
   <a href="{% url 'nova_solicitacao' %}" class="btn btn-mod5">+ Nova requisição</a>
   
-  {% if requisicao.status != 'aprovada' %}
+  {% if requisicao.status != 'aprovada' and requisicao.status != 'pedido' %}
   <a href="{% url 'editar_requisicao' requisicao.pk %}" class="btn btn-outline" style="border-color:var(--mod5-purple); color:var(--mod5-purple);">✏️ Editar</a>
   <form method="post" action="{% url 'excluir_requisicao' requisicao.pk %}" style="display:inline;" onsubmit="return confirm('Tem certeza que deseja excluir esta requisição? Esta ação não pode ser desfeita.');">
     {% csrf_token %}

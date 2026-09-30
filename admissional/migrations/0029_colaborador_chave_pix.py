@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
             model_name='colaborador', name='chave_pix',
             field=models.CharField(
                 blank=True, max_length=180, verbose_name='Chave PIX',
-                help_text='CPF, CNPJ, e-mail, telefone ou chave aleatÃ³ria informada pelo colaborador.',
+                help_text='CPF, CNPJ, e-mail, telefone ou chave aleatória informada pelo colaborador.',
             ),
         ),
     ]

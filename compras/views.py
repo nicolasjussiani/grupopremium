@@ -7,8 +7,11 @@ from django.contrib import messages
 from django.db.models import F
 from django.db import IntegrityError, transaction
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-from .models import Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial
-from .forms import MaterialForm
+from .models import (
+    EquipamentoManutencao, Material, PedidoCompra, RequisicaoCompra,
+    SolicitacaoManutencao, SolicitacaoMaterial,
+)
+from .forms import EquipamentoManutencaoForm, MaterialForm
 from core.access import access_required, user_has_access
 from core.direct_uploads import assign_direct_upload
 from django.core.exceptions import ValidationError
@@ -33,7 +36,8 @@ def _normalizar_cnpj(valor):
 
 @login_required
 def painel_compras(request):
-    materiais_criticos = Material.objects.filter(quantidade_estoque__lte=F('estoque_minimo'))
+    materiais_produtos = Material.objects.exclude(categoria__in=('manutencao', 'ferramentas'))
+    materiais_criticos = materiais_produtos.filter(quantidade_estoque__lte=F('estoque_minimo'))
     solicitacoes_pendentes = SolicitacaoMaterial.objects.filter(
         status__in=['pendente', 'em_analise'])
     pedidos_abertos = PedidoCompra.objects.exclude(
@@ -45,14 +49,55 @@ def painel_compras(request):
         'solicitacoes_pendentes': solicitacoes_pendentes,
         'pedidos_abertos': pedidos_abertos,
         'requisicoes_recentes': requisicoes_recentes,
-        'total_materiais': Material.objects.count(),
+        'total_materiais': materiais_produtos.count(),
         'total_estoque_critico': materiais_criticos.count(),
+        'total_equipamentos_manutencao': EquipamentoManutencao.objects.filter(ativo=True).count(),
+    })
+
+
+@login_required
+def lista_equipamentos_manutencao(request):
+    equipamentos = EquipamentoManutencao.objects.all()
+    return render(request, 'compras/equipamentos_manutencao.html', {
+        'equipamentos': equipamentos,
+        'pode_gerenciar': user_has_access(
+            request.user,
+            permission='compras.add_equipamentomanutencao',
+            profiles=('compras', 'gestor', 'estoque_compras'),
+        ),
+    })
+
+
+@login_required
+@access_required(permission='compras.add_equipamentomanutencao', profiles=('compras', 'gestor', 'estoque_compras'))
+def novo_equipamento_manutencao(request):
+    form = EquipamentoManutencaoForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Equipamento incluído na lista de manutenção.')
+        return redirect('lista_equipamentos_manutencao')
+    return render(request, 'compras/form_equipamento_manutencao.html', {
+        'form': form, 'titulo': 'Novo equipamento',
+    })
+
+
+@login_required
+@access_required(permission='compras.change_equipamentomanutencao', profiles=('compras', 'gestor', 'estoque_compras'))
+def editar_equipamento_manutencao(request, pk):
+    equipamento = get_object_or_404(EquipamentoManutencao, pk=pk)
+    form = EquipamentoManutencaoForm(request.POST or None, instance=equipamento)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Equipamento atualizado.')
+        return redirect('lista_equipamentos_manutencao')
+    return render(request, 'compras/form_equipamento_manutencao.html', {
+        'form': form, 'titulo': 'Editar equipamento', 'equipamento': equipamento,
     })
 
 
 @login_required
 def lista_materiais(request):
-    materiais = Material.objects.all()
+    materiais = Material.objects.exclude(categoria__in=('manutencao', 'ferramentas'))
     busca = request.GET.get('q', '')
     if busca:
         materiais = materiais.filter(nome__icontains=busca)
@@ -120,17 +165,21 @@ def editar_material(request, pk):
 @access_required(permission='compras.add_solicitacaomaterial', profiles=('compras', 'gestor', 'estoque_compras'))
 @transaction.atomic
 def nova_solicitacao(request):
-    def render_form(itens_form=None):
+    def render_form(itens_form=None, manutencoes_form=None):
         if itens_form is None:
             itens_form = [{
                 'material_id': request.GET.get('material', '').strip(),
                 'quantidade': '1',
                 'valor': '',
             }]
+        if manutencoes_form is None:
+            manutencoes_form = []
         return render(request, 'compras/nova_solicitacao.html', {
-            'materiais': Material.objects.all(),
+            'materiais': Material.objects.exclude(categoria__in=('manutencao', 'ferramentas')),
+            'equipamentos': EquipamentoManutencao.objects.filter(ativo=True),
             'post_data': request.POST if request.method == 'POST' else {},
             'itens_form': itens_form,
+            'manutencoes_form': manutencoes_form,
         })
 
     if request.method == 'POST':
@@ -139,37 +188,51 @@ def nova_solicitacao(request):
         valores_post = request.POST.getlist('valor_unitario')
         justificativa = request.POST.get('justificativa', '').strip()
         unidade_destino = request.POST.get('unidade_destino', '').strip()
+        equipamentos_post = request.POST.getlist('manutencao_equipamento')
+        problemas_post = request.POST.getlist('manutencao_problema')
+        manutencoes_form = []
+        for indice in range(max(len(equipamentos_post), len(problemas_post))):
+            equipamento_id = equipamentos_post[indice].strip() if indice < len(equipamentos_post) else ''
+            problema = problemas_post[indice].strip() if indice < len(problemas_post) else ''
+            if equipamento_id or problema:
+                manutencoes_form.append({
+                    'equipamento_id': equipamento_id,
+                    'problema': problema,
+                })
         total_linhas = max(len(materiais_post), len(quantidades_post))
         itens_form = []
         for indice in range(total_linhas):
             material_id = materiais_post[indice].strip() if indice < len(materiais_post) else ''
             quantidade = quantidades_post[indice].strip() if indice < len(quantidades_post) else ''
             valor = valores_post[indice].strip() if indice < len(valores_post) else ''
-            if material_id or quantidade:
+            if material_id or valor or (quantidade and quantidade != '1'):
                 itens_form.append({
                     'material_id': material_id,
                     'quantidade': quantidade,
                     'valor': valor,
                 })
 
-        if not unidade_destino or not justificativa or not itens_form:
-            messages.error(request, 'Preencha a unidade, a justificativa e pelo menos um produto.')
+        if not unidade_destino or not justificativa or not (itens_form or manutencoes_form):
+            messages.error(request, 'Preencha a unidade, a justificativa e pelo menos um produto ou manutenção.')
             return render_form(itens_form or [{
                 'material_id': '', 'quantidade': '1', 'valor': '',
-            }])
+            }], manutencoes_form)
         if len(unidade_destino) > 100:
             messages.error(request, 'A unidade de destino deve ter no máximo 100 caracteres.')
-            return render_form(itens_form)
+            return render_form(itens_form, manutencoes_form)
         if len(itens_form) > 30:
             messages.error(request, 'Cada requisição pode conter no máximo 30 produtos.')
-            return render_form(itens_form[:30])
+            return render_form(itens_form[:30], manutencoes_form)
+        if len(manutencoes_form) > 30:
+            messages.error(request, 'Cada requisição pode conter no máximo 30 solicitações de manutenção.')
+            return render_form(itens_form, manutencoes_form[:30])
 
         itens_validados = []
         materiais_ids = []
         for numero_linha, item in enumerate(itens_form, start=1):
             if not item['material_id'] or not item['quantidade']:
                 messages.error(request, f'Informe o produto e a quantidade no item {numero_linha}.')
-                return render_form(itens_form)
+                return render_form(itens_form, manutencoes_form)
             try:
                 material_id = int(item['material_id'])
                 quantidade = Decimal(item['quantidade'].replace(',', '.'))
@@ -178,13 +241,13 @@ def nova_solicitacao(request):
                 )
             except (TypeError, ValueError, InvalidOperation, ValidationError):
                 messages.error(request, f'Informe uma quantidade válida no item {numero_linha}.')
-                return render_form(itens_form)
+                return render_form(itens_form, manutencoes_form)
             if quantidade <= 0:
                 messages.error(request, f'A quantidade do item {numero_linha} deve ser maior que zero.')
-                return render_form(itens_form)
+                return render_form(itens_form, manutencoes_form)
             if material_id in materiais_ids:
                 messages.error(request, 'O mesmo produto não pode ser repetido na requisição.')
-                return render_form(itens_form)
+                return render_form(itens_form, manutencoes_form)
             
             valor_dec = None
             if item.get('valor'):
@@ -195,18 +258,44 @@ def nova_solicitacao(request):
                         raise ValueError
                 except:
                     messages.error(request, f'Informe um valor unitário válido no item {numero_linha}.')
-                    return render_form(itens_form)
+                    return render_form(itens_form, manutencoes_form)
 
             materiais_ids.append(material_id)
             itens_validados.append((material_id, quantidade, valor_dec))
 
         materiais = {
             material.pk: material
-            for material in Material.objects.select_for_update().filter(pk__in=materiais_ids)
+            for material in Material.objects.select_for_update().exclude(
+                categoria__in=('manutencao', 'ferramentas')
+            ).filter(pk__in=materiais_ids)
         }
         if len(materiais) != len(materiais_ids):
             messages.error(request, 'Um dos produtos selecionados não está mais disponível.')
-            return render_form(itens_form)
+            return render_form(itens_form, manutencoes_form)
+
+        manutencoes_validadas = []
+        for numero_linha, item in enumerate(manutencoes_form, start=1):
+            if not item['equipamento_id'] or not item['problema']:
+                messages.error(request, f'Informe o equipamento e a manutenção necessária no item {numero_linha}.')
+                return render_form(itens_form, manutencoes_form)
+            try:
+                equipamento_id = int(item['equipamento_id'])
+            except (TypeError, ValueError):
+                equipamento_id = None
+            if equipamento_id is None:
+                messages.error(request, f'Selecione um equipamento válido no item {numero_linha}.')
+                return render_form(itens_form, manutencoes_form)
+            manutencoes_validadas.append((equipamento_id, item['problema']))
+
+        equipamentos = {
+            equipamento.pk: equipamento
+            for equipamento in EquipamentoManutencao.objects.select_for_update().filter(
+                pk__in=[item[0] for item in manutencoes_validadas], ativo=True
+            )
+        }
+        if len(equipamentos) != len(manutencoes_validadas):
+            messages.error(request, 'Um dos equipamentos não está mais disponível para solicitação.')
+            return render_form(itens_form, manutencoes_form)
 
         requisicao = RequisicaoCompra(
             solicitante=request.user.get_full_name() or request.user.username,
@@ -231,14 +320,14 @@ def nova_solicitacao(request):
                 requisicao.status = 'aprovada'
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc))
-            return render_form(itens_form)
+            return render_form(itens_form, manutencoes_form)
 
         try:
             requisicao.full_clean()
             requisicao.save()
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages))
-            return render_form(itens_form)
+            return render_form(itens_form, manutencoes_form)
 
         medida_provisoria = bool(requisicao.comprovante_pagamento)
 
@@ -271,11 +360,20 @@ def nova_solicitacao(request):
                     obs='Criado automaticamente via anexo de comprovante de pagamento na requisição (Medida Provisória).'
                 )
 
+        for equipamento_id, problema in manutencoes_validadas:
+            SolicitacaoManutencao.objects.create(
+                requisicao=requisicao,
+                equipamento=equipamentos[equipamento_id],
+                problema=problema,
+                status='aguardando_manutencao' if medida_provisoria else 'pendente',
+            )
+
         if not medida_provisoria:
             from core.approval_workflow import criar_fluxo_compras
             descricao = (
                 f'Unidade: {requisicao.unidade_destino}\n'
                 f'Quantidade de produtos: {len(itens_validados)}\n'
+                f'Solicitações de manutenção: {len(manutencoes_validadas)}\n'
                 f'Justificativa: {requisicao.justificativa}'
             )
             try:
@@ -288,7 +386,7 @@ def nova_solicitacao(request):
             except ValidationError as exc:
                 transaction.set_rollback(True)
                 messages.error(request, '; '.join(exc.messages))
-                return render_form(itens_form)
+                return render_form(itens_form, manutencoes_form)
             messages.success(
                 request,
                 f'Requisição {requisicao.numero} criada e enviada para aprovação da Adriana.',
@@ -298,6 +396,9 @@ def nova_solicitacao(request):
                 request,
                 f'Aviso: A requisição {requisicao.numero} foi processada como Medida Provisória e os pedidos foram gerados como concluídos.'
             )
+        if medida_provisoria and itens_validados:
+            requisicao.status = 'pedido'
+            requisicao.save(update_fields=['status', 'atualizado_em'])
         return redirect('detalhe_requisicao', pk=requisicao.pk)
 
     return render_form()
@@ -307,7 +408,7 @@ def nova_solicitacao(request):
 def detalhe_requisicao(request, pk):
     requisicao = get_object_or_404(
         RequisicaoCompra.objects.select_related('solicitante_usuario').prefetch_related(
-            'itens__material', 'itens__pedidos'
+            'itens__material', 'itens__pedidos', 'manutencoes__equipamento'
         ),
         pk=pk,
     )
@@ -319,7 +420,8 @@ def detalhe_requisicao(request, pk):
     return render(request, 'compras/detalhe_requisicao.html', {
         'requisicao': requisicao,
         'itens': itens,
-        'total_itens': len(itens),
+        'manutencoes': list(requisicao.manutencoes.all()),
+        'total_itens': len(itens) + requisicao.manutencoes.count(),
         'total_estoque': sum(item.status == 'atendido_interno' for item in itens),
         'total_compra': sum(item.status == 'compra_externa' for item in itens),
     })
@@ -370,7 +472,7 @@ def criar_pedido_compra(request, solicitacao_pk):
                 Decimal('0.01'), rounding=ROUND_HALF_UP
             ),
             prazo_entrega=request.POST.get('prazo_entrega') or None,
-            status='aguardando_aprovacao',
+            status='pedido_emitido',
         )
         try:
             with transaction.atomic():
@@ -384,31 +486,12 @@ def criar_pedido_compra(request, solicitacao_pk):
             messages.error(request, mensagem)
             return render(request, 'compras/criar_pedido.html', {'solicitacao': sol})
 
-        # ─── Dispara o fluxo de aprovação central ───────────────────────────
-        from core.approval_workflow import criar_fluxo_compras
-        try:
-            criar_fluxo_compras(
-                objeto=pedido,
-                titulo=f'Pedido de Compra: {sol.material.nome} — {pedido.fornecedor}',
-                descricao=(
-                    f'Material: {sol.material.nome}\n'
-                    f'Unidade destino: {sol.unidade_destino}\n'
-                    f'Quantidade: {sol.quantidade_solicitada} {sol.material.get_unidade_medida_display()}\n'
-                    f'Fornecedor: {pedido.fornecedor}\n'
-                    f'Valor unitário: R$ {pedido.valor_unitario}\n'
-                    f'Valor total: R$ {pedido.valor_total}\n'
-                    f'Justificativa: {sol.justificativa}'
-                ),
-                solicitado_por=request.user,
+        SolicitacaoMaterial.objects.filter(pk=sol.pk).update(status='aguardando_entrega')
+        if sol.requisicao_id and sol.requisicao.status == 'aprovada':
+            RequisicaoCompra.objects.filter(pk=sol.requisicao_id).update(
+                status='pedido', atualizado_em=timezone.now()
             )
-        except ValidationError as exc:
-            transaction.set_rollback(True)
-            messages.error(request, '; '.join(exc.messages))
-            return render(request, 'compras/criar_pedido.html', {'solicitacao': sol})
-        # ────────────────────────────────────────────────────────────────────
-
-        messages.info(request,
-            f'📋 Pedido de compra criado. Aguardando aprovação da Adriana.')
+        messages.success(request, 'Pedido gerado sem nova etapa de aprovação da RC.')
         return redirect('detalhe_solicitacao', pk=solicitacao_pk)
     return render(request, 'compras/criar_pedido.html', {'solicitacao': sol})
 
@@ -489,11 +572,11 @@ def atualizar_cnpj_pedido(request, pk):
 def editar_requisicao(request, pk):
     requisicao = get_object_or_404(RequisicaoCompra, pk=pk)
     
-    if requisicao.status == 'aprovada':
-        messages.error(request, 'Requisições aprovadas não podem ser editadas.')
+    if requisicao.status in {'aprovada', 'pedido'}:
+        messages.error(request, 'Requisições aprovadas ou com pedido emitido não podem ser editadas.')
         return redirect('detalhe_requisicao', pk=requisicao.pk)
         
-    def render_form(itens_form=None):
+    def render_form(itens_form=None, manutencoes_form=None):
         if itens_form is None:
             itens_form = []
             for sol in requisicao.itens.all():
@@ -509,6 +592,13 @@ def editar_requisicao(request, pk):
                     'quantidade': str(sol.quantidade_solicitada).replace('.', ','),
                     'valor': valor,
                 })
+            if not itens_form:
+                itens_form = [{'material_id': '', 'quantidade': '1', 'valor': ''}]
+        if manutencoes_form is None:
+            manutencoes_form = [
+                {'equipamento_id': str(item.equipamento_id), 'problema': item.problema}
+                for item in requisicao.manutencoes.select_related('equipamento')
+            ]
             post_data = {
                 'unidade_destino': requisicao.unidade_destino,
                 'justificativa': requisicao.justificativa,
@@ -517,9 +607,11 @@ def editar_requisicao(request, pk):
             post_data = request.POST if request.method == 'POST' else {}
             
         return render(request, 'compras/nova_solicitacao.html', {
-            'materiais': Material.objects.all(),
+            'materiais': Material.objects.exclude(categoria__in=('manutencao', 'ferramentas')),
+            'equipamentos': EquipamentoManutencao.objects.filter(ativo=True),
             'post_data': post_data,
             'itens_form': itens_form,
+            'manutencoes_form': manutencoes_form,
             'is_edit': True,
             'requisicao': requisicao,
         })
@@ -530,6 +622,14 @@ def editar_requisicao(request, pk):
         valores_post = request.POST.getlist('valor_unitario')
         justificativa = request.POST.get('justificativa', '').strip()
         unidade_destino = request.POST.get('unidade_destino', '').strip()
+        equipamentos_post = request.POST.getlist('manutencao_equipamento')
+        problemas_post = request.POST.getlist('manutencao_problema')
+        manutencoes_form = []
+        for indice in range(max(len(equipamentos_post), len(problemas_post))):
+            equipamento_id = equipamentos_post[indice].strip() if indice < len(equipamentos_post) else ''
+            problema = problemas_post[indice].strip() if indice < len(problemas_post) else ''
+            if equipamento_id or problema:
+                manutencoes_form.append({'equipamento_id': equipamento_id, 'problema': problema})
         
         total_linhas = max(len(materiais_post), len(quantidades_post))
         itens_form = []
@@ -537,42 +637,45 @@ def editar_requisicao(request, pk):
             material_id = materiais_post[indice].strip() if indice < len(materiais_post) else ''
             quantidade = quantidades_post[indice].strip() if indice < len(quantidades_post) else ''
             valor = valores_post[indice].strip() if indice < len(valores_post) else ''
-            if material_id or quantidade:
+            if material_id or valor or (quantidade and quantidade != '1'):
                 itens_form.append({
                     'material_id': material_id,
                     'quantidade': quantidade,
                     'valor': valor,
                 })
 
-        if not unidade_destino or not justificativa or not itens_form:
-            messages.error(request, 'Preencha a unidade, a justificativa e pelo menos um produto.')
-            return render_form(itens_form or [{'material_id': '', 'quantidade': '1'}])
+        if not unidade_destino or not justificativa or not (itens_form or manutencoes_form):
+            messages.error(request, 'Preencha a unidade, a justificativa e pelo menos um produto ou manutenção.')
+            return render_form(itens_form or [{'material_id': '', 'quantidade': '1', 'valor': ''}], manutencoes_form)
         if len(unidade_destino) > 100:
             messages.error(request, 'A unidade de destino deve ter no máximo 100 caracteres.')
-            return render_form(itens_form)
+            return render_form(itens_form, manutencoes_form)
         if len(itens_form) > 30:
             messages.error(request, 'Cada requisição pode conter no máximo 30 produtos.')
-            return render_form(itens_form[:30])
+            return render_form(itens_form[:30], manutencoes_form)
+        if len(manutencoes_form) > 30:
+            messages.error(request, 'Cada requisição pode conter no máximo 30 solicitações de manutenção.')
+            return render_form(itens_form, manutencoes_form[:30])
 
         itens_validados = []
         materiais_ids = []
         for numero_linha, item in enumerate(itens_form, start=1):
             if not item['material_id'] or not item['quantidade']:
                 messages.error(request, f'Informe o produto e a quantidade no item {numero_linha}.')
-                return render_form(itens_form)
+                return render_form(itens_form, manutencoes_form)
             try:
                 material_id = int(item['material_id'])
                 quantidade = Decimal(item['quantidade'].replace(',', '.'))
                 SolicitacaoMaterial._meta.get_field('quantidade_solicitada').clean(quantidade, None)
             except (TypeError, ValueError, InvalidOperation, ValidationError):
                 messages.error(request, f'Informe uma quantidade válida no item {numero_linha}.')
-                return render_form(itens_form)
+                return render_form(itens_form, manutencoes_form)
             if quantidade <= 0:
                 messages.error(request, f'A quantidade do item {numero_linha} deve ser maior que zero.')
-                return render_form(itens_form)
+                return render_form(itens_form, manutencoes_form)
             if material_id in materiais_ids:
                 messages.error(request, 'O mesmo produto não pode ser repetido na requisição.')
-                return render_form(itens_form)
+                return render_form(itens_form, manutencoes_form)
                 
             valor_dec = None
             if item.get('valor'):
@@ -583,18 +686,41 @@ def editar_requisicao(request, pk):
                         raise ValueError
                 except:
                     messages.error(request, f'Informe um valor unitário válido no item {numero_linha}.')
-                    return render_form(itens_form)
+                    return render_form(itens_form, manutencoes_form)
                     
             materiais_ids.append(material_id)
             itens_validados.append((material_id, quantidade, valor_dec))
 
         materiais = {
             material.pk: material
-            for material in Material.objects.select_for_update().filter(pk__in=materiais_ids)
+            for material in Material.objects.select_for_update().exclude(
+                categoria__in=('manutencao', 'ferramentas')
+            ).filter(pk__in=materiais_ids)
         }
         if len(materiais) != len(materiais_ids):
             messages.error(request, 'Um dos produtos selecionados não está mais disponível.')
-            return render_form(itens_form)
+            return render_form(itens_form, manutencoes_form)
+
+        manutencoes_validadas = []
+        for numero_linha, item in enumerate(manutencoes_form, start=1):
+            if not item['equipamento_id'] or not item['problema']:
+                messages.error(request, f'Informe o equipamento e a manutenção necessária no item {numero_linha}.')
+                return render_form(itens_form, manutencoes_form)
+            try:
+                equipamento_id = int(item['equipamento_id'])
+            except (TypeError, ValueError):
+                messages.error(request, f'Selecione um equipamento válido no item {numero_linha}.')
+                return render_form(itens_form, manutencoes_form)
+            manutencoes_validadas.append((equipamento_id, item['problema']))
+        equipamentos = {
+            equipamento.pk: equipamento
+            for equipamento in EquipamentoManutencao.objects.select_for_update().filter(
+                pk__in=[item[0] for item in manutencoes_validadas], ativo=True
+            )
+        }
+        if len(equipamentos) != len(manutencoes_validadas):
+            messages.error(request, 'Um dos equipamentos não está mais disponível para solicitação.')
+            return render_form(itens_form, manutencoes_form)
 
         requisicao.unidade_destino = unidade_destino
         requisicao.justificativa = justificativa
@@ -615,17 +741,18 @@ def editar_requisicao(request, pk):
                 requisicao.status = 'aprovada'
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc))
-            return render_form(itens_form)
+            return render_form(itens_form, manutencoes_form)
 
         try:
             requisicao.full_clean()
             requisicao.save()
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages))
-            return render_form(itens_form)
+            return render_form(itens_form, manutencoes_form)
 
         # Deleta os itens anteriores (que ainda não viraram pedido ou estão pendentes)
         requisicao.itens.all().delete()
+        requisicao.manutencoes.all().delete()
 
         medida_provisoria = bool(requisicao.comprovante_pagamento)
 
@@ -658,6 +785,14 @@ def editar_requisicao(request, pk):
                     obs='Criado automaticamente via anexo de comprovante de pagamento na requisição (Medida Provisória).'
                 )
 
+        for equipamento_id, problema in manutencoes_validadas:
+            SolicitacaoManutencao.objects.create(
+                requisicao=requisicao,
+                equipamento=equipamentos[equipamento_id],
+                problema=problema,
+                status='aguardando_manutencao' if medida_provisoria else 'pendente',
+            )
+
         if not medida_provisoria:
             from core.models import AprovacaoRegistro
             from core.approval_workflow import criar_fluxo_compras
@@ -671,6 +806,7 @@ def editar_requisicao(request, pk):
             descricao = (
                 f'Unidade: {requisicao.unidade_destino}\n'
                 f'Quantidade de produtos: {len(itens_validados)}\n'
+                f'Solicitações de manutenção: {len(manutencoes_validadas)}\n'
                 f'Justificativa: {requisicao.justificativa}'
             )
             try:
@@ -683,7 +819,7 @@ def editar_requisicao(request, pk):
             except ValidationError as exc:
                 transaction.set_rollback(True)
                 messages.error(request, '; '.join(exc.messages))
-                return render_form(itens_form)
+                return render_form(itens_form, manutencoes_form)
             messages.success(
                 request,
                 f'Requisição {requisicao.numero} atualizada e reenviada para aprovação.'
@@ -704,8 +840,8 @@ def editar_requisicao(request, pk):
 @transaction.atomic
 def excluir_requisicao(request, pk):
     requisicao = get_object_or_404(RequisicaoCompra, pk=pk)
-    if requisicao.status == 'aprovada':
-        messages.error(request, 'Requisições aprovadas não podem ser excluídas.')
+    if requisicao.status in {'aprovada', 'pedido'}:
+        messages.error(request, 'Requisições aprovadas ou com pedido emitido não podem ser excluídas.')
         return redirect('detalhe_requisicao', pk=requisicao.pk)
     
     from core.models import AprovacaoRegistro
