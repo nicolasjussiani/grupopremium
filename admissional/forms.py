@@ -25,6 +25,10 @@ class ColaboradorForm(forms.ModelForm):
         )
         widgets = {
             'data_nascimento': forms.DateInput(attrs={'type': 'date'}),
+            'chave_pix': forms.TextInput(attrs={
+                'autocomplete': 'off',
+                'placeholder': 'CPF, CNPJ, e-mail, telefone ou chave aleatória',
+            }),
             'data_admissao': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
             'data_desligamento': forms.DateInput(
                 format='%Y-%m-%d', attrs={'type': 'date'},
@@ -152,8 +156,8 @@ class PagamentoColaboradorForm(forms.ModelForm):
             'data_pagamento', 'recorrente', 'observacao',
         )
         widgets = {
-            'competencia': forms.DateInput(attrs={'type': 'date'}),
-            'competencia_fim': forms.DateInput(attrs={'type': 'date'}),
+            'competencia': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+            'competencia_fim': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
             'valor': forms.TextInput(attrs={
                 'inputmode': 'decimal', 'placeholder': 'Ex.: 2000,00',
             }),
@@ -167,13 +171,19 @@ class PagamentoColaboradorForm(forms.ModelForm):
             'chave_pix': forms.TextInput(attrs={
                 'autocomplete': 'off', 'placeholder': 'CPF, CNPJ, e-mail, telefone ou chave aleatória',
             }),
-            'data_vencimento': forms.DateInput(attrs={'type': 'date'}),
-            'data_pagamento': forms.DateInput(attrs={'type': 'date'}),
+            'data_vencimento': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+            'data_pagamento': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
             'observacao': forms.Textarea(attrs={'rows': 3}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._dados_pagos = None
+        if self.instance.pk and self.instance.status == 'pago':
+            self._dados_pagos = {
+                campo: getattr(self.instance, campo)
+                for campo in self.Meta.fields if campo not in ('observacao', 'recorrente')
+            }
         self.fields['colaborador'].queryset = Colaborador.objects.exclude(
             status__in=['inativo', 'desligado']
         )
@@ -228,8 +238,6 @@ class PagamentoColaboradorForm(forms.ModelForm):
                 'data_pagamento',
                 'Informe a data em que o pagamento foi realizado.',
             )
-        if status == 'pendente':
-            cleaned_data['data_pagamento'] = None
         competencia = cleaned_data.get('competencia')
         competencia_fim = cleaned_data.get('competencia_fim')
         if tipo in TIPOS_PAGAMENTO_SEMANAIS and competencia:
@@ -237,11 +245,11 @@ class PagamentoColaboradorForm(forms.ModelForm):
             cleaned_data['competencia'] = segunda
             cleaned_data['competencia_fim'] = domingo
             cleaned_data['data_vencimento'] = segunda
-            if data_pagamento:
+            if data_pagamento and status == 'pago':
                 cleaned_data['data_pagamento'] = periodo_semanal(data_pagamento)[0]
             competencia = segunda
             competencia_fim = domingo
-        if competencia and not competencia_fim:
+        if competencia and not competencia_fim and self._dados_pagos is None:
             cleaned_data['competencia_fim'] = competencia
         if competencia and competencia_fim and competencia_fim < competencia:
             self.add_error(
@@ -249,4 +257,14 @@ class PagamentoColaboradorForm(forms.ModelForm):
                 'O fim da competência não pode ser anterior ao início.',
             )
         cleaned_data['recorrente'] = tipo in TIPOS_PAGAMENTO_SEMANAIS
+        if status != 'pago':
+            cleaned_data['data_pagamento'] = None
+        if self._dados_pagos is not None and any(
+            cleaned_data.get(campo) != original
+            for campo, original in self._dados_pagos.items()
+        ):
+            raise forms.ValidationError(
+                'Pagamento já realizado não pode ter seus dados financeiros alterados. '
+                'Nesta tela, acrescente apenas observações ou comprovantes.'
+            )
         return cleaned_data

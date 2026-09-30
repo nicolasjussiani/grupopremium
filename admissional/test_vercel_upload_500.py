@@ -4,6 +4,8 @@ from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
 import datetime
 from unittest.mock import patch
+from botocore.exceptions import ClientError, EndpointConnectionError
+from admissional.models import Colaborador
 
 class TestVercelUpload500(TestCase):
     """
@@ -51,13 +53,49 @@ class TestVercelUpload500(TestCase):
         data = self._colaborador_data()
         data['anexo_cpf'] = fake_file
 
-        # Ao enviar um POST com arquivo, se cair no FileSystemStorage,
-        # esperamos que o erro OSError propague (causando o 500).
-        # Para que a view não quebre com 500, precisaríamos de um try/except na view.
-        # Como a view atual não tem tratamento, o teste irá falhar com OSError, 
-        # o que comprova que esta é uma das causas do Erro 500!
+        # Falhas de armazenamento devem voltar ao formulario com uma mensagem.
         response = self.client.post(self.url, data=data)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Nao foi possivel armazenar os anexos')
-        # Conclusão: Se este teste passa (ou seja, a exceção é levantada), 
-        # está provado que tentar salvar arquivos em disco na Vercel derruba a aplicação com Erro 500.
+
+    def test_falhas_s3_retornam_formulario_sem_cadastro_parcial(self):
+        for error in (
+            ClientError({'Error': {'Code': 'AccessDenied', 'Message': 'privado'}}, 'PutObject'),
+            EndpointConnectionError(endpoint_url='https://storage.invalid'),
+        ):
+            with self.subTest(error=type(error).__name__):
+                data = self._colaborador_data()
+                data['anexo_cpf'] = SimpleUploadedFile(
+                    'cpf.pdf', b'%PDF-teste', content_type='application/pdf',
+                )
+                with patch('django.core.files.storage.Storage.save', side_effect=error):
+                    response = self.client.post(self.url, data=data)
+                self.assertContains(response, 'Nao foi possivel armazenar os anexos')
+                self.assertNotContains(response, 'privado')
+                self.assertFalse(Colaborador.objects.exists())
+
+    def test_falha_ao_organizar_anexo_desfaz_insert_e_permite_consultas(self):
+        data = self._colaborador_data()
+        data['anexo_cpf'] = SimpleUploadedFile(
+            'cpf.pdf', b'%PDF-teste', content_type='application/pdf',
+        )
+        error = ClientError({'Error': {'Code': 'AccessDenied'}}, 'CopyObject')
+        with patch('core.storage_organization.copy_in_storage', side_effect=error):
+            response = self.client.post(self.url, data=data)
+        self.assertContains(response, 'Nao foi possivel armazenar os anexos')
+        self.assertFalse(Colaborador.objects.exists())
+        self.assertIsNone(response.context['form'].instance.pk)
+
+    def test_falha_s3_na_edicao_preserva_cadastro(self):
+        colaborador = Colaborador.objects.create(nome='Nome anterior')
+        data = self._colaborador_data()
+        data['anexo_cpf'] = SimpleUploadedFile(
+            'cpf.pdf', b'%PDF-teste', content_type='application/pdf',
+        )
+        error = ClientError({'Error': {'Code': 'AccessDenied'}}, 'CopyObject')
+        with patch('core.storage_organization.copy_in_storage', side_effect=error):
+            response = self.client.post(reverse('editar_colaborador', args=[colaborador.pk]), data=data)
+        self.assertContains(response, 'Nao foi possivel armazenar os anexos')
+        colaborador.refresh_from_db()
+        self.assertEqual(colaborador.nome, 'Nome anterior')
+        self.assertFalse(colaborador.anexo_cpf)

@@ -138,6 +138,11 @@ class UsuarioERPForm(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
+        if cleaned.get('perfil') == 'entregas_consulta':
+            if cleaned.get('acesso_epi') or cleaned.get('acesso_financeiro'):
+                self.add_error('perfil', 'O perfil de entregas permite somente consulta, sem acessos adicionais.')
+            if self.instance and self.instance.is_superuser:
+                self.add_error('perfil', 'Remova o acesso de superusuário antes de usar o perfil de entregas.')
         password1 = cleaned.get('password1', '')
         password2 = cleaned.get('password2', '')
         if not self.instance and not password1:

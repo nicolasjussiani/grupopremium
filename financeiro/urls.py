@@ -1,6 +1,7 @@
 from django.urls import path
 from financeiro import views
 urlpatterns = [
+    path('documento/<int:pk>/cancelar/', views.cancelar_documento, name='cancelar_documento'),
     path('documento/<int:pk>/pagamento/', views.atualizar_pagamento_documento, name='atualizar_pagamento_documento'),
     path('', views.painel_financeiro, name='painel_financeiro'),
     path('documento/novo/', views.entrada_documento, name='entrada_documento'),

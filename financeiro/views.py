@@ -14,13 +14,14 @@ from django.http import HttpResponse
 from django.core.files.storage import default_storage
 from core.access import access_required, user_has_access
 from django.core.paginator import Paginator
-from django.views.decorators.http import require_POST
-from .forms import PagamentoDocumentoForm
+from django.views.decorators.http import require_POST, require_http_methods
+from .forms import PagamentoDocumentoForm, CancelamentoDocumentoForm
 from core.validators import validate_document_upload, validate_pdf_upload
 from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
 from django.utils.text import get_valid_filename
 from admissional.models import Colaborador, PagamentoColaborador
+from admissional.periodos_pagamentos import pagamentos_atuais, pagamentos_atrasados
 from core.models import ArquivoImportado
 
 
@@ -29,9 +30,11 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def painel_financeiro(request):
-    pagamentos = DocumentoFinanceiro.objects.all()
+    pagamentos = DocumentoFinanceiro.objects.exclude(status='cancelado')
     filtro_pagamento = request.GET.get('pagamento', '')
-    if filtro_pagamento in dict(DocumentoFinanceiro.SITUACOES_PAGAMENTO):
+    if filtro_pagamento == 'cancelado':
+        pagamentos = DocumentoFinanceiro.objects.filter(status='cancelado')
+    elif filtro_pagamento in dict(DocumentoFinanceiro.SITUACOES_PAGAMENTO):
         pagamentos = pagamentos.filter(situacao_pagamento=filtro_pagamento)
     else:
         filtro_pagamento = ''
@@ -44,18 +47,17 @@ def painel_financeiro(request):
         finalizado_em__year=timezone.now().year,
     )
     # Calcula Orcamento/Budget do Mês
-    mes_atual = timezone.now().date().replace(day=1)
+    mes_atual = timezone.localdate().replace(day=1)
     if mes_atual.month == 12:
         proximo_mes = mes_atual.replace(year=mes_atual.year + 1, month=1)
     else:
         proximo_mes = mes_atual.replace(month=mes_atual.month + 1)
     fim_mes = proximo_mes - timedelta(days=1)
-    folha_mes = PagamentoColaborador.objects.filter(
-        Q(data_pagamento__range=(mes_atual, fim_mes))
-        | Q(data_pagamento__isnull=True, data_vencimento__range=(mes_atual, fim_mes))
-    ).exclude(status='cancelado').exclude(
+    folha_base = PagamentoColaborador.objects.exclude(
         colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO
     )
+    folha_mes = pagamentos_atuais(folha_base, timezone.localdate())
+    folha_atrasada = pagamentos_atrasados(folha_base, timezone.localdate())
     resumo_folha = folha_mes.aggregate(
         total=Sum('valor'),
         pago=Sum('valor', filter=Q(status='pago')),
@@ -107,6 +109,8 @@ def painel_financeiro(request):
         'total_lancado_mes': sum(l.valor for l in finalizados_mes),
         'dashboard_budget': dashboard_budget,
         'folha_mes_quantidade': folha_mes.count(),
+        'folha_atrasada_quantidade': folha_atrasada.count(),
+        'folha_atrasada_total': folha_atrasada.aggregate(total=Sum('valor'))['total'] or 0,
         'folha_mes_total': resumo_folha['total'] or 0,
         'folha_mes_pago': resumo_folha['pago'] or 0,
         'folha_mes_pendente': resumo_folha['pendente'] or 0,
@@ -278,6 +282,9 @@ def extrair_ocr_documento(request):
 @transaction.atomic
 def auditoria_documento(request, pk):
     doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=pk)
+    if doc.status == 'cancelado':
+        messages.error(request, 'Documento cancelado. A auditoria não pode ser alterada.')
+        return redirect('detalhe_documento', pk=pk)
     itens = doc.auditoria.all()
 
     if request.method == 'POST':
@@ -330,10 +337,40 @@ ACESSO_PAGAMENTO = dict(
 
 @login_required
 @access_required(**ACESSO_PAGAMENTO)
+@require_http_methods(['GET', 'POST'])
+@transaction.atomic
+def cancelar_documento(request, pk):
+    doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=pk)
+    if doc.status == 'cancelado':
+        messages.info(request, 'Este documento já está cancelado.')
+        return redirect('detalhe_documento', pk=pk)
+    if not doc.pode_cancelar:
+        messages.error(request, 'Documento pago ou finalizado. É necessário tratar o estorno antes de cancelar.')
+        return redirect('detalhe_documento', pk=pk)
+    form = CancelamentoDocumentoForm(request.POST if request.method == 'POST' else None)
+    if request.method == 'POST' and form.is_valid():
+        doc.status = 'cancelado'
+        doc.motivo_cancelamento = form.cleaned_data['motivo']
+        doc.cancelado_por = request.user
+        doc.cancelado_em = timezone.now()
+        doc.save(update_fields=['status', 'motivo_cancelamento', 'cancelado_por', 'cancelado_em', 'atualizado_em'])
+        doc.lancamentos.filter(status__in=('rascunho', 'em_validacao')).update(status='cancelado')
+        messages.success(request, 'Documento cancelado. O arquivo e o histórico foram preservados.')
+        return redirect('detalhe_documento', pk=pk)
+    return render(request, 'financeiro/cancelar_documento.html', {
+        'documento': doc, 'form': form,
+    }, status=400 if request.method == 'POST' else 200)
+
+
+@login_required
+@access_required(**ACESSO_PAGAMENTO)
 @require_POST
 @transaction.atomic
 def atualizar_pagamento_documento(request, pk):
     doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=pk)
+    if doc.status == 'cancelado':
+        messages.error(request, 'Documento cancelado. O pagamento não pode ser alterado.')
+        return redirect('detalhe_documento', pk=pk)
     form = PagamentoDocumentoForm(request.POST)
     if form.is_valid():
         doc.situacao_pagamento = form.cleaned_data['situacao_pagamento']
@@ -344,6 +381,7 @@ def atualizar_pagamento_documento(request, pk):
     return render(request, 'financeiro/detalhe_documento.html', {
         'documento': doc, 'lancamentos': doc.lancamentos.all(),
         'pagamento_form': form, 'pode_alterar_pagamento': True,
+        'pode_cancelar': doc.pode_cancelar,
     }, status=400)
 
 
@@ -354,7 +392,8 @@ def detalhe_documento(request, pk):
         'documento': doc,
         'lancamentos': doc.lancamentos.all(),
         'pagamento_form': PagamentoDocumentoForm.para_documento(doc),
-        'pode_alterar_pagamento': user_has_access(request.user, **ACESSO_PAGAMENTO),
+        'pode_alterar_pagamento': doc.status != 'cancelado' and user_has_access(request.user, **ACESSO_PAGAMENTO),
+        'pode_cancelar': user_has_access(request.user, **ACESSO_PAGAMENTO) and doc.pode_cancelar,
     })
 
 
@@ -367,6 +406,9 @@ def detalhe_documento(request, pk):
 def lancar_erp(request, doc_pk):
     """Lançamento oficial no ERP Grupo PremiumBR"""
     doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=doc_pk)
+    if doc.status == 'cancelado':
+        messages.error(request, 'Documento cancelado. Não é possível criar um lançamento.')
+        return redirect('detalhe_documento', pk=doc.pk)
     pagamento_form = (PagamentoDocumentoForm(request.POST)
         if request.method == 'POST' and 'situacao_pagamento' in request.POST
         else PagamentoDocumentoForm.para_documento(doc))
@@ -429,8 +471,13 @@ def lancar_erp(request, doc_pk):
 @transaction.atomic
 def validar_lancamento(request, pk):
     """Gateway 2: Lançamento validado → FINALIZADO NO ERP GRUPO PREMIUMBR"""
+    documento_id = get_object_or_404(LancamentoERP, pk=pk).documento_id
+    # Todas as operações bloqueiam o documento antes de seus lançamentos.
+    documento = DocumentoFinanceiro.objects.select_for_update().get(pk=documento_id)
     lancamento = get_object_or_404(LancamentoERP.objects.select_for_update(), pk=pk)
-    documento = DocumentoFinanceiro.objects.select_for_update().get(pk=lancamento.documento_id)
+    if documento.status == 'cancelado':
+        messages.error(request, 'Documento cancelado. O lançamento não pode ser validado.')
+        return redirect('detalhe_documento', pk=documento.pk)
     if request.method == 'POST':
         if lancamento.status != 'em_validacao':
             messages.error(request, 'Este lancamento nao esta aguardando validacao.')

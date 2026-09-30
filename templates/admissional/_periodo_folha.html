@@ -1,0 +1,10 @@
+<nav aria-label="Período da folha" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+  <a href="{% url 'lista_pagamentos_colaboradores' %}?visao=atual" class="btn {% if visao == 'atual' %}btn-mod6{% else %}btn-outline{% endif %}" {% if visao == 'atual' %}aria-current="page"{% endif %}>Período atual</a>
+  <a href="{% url 'lista_pagamentos_colaboradores' %}?visao=atrasados" class="btn {% if visao == 'atrasados' %}btn-mod6{% else %}btn-outline{% endif %}" {% if visao == 'atrasados' %}aria-current="page"{% endif %}>Pagamentos atrasados</a>
+  <a href="{% url 'lista_pagamentos_colaboradores' %}?visao=historico" class="btn {% if visao == 'historico' %}btn-mod6{% else %}btn-outline{% endif %}" {% if visao == 'historico' %}aria-current="page"{% endif %}>Histórico e outros períodos</a>
+</nav>
+<p class="form-help" style="margin-bottom:16px;">
+  {% if visao == 'atrasados' %}Somente pendentes de semanas ou meses encerrados. Ao confirmar um pagamento, ele sai desta seção e permanece no histórico.
+  {% elif visao == 'atual' %}VT e ajuda de custo: semana de {{ segunda_atual|date:"d/m/Y" }} a {{ domingo_atual|date:"d/m/Y" }}. Demais pagamentos: {{ mes_atual|date:"m/Y" }}. Os períodos mudam automaticamente.
+  {% else %}Consulta por datas. Inclui pagamentos de períodos anteriores e futuros, conforme os filtros.{% endif %}
+</p>

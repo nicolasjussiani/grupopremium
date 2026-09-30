@@ -330,6 +330,8 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
+            if getattr(getattr(user, 'perfil', None), 'perfil', None) == 'entregas_consulta':
+                return redirect('consulta_entregas')
             return redirect(_next_url_segura(request))
         else:
             messages.error(request, 'Usuário ou senha incorretos.')

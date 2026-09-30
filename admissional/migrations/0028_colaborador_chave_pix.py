@@ -1,0 +1,15 @@
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+    dependencies = [('admissional', '0027_calculo_proporcional_vt')]
+
+    operations = [
+        migrations.AddField(
+            model_name='colaborador', name='chave_pix',
+            field=models.CharField(
+                blank=True, max_length=180, verbose_name='Chave PIX',
+                help_text='CPF, CNPJ, e-mail, telefone ou chave aleatória informada pelo colaborador.',
+            ),
+        ),
+    ]

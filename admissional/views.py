@@ -3,6 +3,7 @@ from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
 import logging
+from botocore.exceptions import BotoCoreError, ClientError
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -23,15 +24,16 @@ from core.access import access_required, user_has_access
 from core.validators import validate_document_upload
 from core.direct_uploads import assign_direct_upload, verify_direct_upload
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import OperationalError, connection, transaction
-from django.db.models import Count, Q, Sum
+from django.db import IntegrityError, OperationalError, connection, transaction
+from django.db.models import Count, Min, Q, Sum
 from django.http import Http404, JsonResponse
 from django.utils.text import get_valid_filename
 from django.urls import reverse
 from django.views.decorators.http import require_POST
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from .programacao_vt import segundas_no_periodo, presencas_por_pessoa, linhas_semana, resumo_semana
 from .calendario_presenca import montar_calendario_presenca
+from .periodos_pagamentos import limites_periodo_atual, no_periodo, pagamentos_atuais, pagamentos_atrasados
 
 
 @login_required
@@ -320,10 +322,7 @@ def _periodo_pagamentos(request):
 
 
 def _pagamentos_no_periodo(queryset, inicio, fim):
-    return queryset.filter(
-        Q(data_pagamento__range=(inicio, fim))
-        | Q(data_pagamento__isnull=True, data_vencimento__range=(inicio, fim))
-    )
+    return queryset.filter(no_periodo(inicio, fim))
 
 
 def _resumo_pendencias_pagamentos(queryset, inicio, fim):
@@ -422,7 +421,7 @@ def _anexar_dias_trabalhados(pagamentos, inicio, fim):
             colaborador_id__in=ids,
             data__range=(inicio, fim),
         ).values('colaborador_id').annotate(
-            total_registros=Count('pk'),
+            total_registros=Count('pk', filter=~Q(status='indefinido')),
             total_presentes=Count('pk', filter=Q(status='presente')),
         )
         )
@@ -441,7 +440,7 @@ def _anexar_dias_trabalhados(pagamentos, inicio, fim):
             pix = parcela_fiscal.beneficio.pix
         if dias is None:
             resumo = presencas.get(pagamento.colaborador_id)
-            dias = resumo['total_presentes'] if resumo else None
+            dias = resumo['total_presentes'] if resumo and resumo['total_registros'] else None
         if pagamento.tipo in ('vale_transporte', 'ajuda_custo'):
             segunda = pagamento.data_vencimento - timedelta(days=pagamento.data_vencimento.weekday())
             resumo = presencas_vt[segunda].get(pagamento.colaborador_id)
@@ -461,9 +460,22 @@ def _dados_folha(request, *, incluir_resumo=True):
         colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO
     )
     data_inicio, data_fim = _periodo_pagamentos(request)
-    pagamentos_base = _pagamentos_no_periodo(
-        pagamentos_base, data_inicio, data_fim
-    )
+    hoje = timezone.localdate()
+    segunda, domingo, mes, fim_mes = limites_periodo_atual(hoje)
+    visao = request.GET.get('visao', 'historico' if any(
+        request.GET.get(campo) for campo in ('data_inicio', 'data_fim')
+    ) else 'atual')
+    if visao not in ('atual', 'atrasados', 'historico'):
+        visao = 'atual'
+    if visao == 'atrasados':
+        pagamentos_base = pagamentos_atrasados(pagamentos_base, hoje)
+        data_inicio = pagamentos_base.aggregate(inicio=Min('data_vencimento'))['inicio'] or mes
+        data_fim = hoje
+    elif visao == 'atual':
+        pagamentos_base = pagamentos_atuais(pagamentos_base, hoje)
+        data_inicio, data_fim = min(segunda, mes), max(domingo, fim_mes)
+    else:
+        pagamentos_base = _pagamentos_no_periodo(pagamentos_base, data_inicio, data_fim)
 
     query = request.GET.get('q', '').strip()[:100]
     if query:
@@ -499,7 +511,9 @@ def _dados_folha(request, *, incluir_resumo=True):
     pagamentos = pagamentos_base
     status_filter = request.GET.get('status', '').strip()
     status_validos = {valor for valor, _ in PagamentoColaborador.STATUS}
-    if status_filter in status_validos:
+    if visao == 'atrasados':
+        status_filter = 'pendente'
+    elif status_filter in status_validos:
         pagamentos = pagamentos.filter(status=status_filter)
     else:
         status_filter = ''
@@ -518,12 +532,18 @@ def _dados_folha(request, *, incluir_resumo=True):
     filtros = {
         'data_inicio': data_inicio.isoformat(), 'data_fim': data_fim.isoformat(),
         'q': query, 'tipo': tipo_filter, 'status': status_filter,
-        'categoria': categoria_filter, 'unidade': unidade_filter,
+        'categoria': categoria_filter, 'unidade': unidade_filter, 'visao': visao,
     }
+    if colaborador_selecionado:
+        filtros['colaborador'] = colaborador_selecionado.pk
     return {
+        'visao': visao,
+        'segunda_atual': segunda,
+        'domingo_atual': domingo,
+        'mes_atual': mes,
         'pagamentos': pagamentos,
         'unidade_filter': unidade_filter,
-        'segundas_vt': list(segundas_no_periodo(
+        'segundas_vt': [] if visao == 'atrasados' else [segunda] if visao == 'atual' else list(segundas_no_periodo(
             data_inicio, data_inicio + timedelta(days=min((data_fim - data_inicio).days, 1095)),
         )),
         'calendario_vt_limitado': (data_fim - data_inicio).days > 1095,
@@ -566,7 +586,7 @@ def lista_pagamentos_colaboradores(request):
     segundas = contexto['segundas_vt']
     if segundas and contexto['tipo_filter'] in ('', 'vale_transporte', 'ajuda_custo'):
         hoje = timezone.localdate()
-        segunda = next((dia for dia in segundas if dia >= hoje), segundas[-1])
+        segunda = next((dia for dia in segundas if dia <= hoje <= dia + timedelta(days=6)), segundas[0])
         try:
             escolhida = parse_date(request.GET.get('segunda_vt', ''))
         except ValueError:
@@ -634,8 +654,7 @@ def relatorio_folha_pagamento(request):
 )
 def visao_beneficios_colaboradores(request):
     data_inicio, data_fim = _periodo_pagamentos(request)
-    pagamentos = _pagamentos_no_periodo(
-        PagamentoColaborador.objects.filter(
+    pagamentos = PagamentoColaborador.objects.filter(
             tipo__in=['vale_transporte', 'ajuda_custo', 'auxilio_telefonia']
         ).exclude(
             status='cancelado'
@@ -643,10 +662,12 @@ def visao_beneficios_colaboradores(request):
             colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO
         ).select_related(
             'colaborador', 'item_fiscal', 'parcela_fiscal__beneficio'
-        ),
-        data_inicio,
-        data_fim,
-    )
+        )
+    periodo_atual = not any(request.GET.get(campo) for campo in ('data_inicio', 'data_fim'))
+    if periodo_atual:
+        pagamentos = pagamentos_atuais(pagamentos, timezone.localdate())
+    else:
+        pagamentos = _pagamentos_no_periodo(pagamentos, data_inicio, data_fim)
     query = request.GET.get('q', '').strip()[:100]
     if query:
         pagamentos = pagamentos.filter(
@@ -676,8 +697,10 @@ def visao_beneficios_colaboradores(request):
         'query': query,
         'unidade_filter': unidade_filter,
         'unidades': unidades,
+        'periodo_atual': periodo_atual,
         'total_vt': totais_tipo.get('vale_transporte', 0),
         'total_ajuda': totais_tipo.get('ajuda_custo', 0),
+        'total_telefonia': totais_tipo.get('auxilio_telefonia', 0),
         'total_geral': total_geral,
         'total_pessoas': pessoas,
     })
@@ -691,6 +714,9 @@ def visao_beneficios_colaboradores(request):
 def resumo_colaborador_pagamento(request, pk):
     colaborador = get_object_or_404(Colaborador, pk=pk)
     inicio, fim = _periodo_pagamentos(request)
+    if request.GET.get('tipo') in ('vale_transporte', 'ajuda_custo'):
+        segunda = inicio - timedelta(days=inicio.weekday())
+        inicio, fim = segunda - timedelta(days=7), segunda - timedelta(days=1)
     presencas = PresencaDiaria.objects.filter(
         colaborador=colaborador,
         data__range=(inicio, fim),
@@ -700,7 +726,7 @@ def resumo_colaborador_pagamento(request, pk):
         'nome': colaborador.nome,
         'categoria': colaborador.get_categoria_trabalho_display(),
         'tipo_contrato': colaborador.get_tipo_contrato_display(),
-        'dias_trabalhados': dias_trabalhados if presencas.exists() else None,
+        'dias_trabalhados': dias_trabalhados if presencas.exclude(status='indefinido').exists() else None,
         'periodo': f'{inicio:%d/%m/%Y} a {fim:%d/%m/%Y}',
     })
 
@@ -725,7 +751,13 @@ def novo_pagamento_colaborador(request):
                     vincular_comprovante(comprovante, pagamento, request.user)
                     _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
             except ValidationError as exc:
+                pagamento.pk = None
+                pagamento._state.adding = True
                 form.add_error(None, exc)
+            except IntegrityError:
+                pagamento.pk = None
+                pagamento._state.adding = True
+                form.add_error(None, 'Este pagamento ou a próxima semana já foi registrado. Atualize a folha e confira os lançamentos.')
             else:
                 mensagem = 'Pagamento cadastrado com sucesso.'
                 if recorrencia_criada:
@@ -753,7 +785,10 @@ def novo_pagamento_colaborador(request):
                 'competencia_fim': hoje.replace(day=monthrange(hoje.year, hoje.month)[1]),
             })
         colaborador_id = str(initial['colaborador']).strip()
-        if colaborador_id.isdigit() and initial['tipo'] in {'salario', 'vale_transporte', 'ajuda_custo'}:
+        if (
+            colaborador_id.isascii() and colaborador_id.isdigit() and len(colaborador_id) <= 18
+            and initial['tipo'] in {'salario', 'vale_transporte', 'ajuda_custo'}
+        ):
             colaborador = Colaborador.objects.filter(pk=colaborador_id).first()
             if colaborador:
                 if initial['tipo'] == 'salario':
@@ -775,8 +810,12 @@ def novo_pagamento_colaborador(request):
     permission='admissional.change_pagamentocolaborador',
     profiles=('rh', 'financeiro', 'gestor'),
 )
+@transaction.atomic
 def editar_pagamento_colaborador(request, pk):
-    pagamento = get_object_or_404(PagamentoColaborador, pk=pk)
+    pagamentos = PagamentoColaborador.objects.all()
+    if request.method == 'POST':
+        pagamentos = pagamentos.select_for_update()
+    pagamento = get_object_or_404(pagamentos, pk=pk)
     status_anterior = pagamento.status
     if request.method == 'POST':
         form = PagamentoColaboradorForm(request.POST, instance=pagamento)
@@ -788,9 +827,13 @@ def editar_pagamento_colaborador(request, pk):
                 with transaction.atomic():
                     pagamento = form.save()
                     vincular_comprovante(comprovante, pagamento, request.user)
-                    _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
+                    recorrencia_criada = False
+                    if status_anterior != 'pago':
+                        _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
             except ValidationError as exc:
                 form.add_error(None, exc)
+            except IntegrityError:
+                form.add_error(None, 'Este pagamento ou a próxima semana foi alterado durante a edição. Atualize a folha e confira os lançamentos.')
             else:
                 mensagem = 'Pagamento atualizado com sucesso.'
                 if recorrencia_criada:
@@ -812,6 +855,18 @@ def editar_pagamento_colaborador(request, pk):
     profiles=('rh', 'financeiro', 'gestor'),
 )
 def marcar_pagamento_como_pago(request, pk):
+    retorno = request.POST.get('next', request.GET.get('next', ''))
+    try:
+        destino = urlsplit(retorno)
+        retorno_valido = (
+            retorno.startswith('/') and not retorno.startswith('//')
+            and not destino.netloc and not destino.scheme and '\\' not in retorno
+            and destino.path in (reverse('programacao_vt'), reverse('lista_pagamentos_colaboradores'))
+        )
+    except ValueError:
+        retorno_valido = False
+    if not retorno_valido:
+        retorno = reverse('lista_pagamentos_colaboradores')
     pagamento = get_object_or_404(PagamentoColaborador, pk=pk)
     if pagamento.status == 'cancelado':
         messages.error(request, 'Este lançamento foi retirado da folha e não pode ser pago.')
@@ -829,21 +884,31 @@ def marcar_pagamento_como_pago(request, pk):
                         raise ValidationError('A situação deste pagamento mudou. Volte à folha e confira o lançamento.')
                     pagamento.status = 'pago'
                     pagamento.data_pagamento = timezone.localdate()
+                    pagamento.normalizar_datas_semanais()
+                    if pagamento.tipo in ('vale_transporte', 'ajuda_custo') and PagamentoColaborador.objects.filter(
+                        colaborador=pagamento.colaborador, tipo=pagamento.tipo,
+                        status='pago', data_pagamento=pagamento.data_pagamento,
+                    ).exclude(pk=pagamento.pk).exists():
+                        raise ValidationError('Já existe um pagamento deste benefício para esta pessoa na semana da baixa. Confira o histórico antes de confirmar.')
                     pagamento.save(update_fields=['status', 'data_pagamento', 'atualizado_em'])
                     vincular_comprovante(comprovante, pagamento, request.user)
                     _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
             except ValidationError as exc:
                 erro = ' '.join(exc.messages)
+                pagamento.refresh_from_db()
+            except IntegrityError:
+                erro = 'Este pagamento ou a próxima semana foi alterado durante a confirmação. Atualize a página e confira os lançamentos.'
+                pagamento.refresh_from_db()
             else:
                 mensagem = 'Pagamento confirmado com comprovante.'
                 if recorrencia_criada:
                     mensagem += ' A próxima semana foi gerada automaticamente.'
                 messages.success(request, mensagem)
-                return redirect('lista_pagamentos_colaboradores')
+                return redirect(retorno)
         return render(request, 'admissional/confirmar_pagamento.html', {
-            'pagamento': pagamento, 'erro': erro, 'hoje': timezone.localdate(),
+            'pagamento': pagamento, 'erro': erro, 'hoje': timezone.localdate(), 'retorno': retorno,
         })
-    return redirect('lista_pagamentos_colaboradores')
+    return redirect(retorno)
 
 
 @login_required
@@ -871,6 +936,37 @@ def retirar_pagamento_folha(request, pk):
         messages.success(request, 'Lançamento retirado da folha sem apagar o histórico.')
     return redirect('lista_pagamentos_colaboradores')
 
+def _salvar_form_colaborador(form, request):
+    instance = form.instance
+    original_pk, original_adding = instance.pk, instance._state.adding
+    arquivos = {
+        name: (getattr(instance, name).name, getattr(instance, name)._committed)
+        for name in form.fields if name.startswith('anexo_')
+    }
+    try:
+        # O rollback deve terminar antes de renderizar o formulario e consultar
+        # dados usados pelos menus. Tambem desfaz o INSERT se a copia S3 falhar.
+        with transaction.atomic():
+            for name in arquivos:
+                assign_direct_upload(instance, request, name)
+            return form.save()
+    except (ValidationError, OSError, BotoCoreError, ClientError) as exc:
+        # Django nao restaura o objeto em memoria ao desfazer a transacao.
+        instance.pk, instance._state.adding = original_pk, original_adding
+        for name, (filename, committed) in arquivos.items():
+            field_file = getattr(instance, name)
+            field_file.name, field_file._committed = filename, committed
+        if isinstance(exc, ValidationError):
+            form.add_error(None, exc.messages[0])
+        else:
+            logging.getLogger(__name__).error(
+                'Falha no armazenamento de anexos do colaborador (%s)',
+                type(exc).__name__,
+            )
+            form.add_error(None, 'Nao foi possivel armazenar os anexos. Tente novamente.')
+        return None
+
+
 @login_required
 @access_required(permission='admissional.add_colaborador', profiles=('rh', 'sesmet'))
 @transaction.atomic
@@ -878,20 +974,8 @@ def novo_colaborador(request):
     if request.method == 'POST':
         form = ColaboradorForm(request.POST, request.FILES, require_document=True)
         if form.is_valid():
-            try:
-                for field_name in form.fields:
-                    if field_name.startswith('anexo_'):
-                        assign_direct_upload(form.instance, request, field_name)
-                colaborador = form.save()
-            except ValidationError as exc:
-                transaction.set_rollback(True)
-                form.add_error(None, exc.messages[0])
-                return render(request, 'admissional/form_colaborador.html', {
-                    'form': form, 'acao': 'Novo', 'exige_documento': True,
-                })
-            except OSError:
-                transaction.set_rollback(True)
-                form.add_error(None, 'Nao foi possivel armazenar os anexos. Tente novamente.')
+            colaborador = _salvar_form_colaborador(form, request)
+            if colaborador is None:
                 return render(request, 'admissional/form_colaborador.html', {
                     'form': form, 'acao': 'Novo', 'exige_documento': True,
                 })
@@ -912,18 +996,7 @@ def editar_colaborador(request, pk):
     if request.method == 'POST':
         form = ColaboradorForm(request.POST, request.FILES, instance=colaborador)
         if form.is_valid():
-            try:
-                for field_name in form.fields:
-                    if field_name.startswith('anexo_'):
-                        assign_direct_upload(form.instance, request, field_name)
-                form.save()
-            except ValidationError as exc:
-                transaction.set_rollback(True)
-                form.add_error(None, exc.messages[0])
-                return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Editar'})
-            except OSError:
-                transaction.set_rollback(True)
-                form.add_error(None, 'Nao foi possivel armazenar os anexos. Tente novamente.')
+            if _salvar_form_colaborador(form, request) is None:
                 return render(request, 'admissional/form_colaborador.html', {'form': form, 'acao': 'Editar'})
             messages.success(request, f'Colaborador {colaborador.nome} atualizado com sucesso!')
             return redirect('lista_colaboradores')

@@ -2,10 +2,12 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 
 from .models import Colaborador, PagamentoColaborador
+from core.models import ArquivoImportado
 
 
 class HistoricoValeTransporteTests(TestCase):
@@ -77,3 +79,18 @@ class HistoricoValeTransporteTests(TestCase):
         response = self.client.get(reverse('lista_colaboradores'))
         self.assertContains(response, self.url)
         self.assertContains(response, 'Ver VTs pagos')
+
+    def test_historico_exibe_todos_os_comprovantes_do_vt(self):
+        pagamento = self.criar_pagamento()
+        arquivos = [ArquivoImportado.objects.create(
+            categoria='pagamento_colaborador', nome_original=f'comprovante-{n}.pdf',
+            arquivo=f'teste/comprovante-{n}.pdf', sha256=str(n) * 64,
+            tamanho=100, mime_type='application/pdf', status='vinculado',
+            importado_por=self.usuario, content_type=ContentType.objects.get_for_model(pagamento),
+            object_id=pagamento.pk,
+        ) for n in (1, 2)]
+        self.client.force_login(self.usuario)
+        response = self.client.get(self.url)
+        for arquivo in arquivos:
+            self.assertContains(response, arquivo.nome_original)
+            self.assertContains(response, reverse('baixar_arquivo_importado', args=[arquivo.pk]))

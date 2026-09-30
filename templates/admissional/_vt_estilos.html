@@ -72,6 +72,9 @@
   .vt-calculation-warning, .vt-saved-value { grid-column:1/-1; margin:7px 0 0; font-size:.7rem; line-height:1.5; color:var(--text-secondary); }
   .vt-calculation-warning { color:var(--text-primary); }
   .vt-save:hover { background:#1c3869; }
+  .vt-pagination { display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; padding:16px; border-top:1px solid var(--border); font-size:.78rem; }
+  .vt-pagination button:disabled { opacity:.45; cursor:default; }
+  .vt-person[data-dirty="true"] { border-color:var(--brand); }
   .vt-value-note { display:block; min-height:16px; font-size:.7rem; color:var(--text-muted); margin-top:7px; }
   .vt-form-error { font-size:.72rem; color:var(--danger); margin-top:8px; }
   .vt-payment-link { display:inline-block; font-size:.65rem; margin-top:10px; }

@@ -31,6 +31,7 @@ class DocumentoFinanceiro(models.Model):
         ('aprovado_lancamento', 'Aprovado para Lançamento'),
         ('lancado', 'Lançado no ERP'),
         ('arquivado', 'Arquivado'),
+        ('cancelado', 'Cancelado'),
     ]
 
     tipo = models.CharField(max_length=20, choices=TIPOS, verbose_name='Tipo de Documento')
@@ -46,6 +47,12 @@ class DocumentoFinanceiro(models.Model):
     data_vencimento = models.DateField(null=True, blank=True, verbose_name='Data de Vencimento')
     status = models.CharField(max_length=30, choices=STATUS, default='recebido')
     motivo_rejeicao = models.TextField(blank=True, verbose_name='Motivo da Rejeição')
+    motivo_cancelamento = models.TextField(blank=True, verbose_name='Motivo do cancelamento')
+    cancelado_em = models.DateTimeField(null=True, blank=True)
+    cancelado_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='documentos_financeiros_cancelados',
+    )
     recebido_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                       related_name='documentos_recebidos')
     arquivo_pdf = models.BinaryField(null=True, blank=True, editable=True, verbose_name='Nota Fiscal PDF (Legado DB)')
@@ -63,6 +70,14 @@ class DocumentoFinanceiro(models.Model):
 
     def __str__(self):
         return f"[{self.get_tipo_display()}] {self.numero_documento} — R$ {self.valor} ({self.get_status_display()})"
+
+    @property
+    def pode_cancelar(self):
+        return (
+            self.status not in ('cancelado', 'arquivado')
+            and self.situacao_pagamento != 'pago'
+            and not self.lancamentos.filter(status__in=('validado', 'finalizado')).exists()
+        )
 
 
 class AuditoriaItem(models.Model):
@@ -111,6 +126,7 @@ class LancamentoERP(models.Model):
         ('validado', 'Validado'),
         ('rejeitado', 'Rejeitado — Corrigir'),
         ('finalizado', 'Finalizado no ERP'),
+        ('cancelado', 'Cancelado'),
     ]
 
     documento = models.ForeignKey(DocumentoFinanceiro, on_delete=models.CASCADE,

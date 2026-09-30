@@ -53,10 +53,11 @@
   <form method="get" action="#pagamentos" class="gateway-actions" style="margin-bottom:16px;">
     <label for="filtro_pagamento">Pagamento</label>
     <select id="filtro_pagamento" name="pagamento" class="form-control">
-      <option value="">Todos</option>
+      <option value="">Todos os não cancelados</option>
       {% for valor, rotulo in situacoes_pagamento %}
       <option value="{{ valor }}" {% if filtro_pagamento == valor %}selected{% endif %}>{{ rotulo }}</option>
       {% endfor %}
+      <option value="cancelado" {% if filtro_pagamento == 'cancelado' %}selected{% endif %}>Cancelados</option>
     </select>
     <button type="submit" class="btn btn-mod6">Filtrar</button>
   </form>
@@ -69,7 +70,7 @@
         <td>{{ doc.numero_documento }}<br>{{ doc.descricao }}</td>
         <td>R$ {{ doc.valor|floatformat:2 }}</td>
         <td>{{ doc.data_vencimento|date:"d/m/Y"|default:"—" }}</td>
-        <td><span class="badge {% if doc.situacao_pagamento == 'pago' %}badge-success{% elif doc.situacao_pagamento == 'a_pagar' %}badge-warning{% else %}badge-info{% endif %}">{{ doc.get_situacao_pagamento_display }}</span></td>
+        <td>{% if doc.status == 'cancelado' %}<span class="badge badge-danger">Cancelado</span>{% else %}<span class="badge {% if doc.situacao_pagamento == 'pago' %}badge-success{% elif doc.situacao_pagamento == 'a_pagar' %}badge-warning{% else %}badge-info{% endif %}">{{ doc.get_situacao_pagamento_display }}</span>{% endif %}</td>
         <td>{{ doc.data_pagamento|date:"d/m/Y"|default:"—" }}</td>
         <td><a href="{% url 'detalhe_documento' doc.pk %}" class="btn btn-sm btn-outline">Abrir</a></td>
       </tr>
@@ -119,7 +120,8 @@
 <div class="card" style="margin-top:20px;border-left:4px solid var(--mod6-blue);">
   <div class="card-header" style="gap:12px;flex-wrap:wrap;">
     <div>
-      <div class="card-title">Folha de pagamento do mês</div>
+      <div class="card-title">Folha de pagamento atual</div>
+      <p class="form-help">VT e ajuda de custo da semana atual; demais pagamentos do mês atual.</p>
       <div style="font-size:.8rem;color:var(--text-muted);">{{ folha_mes_quantidade }} pagamento(s) · Benefícios: R$ {{ folha_mes_beneficios|floatformat:2 }}</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -133,6 +135,11 @@
     <div class="kpi-card"><div class="kpi-label">Total da folha</div><div class="kpi-value">R$ {{ folha_mes_total|floatformat:2 }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Pago</div><div class="kpi-value">R$ {{ folha_mes_pago|floatformat:2 }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Pendente</div><div class="kpi-value">R$ {{ folha_mes_pendente|floatformat:2 }}</div></div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title">Pagamentos atrasados</div>
+    <p>{{ folha_atrasada_quantidade }} pagamento(s) de períodos encerrados · <strong>R$ {{ folha_atrasada_total|floatformat:2 }}</strong></p>
+    <a href="{% url 'lista_pagamentos_colaboradores' %}?visao=atrasados" class="btn btn-outline">Ver pagamentos atrasados</a>
   </div>
 </div>
 </section>

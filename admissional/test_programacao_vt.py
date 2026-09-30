@@ -46,7 +46,7 @@ class ProgramacaoVTTest(TestCase):
     def test_dia_28_aparece_sem_baixa_anterior_e_get_nao_cria_pagamentos(self):
         anterior = self.pagamento()
         with patch('admissional.views_vt.timezone.localdate', return_value=date(2026, 9, 26)):
-            resposta = self.client.get(self.url)
+            resposta = self.client.get(self.url, {'segunda': '2026-09-28'})
         self.assertContains(resposta, '28/09/2026')
         self.assertContains(resposta, 'Ana VT')
         self.assertEqual(resposta.context['linhas'][0]['situacao'], 'revisar')
@@ -112,6 +112,36 @@ class ProgramacaoVTTest(TestCase):
         self.assertIsNone(linhas_semana(date(2026, 9, 28))[0]['dias'])
         PresencaDiaria.objects.create(colaborador=self.pessoa, data=date(2026, 9, 22), status='falta')
         self.assertEqual(linhas_semana(date(2026, 9, 28))[0]['dias'], 0)
+
+    def test_resumo_do_formulario_vt_usa_semana_anterior(self):
+        PresencaDiaria.objects.create(colaborador=self.pessoa, data=date(2026, 9, 21), status='presente')
+        PresencaDiaria.objects.create(colaborador=self.pessoa, data=date(2026, 9, 28), status='falta')
+        url = reverse('resumo_colaborador_pagamento', args=[self.pessoa.pk])
+        filtros = {'data_inicio': '2026-09-28', 'data_fim': '2026-10-04'}
+        for tipo in ('vale_transporte', 'ajuda_custo'):
+            response = self.client.get(url, {**filtros, 'tipo': tipo})
+            self.assertEqual(response.json()['dias_trabalhados'], 1)
+            self.assertEqual(response.json()['periodo'], '21/09/2026 a 27/09/2026')
+        response = self.client.get(url, {**filtros, 'tipo': 'salario'})
+        self.assertEqual(response.json()['dias_trabalhados'], 0)
+
+    def test_resumo_sem_presenca_definida_nao_inventa_zero(self):
+        PresencaDiaria.objects.create(colaborador=self.pessoa, data=date(2026, 9, 21), status='indefinido')
+        response = self.client.get(reverse('resumo_colaborador_pagamento', args=[self.pessoa.pk]), {
+            'tipo': 'vale_transporte', 'data_inicio': '2026-09-28', 'data_fim': '2026-10-04',
+        })
+        self.assertIsNone(response.json()['dias_trabalhados'])
+
+    def test_datas_do_formulario_vt_sao_validas_para_input_date(self):
+        with patch('admissional.views.timezone.localdate', return_value=date(2026, 9, 26)):
+            response = self.client.get(reverse('novo_pagamento_colaborador'), {
+                'colaborador': self.pessoa.pk, 'tipo': 'vale_transporte',
+            })
+        for campo, valor in (('competencia', '2026-09-21'), ('competencia_fim', '2026-09-27'), ('data_vencimento', '2026-09-21')):
+            self.assertIn(f'value="{valor}"', str(response.context['form'][campo]))
+        pagamento = self.pagamento(status='pago', data_pagamento=date(2026, 9, 21))
+        response = self.client.get(reverse('editar_pagamento_colaborador', args=[pagamento.pk]))
+        self.assertIn('value="2026-09-21"', str(response.context['form']['data_pagamento']))
 
     def test_calendario_distingue_falta_atestado_e_sem_registro(self):
         PresencaDiaria.objects.create(colaborador=self.pessoa, data=date(2026, 9, 21), status='falta')

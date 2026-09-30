@@ -59,6 +59,7 @@
 
 /* ── TEMA ESCURO ── */
 body.dark-theme {
+  color-scheme: dark;
   --bg-base:       #0F172A;
   --bg-surface:    #0B1120;
   --bg-card:       #1E293B;
@@ -77,6 +78,9 @@ body.dark-theme {
 body.dark-theme .topbar {
   background: rgba(30, 41, 59, 0.8);
 }
+
+body.dark-theme .badge-success { color: #86efac; }
+body.dark-theme .badge-info { color: #7dd3fc; }
 
 /* ── RESET & BASE ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

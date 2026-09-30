@@ -1,5 +1,6 @@
 from datetime import date
 from hashlib import sha256
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core import signing
@@ -16,6 +17,47 @@ from core.views_upload import _can_upload
 
 
 class ComprovantesPagamentoTest(TestCase):
+    def test_confirmacao_retorna_para_a_semana_de_origem(self):
+        self.client.post(reverse('novo_pagamento_colaborador'), self.dados)
+        pagamento = PagamentoColaborador.objects.get()
+        retorno = reverse('programacao_vt') + '?segunda=2026-09-28'
+        url = reverse('marcar_pagamento_como_pago', args=[pagamento.pk])
+        response = self.client.get(url, {'next': retorno})
+        self.assertEqual(response.context['retorno'], retorno)
+        response = self.client.post(url, {
+            'next': retorno, 'direct_upload_comprovante_folha': self.token(),
+        })
+        self.assertRedirects(response, retorno, fetch_redirect_response=False)
+
+    def test_retorno_de_confirmacao_nao_aceita_outro_site(self):
+        self.client.post(reverse('novo_pagamento_colaborador'), self.dados)
+        pagamento = PagamentoColaborador.objects.get()
+        url = reverse('marcar_pagamento_como_pago', args=[pagamento.pk])
+        for retorno in ('https://example.com/', '//example.com/', '/\\example.com/', 'http://['):
+            with self.subTest(retorno=retorno):
+                response = self.client.get(url, {'next': retorno})
+                self.assertEqual(response.context['retorno'], reverse('lista_pagamentos_colaboradores'))
+
+    def test_baixa_de_vt_conflitante_mostra_erro_sem_confirmar_pagamento(self):
+        PagamentoColaborador.objects.create(
+            colaborador=self.colaborador, tipo='vale_transporte', valor=80,
+            competencia=date(2026, 9, 21), data_vencimento=date(2026, 9, 21),
+            status='pago', data_pagamento=date(2026, 9, 28),
+        )
+        pendente = PagamentoColaborador.objects.create(
+            colaborador=self.colaborador, tipo='vale_transporte', valor=90,
+            competencia=date(2026, 9, 28), data_vencimento=date(2026, 9, 28),
+        )
+        with patch('admissional.views.timezone.localdate', return_value=date(2026, 9, 28)):
+            response = self.client.post(reverse('marcar_pagamento_como_pago', args=[pendente.pk]), {
+                'direct_upload_comprovante_folha': self.token(),
+            })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Já existe')
+        pendente.refresh_from_db()
+        self.assertEqual(pendente.status, 'pendente')
+        self.assertFalse(pendente.arquivos_importados.exists())
+
     def test_confirmar_exige_comprovante_e_vincula_ao_pagamento(self):
         self.client.post(reverse('novo_pagamento_colaborador'), self.dados)
         pagamento = PagamentoColaborador.objects.get()

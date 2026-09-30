@@ -660,6 +660,8 @@ def editar_requisicao(request, pk):
 
             if requisicao.comprovante_pagamento:
                 requisicao.status = 'aprovada'
+            else:
+                requisicao.status = 'aguardando_adriana'
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc))
             return render_form(itens_form)
@@ -705,15 +707,18 @@ def editar_requisicao(request, pk):
                     obs='Criado automaticamente via anexo de comprovante de pagamento na requisição (Medida Provisória).'
                 )
 
+        from core.models import AprovacaoRegistro
+        # Encerra a fila anterior sem apagar as decisões já registradas.
+        # Também vale para a conclusão por comprovante, que não abre nova fila.
+        AprovacaoRegistro.objects.filter(
+            content_type__app_label='compras',
+            content_type__model='requisicaocompra',
+            object_id=requisicao.pk,
+            status='pendente',
+        ).update(status='cancelado')
+
         if not medida_provisoria:
-            from core.models import AprovacaoRegistro
             from core.approval_workflow import criar_fluxo_compras
-            # Remove aprovacao antiga e cria nova
-            AprovacaoRegistro.objects.filter(
-                content_type__app_label='compras',
-                content_type__model='requisicaocompra',
-                object_id=requisicao.pk
-            ).delete()
             
             descricao = (
                 f'Unidade: {requisicao.unidade_destino}\n'
@@ -728,9 +733,10 @@ def editar_requisicao(request, pk):
                     solicitado_por=request.user,
                 )
             except ValidationError as exc:
-                transaction.set_rollback(True)
                 messages.error(request, '; '.join(exc.messages))
-                return render_form(itens_form)
+                response = render_form(itens_form)
+                transaction.set_rollback(True)
+                return response
             messages.success(
                 request,
                 f'Requisição {requisicao.numero} atualizada e reenviada para aprovação.'

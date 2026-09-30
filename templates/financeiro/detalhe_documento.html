@@ -9,12 +9,21 @@
   <div class="mod-desc">{{ documento.descricao }}</div>
 </div>
 
+{% if documento.status == 'cancelado' %}
+<div class="card" style="margin-bottom:20px;border-left:4px solid var(--danger);">
+  <div class="card-title">Documento cancelado</div>
+  <p>Cancelado em {{ documento.cancelado_em|date:"d/m/Y H:i" }} por {% if documento.cancelado_por %}{{ documento.cancelado_por.get_full_name|default:documento.cancelado_por.username }}{% else %}Usuário removido{% endif %}.</p>
+  <p><strong>Motivo:</strong> {{ documento.motivo_cancelamento|linebreaksbr }}</p>
+  <p class="form-help">Fora das pendências de pagamento. O arquivo e o histórico continuam disponíveis para consulta.</p>
+</div>
+{% endif %}
+
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
   <!-- Dados do Documento -->
   <div class="card">
     <div class="card-header">
       <div class="card-title">📄 Informações</div>
-      <span class="badge {% if documento.status == 'arquivado' %}badge-success{% elif documento.status == 'informacoes_incorretas' %}badge-danger{% elif documento.status == 'aprovado_lancamento' %}badge-success{% elif documento.status == 'lancado' %}badge-info{% else %}badge-warning{% endif %}">
+      <span class="badge {% if documento.status == 'arquivado' %}badge-success{% elif documento.status == 'informacoes_incorretas' or documento.status == 'cancelado' %}badge-danger{% elif documento.status == 'aprovado_lancamento' %}badge-success{% elif documento.status == 'lancado' %}badge-info{% else %}badge-warning{% endif %}">
         {{ documento.get_status_display }}
       </span>
     </div>
@@ -59,7 +68,7 @@
     </div>
     {% endif %}
 
-    {% if documento.arquivo_pdf %}
+    {% if documento.arquivo_pdf or documento.arquivo %}
     <div style="margin-top:14px;">
       <a href="{% url 'download_pdf_financeiro' documento.pk %}" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;">📄 Visualizar Nota Fiscal (PDF)</a>
     </div>
@@ -69,7 +78,7 @@
   <!-- Ações -->
   <div style="display:flex;flex-direction:column;gap:16px;">
     <div class="card">
-      <div class="card-title">Pagamento: {{ documento.get_situacao_pagamento_display }}</div>
+      <div class="card-title">{% if documento.status == 'cancelado' %}Pagamento suspenso — documento cancelado{% else %}Pagamento: {{ documento.get_situacao_pagamento_display }}{% endif %}</div>
       {% if documento.data_pagamento %}<p>Pago em {{ documento.data_pagamento|date:"d/m/Y" }}</p>{% endif %}
       {% if pode_alterar_pagamento %}
       <form method="post" action="{% url 'atualizar_pagamento_documento' documento.pk %}" style="margin-top:16px;">
@@ -110,6 +119,9 @@
     </div>
     {% endif %}
 
+    {% if pode_cancelar %}
+    <a href="{% url 'cancelar_documento' documento.pk %}" class="btn btn-outline" style="text-align:center;color:var(--danger);">Cancelar documento</a>
+    {% endif %}
     <a href="{% url 'painel_financeiro' %}" class="btn btn-outline" style="text-align:center;">← Voltar ao Painel</a>
   </div>
 </div>

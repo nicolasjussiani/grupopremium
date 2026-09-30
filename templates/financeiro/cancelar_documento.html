@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Cancelar documento — Financeiro / Fiscal{% endblock %}
+{% block nav_financeiro %}active{% endblock %}
+{% block topbar_title %}Cancelar documento{% endblock %}
+{% block content %}
+<div class="card" style="max-width:680px;margin:20px auto;">
+  <h1 class="card-title">Cancelar documento</h1>
+  <p><strong>{{ documento.get_tipo_display }} {{ documento.numero_documento }}</strong><br>{{ documento.descricao }}</p>
+  <p>Valor: <strong>R$ {{ documento.valor|floatformat:2 }}</strong></p>
+  <p>Este documento sairá das pendências. Os lançamentos em aberto vinculados a ele também serão cancelados.</p>
+  <p>O arquivo e o histórico serão mantidos. Esta ação registra um cancelamento interno no sistema; não cancela uma nota fiscal no órgão emissor.</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="form-group">
+      <label for="{{ form.motivo.id_for_label }}">{{ form.motivo.label }}</label>
+      {{ form.motivo }}
+      {{ form.motivo.errors }}
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px;">
+      <a href="{% url 'detalhe_documento' documento.pk %}" class="btn btn-outline">Voltar sem cancelar</a>
+      <button type="submit" class="btn btn-danger">Confirmar cancelamento</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -28,6 +28,19 @@ Substitua `SECRET_KEY` no `.env` pelo valor gerado. Em desenvolvimento,
 configure PostgreSQL, hosts/origens HTTPS e armazenamento S3. Nunca reutilize
 valores presentes no historico antigo do repositorio.
 
+## Consulta de entregas
+
+O perfil **Entregas — somente consulta** entra diretamente em `/entregas/`.
+Exibe materiais de RCs com status `aprovada`, agrupados e filtráveis por unidade,
+com quantidade, unidade de medida e situação do item. Itens cancelados não aparecem.
+A situação de compra externa continua visível: aprovação não comprova disponibilidade
+física para entrega. Valores, justificativas e anexos não são exibidos.
+
+Após publicar, execute `python manage.py migrate`. Em **Usuários > Novo**, cadastre
+Eric com usuário e senha e selecione esse perfil; o e-mail pode ficar vazio.
+Não marque acessos adicionais. O perfil bloqueia os demais módulos, APIs e alterações,
+mesmo quando a conta possui grupos antigos. A conta não é criada pela migração.
+
 ## Validacao
 
 ```powershell

@@ -1,6 +1,15 @@
 from django import forms
 
 
+class CancelamentoDocumentoForm(forms.Form):
+    motivo = forms.CharField(
+        label='Motivo do cancelamento', max_length=2000,
+        error_messages={'required': 'Informe o motivo do cancelamento.'},
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3,
+                                    'placeholder': 'Ex.: documento duplicado ou cadastrado por engano.'}),
+    )
+
+
 class PagamentoDocumentoForm(forms.Form):
     situacao_pagamento = forms.ChoiceField(
         label='Situação do pagamento',

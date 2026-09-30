@@ -22,7 +22,7 @@
       <button type="button" class="vt-filter" data-vt-filter="pago" aria-pressed="false">Pagos <span>{{ resumo_vt.pago }}</span></button>
     </div>
   </div>
-  <div class="vt-list-caption"><span data-vt-count aria-live="polite">{{ linhas|length }} pessoa(s) nesta lista</span><span>As alterações entram nos totais depois de salvar.</span></div>
+  <div class="vt-list-caption"><span data-vt-count aria-live="polite">{{ linhas|length }} pessoa(s) nesta lista</span><span>Salve a decisão de cada pessoa antes de sair.</span></div>
   <div class="vt-people">
     {% for linha in linhas %}
     <article class="vt-person" id="vt-pessoa-{{ linha.pessoa.pk }}" data-vt-person data-status="{{ linha.situacao }}" data-benefit="{{ linha.tipo_beneficio }}" data-search="{{ linha.pessoa.nome }} {{ linha.pessoa.unidade }} {{ linha.pessoa.pk }} {{ linha.pessoa.tipo_contrato }} {{ linha.nome_beneficio }}">
@@ -57,12 +57,18 @@
         </form>
       {% else %}<div class="vt-section-label">{% if linha.situacao == 'pago' %}PAGAMENTO REALIZADO{% else %}DECISÃO DA SEMANA{% endif %}</div><p class="vt-readonly">{% if linha.pagamento and linha.situacao != 'nao' %}R$ {{ linha.pagamento.valor|floatformat:2 }}{% else %}Somente consulta{% endif %}</p>{% endif %}
       {% if linha.situacao == 'pago' and linha.calculo_salvo %}<p class="vt-saved-value">Cálculo salvo: R$ {{ linha.calculo_salvo.valor_semana_completa|floatformat:2 }} ÷ 7 × {{ linha.calculo_salvo.dias_presentes }} dia(s) presente(s).</p>{% endif %}
-      {% if linha.situacao == 'pagar' and pode_editar %}<a class="vt-payment-link" href="{% url 'marcar_pagamento_como_pago' linha.pagamento.pk %}">Confirmar pagamento com comprovante →</a>{% endif %}
+      {% if linha.situacao == 'pagar' and pode_editar %}<a class="vt-payment-link" href="{% url 'marcar_pagamento_como_pago' linha.pagamento.pk %}?next={{ request.get_full_path|urlencode }}">Confirmar pagamento com comprovante →</a>{% endif %}
+      {% if linha.tipo_beneficio == 'vale_transporte' %}<a class="vt-payment-link" href="{% url 'historico_vt_colaborador' linha.pessoa.pk %}">Ver histórico de VT e comprovantes →</a>{% endif %}
       </div>
     </article>
     {% empty %}<div class="vt-empty"><strong>Nenhum colaborador nesta lista</strong><p>Confira a semana e os filtros de pessoa, unidade ou benefício.</p><a href="{% url 'visao_beneficios_colaboradores' %}">Ver outros benefícios →</a></div>{% endfor %}
   </div>
   <div class="vt-empty" data-vt-empty hidden><strong>Nenhuma pessoa encontrada</strong><p>Tente outro nome ou selecione “Todos”.</p><button type="button" class="vt-filter" data-vt-reset>Limpar busca e situação</button></div>
+  <nav class="vt-pagination" data-vt-pagination hidden aria-label="Páginas da revisão semanal">
+    <button type="button" class="vt-filter" data-vt-previous>← Anterior</button>
+    <span data-vt-page aria-live="polite"></span>
+    <button type="button" class="vt-filter" data-vt-next>Próxima →</button>
+  </nav>
   <footer class="vt-footer">✓ Presença informada &nbsp; F Falta &nbsp; A Atestado/licença &nbsp; ○ Folga &nbsp; – Sem informação</footer>
 </section>
 {% include 'admissional/_vt_script.html' %}

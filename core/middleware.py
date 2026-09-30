@@ -1,7 +1,10 @@
 import logging
+import re
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 
@@ -52,6 +55,17 @@ class AcessoModuloMiddleware(MiddlewareMixin):
                 perfil_obj.ultimo_acesso = agora
 
         path = request.path_info
+        # Este perfil continua restrito mesmo com grupos antigos associados.
+        if perfil == 'entregas_consulta':
+            consulta = reverse('consulta_entregas')
+            if request.method in {'GET', 'HEAD'}:
+                if path in {reverse('dashboard'), reverse('login')}:
+                    return redirect('consulta_entregas')
+                if path in {consulta, reverse('csrf_token_json')} or path.startswith('/static/'):
+                    return None
+            if path == reverse('logout') and request.method == 'POST':
+                return None
+            raise PermissionDenied('Este acesso permite apenas consultar materiais liberados para entrega.')
         if path.startswith(self.ROTAS_LIVRES):
             return None
 
@@ -59,7 +73,9 @@ class AcessoModuloMiddleware(MiddlewareMixin):
             return None
 
         acesso_folha_financeiro = (
-            path.startswith('/admissional/colaboradores/pagamentos/')
+            (path.startswith('/admissional/colaboradores/pagamentos/') or re.fullmatch(
+                r'/admissional/colaboradores/[0-9]+/pagamentos/vale-transporte/', path,
+            ))
             and (
                 perfil == 'financeiro'
                 or request.user.has_perm('admissional.view_pagamentocolaborador')

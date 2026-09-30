@@ -6,13 +6,14 @@
 {% block content %}
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
   <h1 class="mod-title">🚌 VT e ajuda de custo</h1>
-  <div class="mod-desc">Visão exclusiva dos benefícios no período selecionado.</div>
+  <div class="mod-desc">{% if periodo_atual %}VT e ajuda de custo da semana atual; auxílio telefonia do mês atual.{% else %}Consulta histórica dos benefícios no período selecionado.{% endif %}</div>
   <a href="{% url 'programacao_vt' %}" class="btn btn-mod6" style="margin-top:14px;">Programar VT e ajuda de custo</a>
 </div>
 
 <div class="kpi-grid" style="margin-bottom:20px;">
   <div class="kpi-card"><div class="kpi-label">Vale-transporte</div><div class="kpi-value">R$ {{ total_vt|floatformat:2 }}</div></div>
   <div class="kpi-card"><div class="kpi-label">Ajuda de custo</div><div class="kpi-value">R$ {{ total_ajuda|floatformat:2 }}</div></div>
+  <div class="kpi-card"><div class="kpi-label">Auxílio telefonia</div><div class="kpi-value">R$ {{ total_telefonia|floatformat:2 }}</div></div>
   <div class="kpi-card"><div class="kpi-label">Total do período</div><div class="kpi-value">R$ {{ total_geral|floatformat:2 }}</div></div>
   <div class="kpi-card"><div class="kpi-label">Pessoas</div><div class="kpi-value">{{ total_pessoas }}</div></div>
 </div>
@@ -23,12 +24,12 @@
     <div style="min-width:180px;"><label for="unidade-beneficio">Unidade</label><select id="unidade-beneficio" class="form-control" name="unidade"><option value="">Todas</option>{% for unidade in unidades %}<option value="{{ unidade }}" {% if unidade_filter == unidade %}selected{% endif %}>{{ unidade }}</option>{% endfor %}</select></div>
     <div><label for="beneficio-inicio">Data inicial</label><input id="beneficio-inicio" class="form-control" type="date" name="data_inicio" value="{{ data_inicio|date:'Y-m-d' }}"></div>
     <div><label for="beneficio-fim">Data final</label><input id="beneficio-fim" class="form-control" type="date" name="data_fim" value="{{ data_fim|date:'Y-m-d' }}"></div>
-    <button class="btn btn-mod6" type="submit">Filtrar</button>
-    <a href="{% url 'visao_beneficios_colaboradores' %}" class="btn">Mês atual</a>
+    <button class="btn btn-mod6" type="submit">Consultar período</button>
+    <a href="{% url 'visao_beneficios_colaboradores' %}" class="btn">Período atual</a>
   </form>
 </div>
 
-<div style="margin-bottom:20px;"><a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn btn-outline">← Voltar para folha</a></div>
+<div style="margin-bottom:20px;display:flex;gap:10px;flex-wrap:wrap;"><a href="{% url 'lista_pagamentos_colaboradores' %}" class="btn btn-outline">← Voltar para folha</a><a href="{% url 'lista_pagamentos_colaboradores' %}?visao=atrasados" class="btn btn-outline">Pagamentos atrasados</a></div>
 {% if pagamentos %}
 <div class="table-wrap"><table>
   <thead><tr><th>Colaborador</th><th>Unidade</th><th>Benefício</th><th>Competência</th><th>Valor</th><th>Dias trabalhados</th><th>Chave PIX</th><th>Situação</th></tr></thead>

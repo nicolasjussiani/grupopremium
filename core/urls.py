@@ -3,8 +3,10 @@ from django.urls import path
 from core import views
 from core import views_aprovacao
 from core import views_upload
+from compras.views_entregas import consulta_entregas
 
 urlpatterns = [
+    path('entregas/', consulta_entregas, name='consulta_entregas'),
     path('', views.dashboard, name='dashboard'),
     path('ajuda/', views.ajuda, name='ajuda'),
     path('assistente/', views.assistente_erp, name='assistente_erp'),
