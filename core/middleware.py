@@ -28,6 +28,7 @@ class AcessoModuloMiddleware(MiddlewareMixin):
         '/manutencao/': {'sesmet', 'gestor', 'compras', 'rh'},
     }
     PERMISSOES_MODULO = {
+        '/manutencao/': 'manutencao.view_ativo',
         '/sesmet/': 'sesmet.view_equipamentoprotecao',
         '/financeiro/': 'financeiro.view_documentofinanceiro',
     }
