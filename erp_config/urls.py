@@ -3,14 +3,12 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from .temporary_migration import apply_purchase_migration
 
 handler403 = 'core.views.permission_denied_view'
 handler404 = 'core.views.page_not_found_view'
 handler500 = 'core.views.server_error_view'
 
 urlpatterns = [
-    path('admin/aplicar-migracao-compras/', apply_purchase_migration),
     path('admin/', admin.site.urls),
     path('', include('core.urls')),
     path('recrutamento/', include('recrutamento.urls')),
