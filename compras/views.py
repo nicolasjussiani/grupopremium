@@ -42,7 +42,7 @@ def painel_compras(request):
         status__in=['pendente', 'em_analise'])
     pedidos_abertos = PedidoCompra.objects.exclude(
         status__in=['concluido', 'reprovado'])
-    requisicoes_recentes = RequisicaoCompra.objects.prefetch_related('itens').all()[:10]
+    requisicoes_recentes = RequisicaoCompra.objects.prefetch_related('itens').all()
 
     return render(request, 'compras/painel.html', {
         'materiais_criticos': materiais_criticos,

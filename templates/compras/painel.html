@@ -2,6 +2,35 @@
 {% block title %}Compras / Almoxarifado — ERP Grupo PremiumBR{% endblock %}
 {% block nav_compras %}active{% endblock %}
 {% block topbar_title %}Processo de Compras{% endblock %}
+{% block extra_css %}
+<style>
+  .requisicoes-scroll {
+    max-height: 440px;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+    scrollbar-width: auto;
+    scrollbar-color: var(--brand) var(--bg-surface);
+  }
+  .requisicoes-scroll::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  .requisicoes-scroll::-webkit-scrollbar-thumb {
+    background: var(--brand);
+    border: 2px solid var(--bg-surface);
+    border-radius: 99px;
+  }
+  .requisicoes-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .requisicoes-scroll:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="module-banner mod-banner-5">
@@ -45,9 +74,9 @@
 {% if requisicoes_recentes %}
 <div class="card" style="margin-top:24px;border-top-color:var(--mod5-purple);">
   <div class="card-header">
-    <div class="card-title">📋 Requisições recentes</div>
+    <div class="card-title">📋 Requisições de compra</div>
   </div>
-  <div class="table-wrap" style="border:none;">
+  <div class="table-wrap requisicoes-scroll" style="border:none;" role="region" aria-label="Histórico de requisições de compra" tabindex="0">
     <table>
       <thead>
         <tr>
