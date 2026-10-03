@@ -27,6 +27,7 @@
   <div class="request-summary-item">
     <small>Status da requisição</small>
     <strong>{{ requisicao.get_status_display }}</strong>
+    <div style="margin-top:8px;">Entrega: {% include 'compras/status_entrega.html' with status_entrega=requisicao.status_entrega %}</div>
   </div>
   <div class="request-summary-item">
     <small>Unidade de destino</small>
@@ -98,6 +99,7 @@
           <th>Quantidade</th>
           <th>Estoque atual</th>
           <th>Status</th>
+          <th>Entrega</th>
           <th>Ações</th>
         </tr>
       </thead>
@@ -108,11 +110,15 @@
           <td>{{ item.quantidade_solicitada }} {{ item.material.get_unidade_medida_display }}</td>
           <td>{{ item.material.quantidade_estoque }} {{ item.material.get_unidade_medida_display }}</td>
           <td>
-            <span class="badge {% if item.status == 'atendido_interno' %}badge-success{% elif item.status == 'compra_externa' %}badge-primary{% else %}badge-warning{% endif %}">
+            <span class="badge {% if item.status == 'atendido_interno' or item.status == 'entregue' %}badge-success{% elif item.status == 'compra_externa' %}badge-primary{% else %}badge-warning{% endif %}">
               {{ item.get_status_display }}
             </span>
           </td>
           <td style="white-space:nowrap;">
+            {% include 'compras/status_entrega.html' with status_entrega=item.status_entrega %}
+          </td>
+          <td style="white-space:nowrap;">
+            {% include 'compras/confirmar_entrega.html' %}
             <a href="{% url 'detalhe_solicitacao' item.pk %}" class="btn btn-sm btn-outline">Detalhes</a>
             {% if item.status == 'compra_externa' and not item.tem_pedido_ativo %}
             <a href="{% url 'criar_pedido' item.pk %}" class="btn btn-sm btn-mod5">Criar pedido</a>
@@ -131,10 +137,12 @@
       <div style="margin:8px 0;color:var(--text-secondary);">
         {{ item.quantidade_solicitada }} {{ item.material.get_unidade_medida_display }}
       </div>
-      <span class="badge {% if item.status == 'atendido_interno' %}badge-success{% elif item.status == 'compra_externa' %}badge-primary{% else %}badge-warning{% endif %}">
+      <span class="badge {% if item.status == 'atendido_interno' or item.status == 'entregue' %}badge-success{% elif item.status == 'compra_externa' %}badge-primary{% else %}badge-warning{% endif %}">
         {{ item.get_status_display }}
       </span>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        {% include 'compras/status_entrega.html' with status_entrega=item.status_entrega %}
+        {% include 'compras/confirmar_entrega.html' %}
         <a href="{% url 'detalhe_solicitacao' item.pk %}" class="btn btn-sm btn-outline">Detalhes</a>
         {% if item.status == 'compra_externa' and not item.tem_pedido_ativo %}
         <a href="{% url 'criar_pedido' item.pk %}" class="btn btn-sm btn-mod5">Criar pedido</a>

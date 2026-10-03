@@ -16,6 +16,7 @@ from core.access import access_required, user_has_access
 from core.direct_uploads import assign_direct_upload
 from django.core.exceptions import ValidationError
 from django.views.decorators.http import require_POST
+from django.utils import timezone
 
 
 STATUS_COMPRA_REALIZADA = {
@@ -42,12 +43,17 @@ def painel_compras(request):
         status__in=['pendente', 'em_analise'])
     pedidos_abertos = PedidoCompra.objects.exclude(
         status__in=['concluido', 'reprovado'])
+    pedidos = PedidoCompra.objects.exclude(status='reprovado').select_related(
+        'solicitacao__material', 'solicitacao__requisicao',
+    ).prefetch_related('solicitacao__pedidos')
     requisicoes_recentes = RequisicaoCompra.objects.prefetch_related('itens').all()
 
     return render(request, 'compras/painel.html', {
         'materiais_criticos': materiais_criticos,
         'solicitacoes_pendentes': solicitacoes_pendentes,
         'pedidos_abertos': pedidos_abertos,
+        'pedidos': pedidos,
+        'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
         'requisicoes_recentes': requisicoes_recentes,
         'total_materiais': materiais_produtos.count(),
         'total_estoque_critico': materiais_criticos.count(),
@@ -93,6 +99,13 @@ def editar_equipamento_manutencao(request, pk):
     return render(request, 'compras/form_equipamento_manutencao.html', {
         'form': form, 'titulo': 'Editar equipamento', 'equipamento': equipamento,
     })
+
+
+def _pode_confirmar_entrega(usuario):
+    return user_has_access(
+        usuario, permission='compras.change_solicitacaomaterial',
+        profiles=('compras', 'gestor', 'estoque_compras'),
+    )
 
 
 @login_required
@@ -414,6 +427,7 @@ def detalhe_requisicao(request, pk):
     )
     itens = list(requisicao.itens.all())
     for item in itens:
+        item.requisicao = requisicao
         item.tem_pedido_ativo = any(
             pedido.status != 'reprovado' for pedido in item.pedidos.all()
         )
@@ -424,18 +438,58 @@ def detalhe_requisicao(request, pk):
         'total_itens': len(itens) + requisicao.manutencoes.count(),
         'total_estoque': sum(item.status == 'atendido_interno' for item in itens),
         'total_compra': sum(item.status == 'compra_externa' for item in itens),
+        'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
     })
 
 
 @login_required
 def detalhe_solicitacao(request, pk):
-    sol = get_object_or_404(SolicitacaoMaterial, pk=pk)
+    sol = get_object_or_404(
+        SolicitacaoMaterial.objects.select_related('material', 'requisicao').prefetch_related('pedidos'),
+        pk=pk,
+    )
     pedidos = sol.pedidos.all()
     return render(request, 'compras/detalhe_solicitacao.html', {
         'solicitacao': sol,
         'pedidos': pedidos,
         'tem_pedido_ativo': pedidos.exclude(status='reprovado').exists(),
+        'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
     })
+
+
+@login_required
+@require_POST
+@access_required(
+    permission='compras.change_solicitacaomaterial',
+    profiles=('compras', 'gestor', 'estoque_compras'),
+)
+@transaction.atomic
+def confirmar_entrega(request, pk):
+    # Mesma ordem de bloqueio do fluxo de aprovação: pedido, depois solicitação.
+    pedidos = list(PedidoCompra.objects.select_for_update().filter(solicitacao_id=pk).exclude(status='reprovado'))
+    sol = get_object_or_404(SolicitacaoMaterial.objects.select_for_update(), pk=pk)
+    if sol.status == 'entregue':
+        messages.info(request, 'A entrega deste material já foi confirmada.')
+    elif not sol.pode_confirmar_entrega or any(
+        pedido.status not in PedidoCompra.STATUS_APOS_APROVACAO for pedido in pedidos
+    ):
+        messages.error(request, 'A entrega só pode ser confirmada após a aprovação final e a liberação do material.')
+    else:
+        sol.status = 'entregue'
+        sol.atendida_por = request.user
+        sol.save(update_fields=['status', 'atendida_por', 'atualizado_em'])
+        for pedido in pedidos:
+            pedido.status = 'concluido'
+            pedido.save(update_fields=['status', 'atualizado_em'])
+        from core.models import LogAtividade
+        LogAtividade.objects.create(
+            usuario=request.user, modulo='compras', acao='Entrega confirmada',
+            url=request.path, detalhes=f'{sol.numero} | {sol.material.nome} | {sol.unidade_destino}',
+        )
+        messages.success(request, 'Entrega confirmada com sucesso.')
+    if sol.requisicao_id:
+        return redirect('detalhe_requisicao', pk=sol.requisicao_id)
+    return redirect('detalhe_solicitacao', pk=sol.pk)
 
 
 @login_required
