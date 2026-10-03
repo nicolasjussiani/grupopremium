@@ -1,5 +1,6 @@
 """ERP Grupo PremiumBR — Views do Core (Login, Dashboard, Notificações)"""
 import logging
+from ipaddress import ip_address
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
@@ -27,7 +28,7 @@ from django.views.csrf import csrf_failure as default_csrf_failure
 from core.access import user_has_access, user_is_executive
 from core.models import (
     AprovacaoRegistro, ArquivoImportado, Fornecedor, LogAtividade,
-    OrigemArquivoImportado, PerfilUsuario, Notificacao, Unidade,
+    OrigemArquivoImportado, PerfilUsuario, Notificacao, Unidade, IPUsuario,
 )
 from core.forms import (
     FornecedorForm, RevisaoPagamentoImportadoForm, UnidadeForm, UsuarioERPForm, DetalhamentoArquivoForm,
@@ -729,10 +730,20 @@ def marcar_notificacao_lida(request, pk):
 
 
 @login_required
+@never_cache
+@require_GET
 def lista_usuarios(request):
     if not _usuario_admin(request.user):
         raise PermissionDenied
-    usuarios = User.objects.select_related('perfil').prefetch_related('groups').order_by(
+    if request.GET.get('exportar') == 'ips':
+        enderecos = IPUsuario.objects.filter(
+            usuario__is_active=True, confirmado=True,
+        ).values_list('ip_address', flat=True)
+        publicos = sorted({address for address in enderecos if ip_address(address).is_global})
+        response = HttpResponse(''.join(f'{address}\n' for address in publicos), content_type='text/plain; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="ips-usuarios-ativos.txt"'
+        return response
+    usuarios = User.objects.select_related('perfil').prefetch_related('groups', 'ips_acesso').order_by(
         '-is_active', 'first_name', 'username'
     )
     return render(request, 'core/lista_usuarios.html', {'usuarios': usuarios})

@@ -4,6 +4,14 @@ from core.models import AprovacaoRegistro
 from core.telegram_utils import enviar_mensagem_telegram
 from django.db import transaction
 from django.utils.html import escape
+from django.contrib.auth.signals import user_logged_in
+from core.client_ip import registrar_ip_acesso
+
+
+@receiver(user_logged_in)
+def registrar_ip_login(sender, request, user, **kwargs):
+    if request is not None:
+        registrar_ip_acesso(request)
 
 @receiver(post_save, sender=AprovacaoRegistro)
 def notificar_nova_aprovacao_telegram(sender, instance, created, **kwargs):

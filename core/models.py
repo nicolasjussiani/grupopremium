@@ -345,6 +345,20 @@ class AprovacaoRegistro(models.Model):
         )
 
 
+class IPUsuario(models.Model):
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ips_acesso')
+    ip_address = models.GenericIPAddressField()
+    primeiro_acesso = models.DateTimeField()
+    ultimo_acesso = models.DateTimeField()
+    confirmado = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-ultimo_acesso', 'ip_address']
+        constraints = [
+            models.UniqueConstraint(fields=['usuario', 'ip_address'], name='core_usuario_ip_unico'),
+        ]
+
+
 class LogAtividade(models.Model):
     """Log geral de todas as ações de escrita (POST) no sistema para auditoria do CEO."""
     

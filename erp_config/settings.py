@@ -18,6 +18,7 @@ IS_SERVERLESS = (
     os.environ.get('VERCEL') == '1'
     or os.environ.get('AWS_EXECUTION_ENV') is not None
 )
+IP_CLIENTE_VERCEL = os.environ.get('VERCEL') == '1'
 
 # Carrega .env explicitamente do diretório raiz do projeto
 env_path = BASE_DIR / '.env'

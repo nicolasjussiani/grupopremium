@@ -10,6 +10,7 @@ from django.utils.deprecation import MiddlewareMixin
 
 from core.notifications import destinatarios_da_area
 from core.access import user_is_executive
+from core.client_ip import obter_ip_cliente, registrar_ip_acesso
 
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ class AcessoModuloMiddleware(MiddlewareMixin):
         if not request.user.is_authenticated:
             return None
 
+        registrar_ip_acesso(request)
         request.is_intermediario = request.user.groups.filter(
             name='Intermediario_Gestor'
         ).exists()
@@ -196,7 +198,7 @@ class AuditLogMiddleware(MiddlewareMixin):
                 acao=acao,
                 modulo=modulo,
                 url=path,
-                ip_address=request.META.get('REMOTE_ADDR'),
+                ip_address=obter_ip_cliente(request),
                 detalhes=f"Campos enviados: {', '.join(campos)}"[:1000],
             )
             destinatarios = destinatarios_da_area(modulo, autor=request.user)
