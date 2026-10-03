@@ -83,6 +83,7 @@
           <th>Unidade</th>
           <th>Produtos</th>
           <th>Status</th>
+          <th>Entrega</th>
           <th>Solicitante</th>
           <th>Data</th>
           <th></th>
@@ -95,6 +96,7 @@
           <td>{{ requisicao.unidade_destino }}</td>
           <td>{{ requisicao.itens.count }}</td>
           <td><span class="badge {% if requisicao.status == 'aprovada' %}badge-success{% elif requisicao.status == 'rejeitada' %}badge-danger{% else %}badge-warning{% endif %}">{{ requisicao.get_status_display }}</span></td>
+          <td>{% include 'compras/status_entrega.html' with status_entrega=requisicao.status_entrega %}</td>
           <td>{{ requisicao.solicitante }}</td>
           <td>{{ requisicao.criado_em|date:"d/m/Y H:i" }}</td>
           <td><a href="{% url 'detalhe_requisicao' requisicao.pk %}" class="btn btn-sm btn-outline">Ver</a></td>
@@ -196,14 +198,14 @@
   </div>
 </div>
 
-<!-- Pedidos Abertos -->
-{% if pedidos_abertos %}
+<!-- Histórico de pedidos e entregas -->
+{% if pedidos %}
 <div class="card" style="margin-top:20px;border-top-color:var(--mod5-purple);">
   <div class="card-header">
-    <div class="card-title">🛒 Pedidos de Compra em Aberto</div>
-    <span class="badge badge-primary">{{ pedidos_abertos|length }}</span>
+    <div class="card-title">🛒 Pedidos de Compra e Entregas</div>
+    <span class="badge badge-primary">{{ pedidos|length }}</span>
   </div>
-  <div class="table-wrap" style="border:none;">
+  <div class="table-wrap requisicoes-scroll" style="border:none;" role="region" aria-label="Histórico de pedidos e entregas" tabindex="0">
     <table>
       <thead>
         <tr>
@@ -213,23 +215,26 @@
           <th>Valor Total</th>
           <th>Status</th>
           <th>Prazo</th>
+          <th>Entrega</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
-        {% for pedido in pedidos_abertos %}
+        {% for pedido in pedidos %}
         <tr>
           <td style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">{{ pedido.numero_pedido }}</td>
           <td style="font-weight:600;font-size:0.84rem;">{{ pedido.solicitacao.material.nome }}</td>
           <td>{{ pedido.fornecedor }}</td>
           <td style="font-weight:700;">R$ {{ pedido.valor_total|floatformat:2 }}</td>
           <td>
-            <span class="badge {% if pedido.status == 'aprovado' %}badge-success{% elif pedido.status == 'reprovado' %}badge-danger{% elif pedido.status == 'aguardando_aprovacao' %}badge-warning{% else %}badge-info{% endif %}">
+            <span class="badge {% if pedido.status == 'aprovado' or pedido.status == 'concluido' %}badge-success{% elif pedido.status == 'reprovado' %}badge-danger{% elif pedido.status == 'aguardando_aprovacao' %}badge-warning{% else %}badge-info{% endif %}">
               {{ pedido.get_status_display }}
             </span>
           </td>
           <td style="font-size:0.82rem;">{{ pedido.prazo_entrega|date:"d/m/Y"|default:"—" }}</td>
+          <td>{% include 'compras/status_entrega.html' with status_entrega=pedido.status_entrega %}</td>
           <td>
+            {% include 'compras/confirmar_entrega.html' with item=pedido.solicitacao %}
             {% if pedido.status == 'aguardando_aprovacao' %}
             <a href="{% url 'aprovar_pedido' pedido.pk %}" class="btn btn-sm btn-mod5">Aprovar</a>
             {% else %}

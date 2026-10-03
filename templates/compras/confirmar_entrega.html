@@ -1,0 +1,6 @@
+{% if pode_confirmar_entrega and item.pode_confirmar_entrega %}
+<form method="post" action="{% url 'confirmar_entrega' item.pk %}" style="display:inline;">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-sm btn-mod5">Confirmar entrega</button>
+</form>
+{% endif %}

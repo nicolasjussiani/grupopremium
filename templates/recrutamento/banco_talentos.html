@@ -45,7 +45,7 @@
             <a href="{% url 'baixar_curriculo_talento' t.pk %}" target="_blank" title="Baixar Currículo PDF" style="margin-left:8px; text-decoration:none;">📄</a>
           {% endif %}
         </td>
-        <td style="color:var(--text-muted);font-size:0.85rem;">{{ t.email }}</td>
+        <td style="color:var(--text-muted);font-size:0.85rem;">{{ t.email|default:'—' }}</td>
         <td>{{ t.telefone }}</td>
         <td>{{ t.cidade|default:"-" }}</td>
         <td>{% if t.ultima_vaga %}<a href="{% url 'detalhe_vaga' t.ultima_vaga.pk %}" style="color:var(--brand); text-decoration:none; font-size:0.85rem;">{{ t.ultima_vaga.nome_vaga }}</a>{% else %}-{% endif %}</td>

@@ -41,6 +41,29 @@ Eric com usuário e senha e selecione esse perfil; o e-mail pode ficar vazio.
 Não marque acessos adicionais. O perfil bloqueia os demais módulos, APIs e alterações,
 mesmo quando a conta possui grupos antigos. A conta não é criada pela migração.
 
+## IPs dos usuários
+
+Em **Usuários e acessos**, a coluna **IPs de acesso** mostra todos os endereços
+registrados por conta e a data do último acesso observado (atualizada a cada
+cinco minutos para um mesmo IP). O registro acontece após um login válido e
+nas requisições de usuários já autenticados, mesmo sem perfil cadastrado.
+Na Vercel, o IP vem de `x-vercel-forwarded-for` ou `x-forwarded-for`; fora dela,
+somente de `REMOTE_ADDR`, sem confiar em cabeçalhos enviados pelo visitante.
+
+Antes de publicar esta versão, aplique `python manage.py migrate` no banco do
+ambiente. A migração `core.0017_ipusuario` cria o histórico e recupera os IPs
+públicos disponíveis nos logs anteriores. Esses registros aparecem como
+**Auditoria anterior · não confirmado**, pois o sistema antigo podia registrar
+o proxy. Um novo acesso pelo mesmo IP confirma o endereço. Acessos antigos
+sem IP gravado não podem ser reconstruídos; essas contas exibem **IP ainda
+não registrado** até o próximo acesso.
+
+O botão **Baixar IPs públicos confirmados** exporta um endereço por linha,
+sem duplicatas, apenas de contas ativas. O download requer a mesma permissão
+administrativa da tabela e não altera o firewall. Confira os endereços antes
+de configurar uma lista de permissão na Vercel: redes móveis, troca de conexão
+e IPs dinâmicos podem mudar o endereço de usuários autorizados.
+
 ## Validacao
 
 ```powershell

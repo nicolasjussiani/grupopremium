@@ -11,6 +11,12 @@
   .request-summary-item strong { display:block; margin-top:4px; font-size:1.15rem; }
   .request-mobile-list { display:none; gap:12px; }
   .request-mobile-item { padding:16px; border:1px solid var(--border); border-radius:var(--radius-md); }
+  .request-selection-bar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+  .request-selection-label { display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
+  .request-select { width:18px; height:18px; accent-color:var(--mod5-purple); cursor:pointer; }
+  .request-selection-count { color:var(--text-secondary); }
+  .request-item-selected { background:rgba(107,70,193,.08); }
+  #createSelectedOrders:disabled { opacity:.5; cursor:not-allowed; }
   @media (max-width: 720px) {
     .request-summary { grid-template-columns:1fr; }
     .request-desktop-table { display:none; }
@@ -27,6 +33,7 @@
   <div class="request-summary-item">
     <small>Status da aprovação</small>
     <strong>{{ requisicao.get_status_display }}</strong>
+    <div style="margin-top:8px;">Entrega: {% include 'compras/status_entrega.html' with status_entrega=requisicao.status_entrega %}</div>
   </div>
   <div class="request-summary-item">
     <small>Unidade de destino</small>
@@ -81,29 +88,54 @@
     </div>
   </div>
 
+  {% if tem_itens_selecionaveis %}
+  <form id="selectedOrdersForm" method="get" action="{% url 'criar_pedidos_requisicao' requisicao.pk %}" class="request-selection-bar">
+    <label class="request-selection-label" for="selectAllPurchaseItems">
+      <input type="checkbox" id="selectAllPurchaseItems" class="request-select">
+      Selecionar todos disponíveis
+    </label>
+    <span id="selectedItemsCount" class="request-selection-count" role="status" aria-live="polite">0 itens selecionados</span>
+    <div id="selectedItemsInputs"></div>
+    <button type="submit" id="createSelectedOrders" class="btn btn-mod5" disabled>Criar pedidos selecionados</button>
+  </form>
+  {% endif %}
+
   <div class="table-wrap request-desktop-table" style="border:none;">
     <table>
       <thead>
         <tr>
+          {% if tem_itens_selecionaveis %}<th scope="col">Selecionar</th>{% endif %}
           <th>Produto</th>
           <th>Quantidade</th>
           <th>Estoque atual</th>
           <th>Status</th>
+          <th>Entrega</th>
           <th>Ações</th>
         </tr>
       </thead>
       <tbody>
         {% for item in itens %}
         <tr>
+          {% if tem_itens_selecionaveis %}
+          <td>
+            {% if item.pode_selecionar_compra %}
+            <input type="checkbox" class="request-select" data-purchase-item="{{ item.pk }}" aria-label="Selecionar {{ item.material.nome }}">
+            {% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
+          </td>
+          {% endif %}
           <td><strong>[{{ item.material.codigo }}] {{ item.material.nome }}</strong></td>
           <td>{{ item.quantidade_solicitada }} {{ item.material.get_unidade_medida_display }}</td>
           <td>{{ item.material.quantidade_estoque }} {{ item.material.get_unidade_medida_display }}</td>
           <td>
-            <span class="badge {% if item.status == 'atendido_interno' %}badge-success{% elif item.status == 'compra_externa' %}badge-primary{% else %}badge-warning{% endif %}">
+            <span class="badge {% if item.status == 'atendido_interno' or item.status == 'entregue' %}badge-success{% elif item.status == 'compra_externa' %}badge-primary{% else %}badge-warning{% endif %}">
               {{ item.get_status_display }}
             </span>
           </td>
           <td style="white-space:nowrap;">
+            {% include 'compras/status_entrega.html' with status_entrega=item.status_entrega %}
+          </td>
+          <td style="white-space:nowrap;">
+            {% include 'compras/confirmar_entrega.html' %}
             <a href="{% url 'detalhe_solicitacao' item.pk %}" class="btn btn-sm btn-outline">Detalhes</a>
             {% if item.status == 'compra_externa' and not item.tem_pedido_ativo %}
             <a href="{% url 'criar_pedido' item.pk %}" class="btn btn-sm btn-mod5">Criar pedido</a>
@@ -118,14 +150,22 @@
   <div class="request-mobile-list">
     {% for item in itens %}
     <div class="request-mobile-item">
+      {% if item.pode_selecionar_compra %}
+      <label class="request-selection-label" style="display:flex;margin-bottom:10px;">
+        <input type="checkbox" class="request-select" data-purchase-item="{{ item.pk }}" aria-label="Selecionar {{ item.material.nome }}">
+        Selecionar produto
+      </label>
+      {% endif %}
       <strong>[{{ item.material.codigo }}] {{ item.material.nome }}</strong>
       <div style="margin:8px 0;color:var(--text-secondary);">
         {{ item.quantidade_solicitada }} {{ item.material.get_unidade_medida_display }}
       </div>
-      <span class="badge {% if item.status == 'atendido_interno' %}badge-success{% elif item.status == 'compra_externa' %}badge-primary{% else %}badge-warning{% endif %}">
+      <span class="badge {% if item.status == 'atendido_interno' or item.status == 'entregue' %}badge-success{% elif item.status == 'compra_externa' %}badge-primary{% else %}badge-warning{% endif %}">
         {{ item.get_status_display }}
       </span>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        {% include 'compras/status_entrega.html' with status_entrega=item.status_entrega %}
+        {% include 'compras/confirmar_entrega.html' %}
         <a href="{% url 'detalhe_solicitacao' item.pk %}" class="btn btn-sm btn-outline">Detalhes</a>
         {% if item.status == 'compra_externa' and not item.tem_pedido_ativo %}
         <a href="{% url 'criar_pedido' item.pk %}" class="btn btn-sm btn-mod5">Criar pedido</a>
@@ -149,4 +189,51 @@
   
   <a href="{% url 'painel_compras' %}" class="btn btn-outline">← Voltar ao painel</a>
 </div>
+{% if tem_itens_selecionaveis %}
+<script>
+(() => {
+  const form = document.getElementById('selectedOrdersForm');
+  const selectAll = document.getElementById('selectAllPurchaseItems');
+  const checkboxes = Array.from(document.querySelectorAll('[data-purchase-item]'));
+  const ids = new Set(checkboxes.map(checkbox => checkbox.dataset.purchaseItem));
+  const selected = new Set();
+  const inputs = document.getElementById('selectedItemsInputs');
+  const button = document.getElementById('createSelectedOrders');
+  const count = document.getElementById('selectedItemsCount');
+
+  function update() {
+    checkboxes.forEach(checkbox => {
+      checkbox.checked = selected.has(checkbox.dataset.purchaseItem);
+      checkbox.closest('tr, .request-mobile-item').classList.toggle('request-item-selected', checkbox.checked);
+    });
+    selectAll.checked = selected.size === ids.size;
+    selectAll.indeterminate = selected.size > 0 && selected.size < ids.size;
+    button.disabled = selected.size === 0;
+    count.textContent = selected.size === 1 ? '1 item selecionado' : `${selected.size} itens selecionados`;
+    inputs.replaceChildren();
+    selected.forEach(id => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'itens';
+      input.value = id;
+      inputs.appendChild(input);
+    });
+  }
+  checkboxes.forEach(checkbox => checkbox.addEventListener('change', () => {
+    if (checkbox.checked) selected.add(checkbox.dataset.purchaseItem);
+    else selected.delete(checkbox.dataset.purchaseItem);
+    update();
+  }));
+  selectAll.addEventListener('change', () => {
+    selected.clear();
+    if (selectAll.checked) ids.forEach(id => selected.add(id));
+    update();
+  });
+  form.addEventListener('submit', event => {
+    if (!selected.size) event.preventDefault();
+  });
+  update();
+})();
+</script>
+{% endif %}
 {% endblock %}

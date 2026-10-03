@@ -510,7 +510,7 @@ def adicionar_talento(request):
     """Cadastra uma pessoa diretamente no Banco de Talentos, sem vínculo com vaga."""
     if request.method == 'POST':
         nome = request.POST.get('nome', '').strip()
-        email = request.POST.get('email', '').strip()
+        email = request.POST.get('email', '').strip() or None
         telefone = request.POST.get('telefone', '').strip()
         cidade = request.POST.get('cidade', '').strip()
         cpf_cnpj = request.POST.get('cpf_cnpj', '').strip()
@@ -519,8 +519,6 @@ def adicionar_talento(request):
         erros = []
         if not nome:
             erros.append('Nome é obrigatório.')
-        if not email:
-            erros.append('E-mail é obrigatório.')
         if not telefone:
             erros.append('Telefone é obrigatório.')
 
@@ -529,7 +527,7 @@ def adicionar_talento(request):
                 messages.error(request, erro)
             return render(request, 'recrutamento/adicionar_talento.html', {'post_data': request.POST})
 
-        if Talento.objects.filter(email=email).exists():
+        if email and Talento.objects.filter(email=email).exists():
             messages.warning(request, f'⚠️ Já existe um talento com o e-mail "{email}". Cadastro não duplicado.')
             return redirect('banco_talentos')
 
@@ -538,7 +536,7 @@ def adicionar_talento(request):
             email=email,
             telefone=telefone,
             cidade=cidade or 'Não Informado',
-            cpf_cnpj=cpf_cnpj or '000.000.000-00',
+            cpf_cnpj=cpf_cnpj,
             curriculo_texto=curriculo_obs,
         )
 

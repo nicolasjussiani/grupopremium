@@ -42,16 +42,28 @@ def painel_compras(request):
         status__in=['pendente', 'em_analise'])
     pedidos_abertos = PedidoCompra.objects.exclude(
         status__in=['concluido', 'reprovado'])
+    pedidos = PedidoCompra.objects.exclude(status='reprovado').select_related(
+        'solicitacao__material', 'solicitacao__requisicao',
+    ).prefetch_related('solicitacao__pedidos')
     requisicoes_recentes = RequisicaoCompra.objects.prefetch_related('itens').all()
 
     return render(request, 'compras/painel.html', {
         'materiais_criticos': materiais_criticos,
         'solicitacoes_pendentes': solicitacoes_pendentes,
         'pedidos_abertos': pedidos_abertos,
+        'pedidos': pedidos,
+        'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
         'requisicoes_recentes': requisicoes_recentes,
         'total_materiais': Material.objects.count(),
         'total_estoque_critico': materiais_criticos.count(),
     })
+
+
+def _pode_confirmar_entrega(usuario):
+    return user_has_access(
+        usuario, permission='compras.change_solicitacaomaterial',
+        profiles=('compras', 'gestor', 'estoque_compras'),
+    )
 
 
 @login_required
@@ -317,8 +329,18 @@ def detalhe_requisicao(request, pk):
     )
     itens = list(requisicao.itens.all())
     for item in itens:
+        item.requisicao = requisicao
         item.tem_pedido_ativo = any(
             pedido.status != 'reprovado' for pedido in item.pedidos.all()
+        )
+    pode_criar_pedido = user_has_access(
+        request.user, permission='compras.add_pedidocompra',
+        profiles=('compras', 'gestor', 'estoque_compras'),
+    )
+    for item in itens:
+        item.pode_selecionar_compra = (
+            pode_criar_pedido and requisicao.status == 'aprovada'
+            and item.status == 'compra_externa' and not item.tem_pedido_ativo
         )
     return render(request, 'compras/detalhe_requisicao.html', {
         'requisicao': requisicao,
@@ -326,6 +348,8 @@ def detalhe_requisicao(request, pk):
         'total_itens': len(itens),
         'total_estoque': sum(item.status == 'atendido_interno' for item in itens),
         'total_compra': sum(item.status == 'compra_externa' for item in itens),
+        'tem_itens_selecionaveis': any(item.pode_selecionar_compra for item in itens),
+        'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
         'pode_remover_anexo': user_has_access(
             request.user, permission='compras.change_requisicaocompra',
             profiles=('compras', 'gestor', 'estoque_compras'),
@@ -374,13 +398,155 @@ def remover_anexo_requisicao(request, pk, campo):
 
 @login_required
 def detalhe_solicitacao(request, pk):
-    sol = get_object_or_404(SolicitacaoMaterial, pk=pk)
+    sol = get_object_or_404(
+        SolicitacaoMaterial.objects.select_related('material', 'requisicao').prefetch_related('pedidos'),
+        pk=pk,
+    )
     pedidos = sol.pedidos.all()
     return render(request, 'compras/detalhe_solicitacao.html', {
         'solicitacao': sol,
         'pedidos': pedidos,
         'tem_pedido_ativo': pedidos.exclude(status='reprovado').exists(),
+        'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
     })
+
+
+@login_required
+@require_POST
+@access_required(
+    permission='compras.change_solicitacaomaterial',
+    profiles=('compras', 'gestor', 'estoque_compras'),
+)
+@transaction.atomic
+def confirmar_entrega(request, pk):
+    # Mesma ordem de bloqueio do fluxo de aprovação: pedido, depois solicitação.
+    pedidos = list(PedidoCompra.objects.select_for_update().filter(solicitacao_id=pk).exclude(status='reprovado'))
+    sol = get_object_or_404(SolicitacaoMaterial.objects.select_for_update(), pk=pk)
+    if sol.status == 'entregue':
+        messages.info(request, 'A entrega deste material já foi confirmada.')
+    elif not sol.pode_confirmar_entrega or any(
+        pedido.status not in PedidoCompra.STATUS_APOS_APROVACAO for pedido in pedidos
+    ):
+        messages.error(request, 'A entrega só pode ser confirmada após a aprovação final e a liberação do material.')
+    else:
+        sol.status = 'entregue'
+        sol.atendida_por = request.user
+        sol.save(update_fields=['status', 'atendida_por', 'atualizado_em'])
+        for pedido in pedidos:
+            pedido.status = 'concluido'
+            pedido.save(update_fields=['status', 'atualizado_em'])
+        from core.models import LogAtividade
+        LogAtividade.objects.create(
+            usuario=request.user, modulo='compras', acao='Entrega confirmada',
+            url=request.path, detalhes=f'{sol.numero} | {sol.material.nome} | {sol.unidade_destino}',
+        )
+        messages.success(request, 'Entrega confirmada com sucesso.')
+    if sol.requisicao_id:
+        return redirect('detalhe_requisicao', pk=sol.requisicao_id)
+    return redirect('detalhe_solicitacao', pk=sol.pk)
+
+
+@login_required
+@access_required(permission='compras.add_pedidocompra', profiles=('compras', 'gestor', 'estoque_compras'))
+@require_http_methods(['GET', 'POST'])
+@transaction.atomic
+def criar_pedidos_requisicao(request, pk):
+    requisicao = get_object_or_404(RequisicaoCompra, pk=pk)
+    dados = request.POST if request.method == 'POST' else request.GET
+    try:
+        ids = {int(valor) for valor in dados.getlist('itens')}
+        if any(valor <= 0 or valor > 9223372036854775807 for valor in ids):
+            ids = set()
+    except (ValueError, TypeError):
+        ids = set()
+    if not ids:
+        messages.error(request, 'Selecione ao menos um produto para criar o pedido.')
+        return redirect('detalhe_requisicao', pk=pk)
+
+    # Bloqueia as mesmas solicitações usadas na criação individual, em ordem fixa.
+    itens = list(SolicitacaoMaterial.objects.select_for_update().filter(
+        requisicao=requisicao, pk__in=ids,
+    ).order_by('pk'))
+    if (
+        requisicao.status != 'aprovada' or len(itens) != len(ids)
+        or any(item.status != 'compra_externa' for item in itens)
+        or PedidoCompra.objects.filter(solicitacao__in=itens).exclude(status='reprovado').exists()
+    ):
+        messages.error(request, 'A seleção contém produtos indisponíveis para compra ou com pedido ativo. Selecione novamente.')
+        return redirect('detalhe_requisicao', pk=pk)
+
+    fornecedor = dados.get('fornecedor', '')
+    if request.method == 'GET':
+        fornecedores = {item.material.fornecedor_preferencial for item in itens}
+        fornecedor = fornecedores.pop() if len(fornecedores) == 1 else ''
+    for item in itens:
+        item.valor_informado = dados.get(f'valor_unitario_{item.pk}', '')
+
+    def formulario():
+        return render(request, 'compras/criar_pedidos_requisicao.html', {
+            'requisicao': requisicao, 'itens': itens, 'fornecedor': fornecedor,
+        })
+
+    if request.method == 'POST':
+        pedidos = []
+        try:
+            if not fornecedor.strip():
+                raise ValidationError('Informe o fornecedor.')
+            for item in itens:
+                try:
+                    valor = Decimal(item.valor_informado.replace(',', '.'))
+                    if not valor.is_finite():
+                        raise InvalidOperation
+                    valor = valor.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                except InvalidOperation:
+                    raise ValidationError(f'Informe um valor unitário válido para {item.material.nome}.')
+                if valor <= 0 or valor > Decimal('99999999.99'):
+                    raise ValidationError(f'O valor unitário de {item.material.nome} deve ser entre R$ 0,01 e R$ 99.999.999,99.')
+                pedido = PedidoCompra(
+                    solicitacao=item, fornecedor=fornecedor.strip(),
+                    cnpj_fornecedor=request.POST.get('cnpj_fornecedor', '').strip(),
+                    prazo_entrega=request.POST.get('prazo_entrega') or None,
+                    valor_unitario=valor,
+                    valor_total=(valor * item.quantidade_solicitada).quantize(
+                        Decimal('0.01'), rounding=ROUND_HALF_UP,
+                    ),
+                    status='aguardando_aprovacao',
+                )
+                pedido.full_clean()
+                pedidos.append(pedido)
+            # Qualquer falha desfaz todos os pedidos e respectivas aprovações.
+            with transaction.atomic():
+                for pedido in pedidos:
+                    pedido.save()
+                    _criar_aprovacao_pedido(pedido, request.user)
+        except (ValidationError, IntegrityError) as exc:
+            mensagem = '; '.join(exc.messages) if isinstance(exc, ValidationError) else 'Um dos produtos já possui pedido ativo. Selecione novamente.'
+            messages.error(request, mensagem)
+            return formulario()
+        quantidade = len(pedidos)
+        mensagem = 'Pedido criado.' if quantidade == 1 else f'{quantidade} pedidos criados.'
+        messages.success(request, f'{mensagem} Aguardando aprovação da Adriana.')
+        return redirect('detalhe_requisicao', pk=pk)
+    return formulario()
+
+
+def _criar_aprovacao_pedido(pedido, usuario):
+    from core.approval_workflow import criar_fluxo_compras
+    sol = pedido.solicitacao
+    return criar_fluxo_compras(
+        objeto=pedido,
+        titulo=f'Pedido de Compra: {sol.material.nome} — {pedido.fornecedor}',
+        descricao=(
+            f'Material: {sol.material.nome}\n'
+            f'Unidade destino: {sol.unidade_destino}\n'
+            f'Quantidade: {sol.quantidade_solicitada} {sol.material.get_unidade_medida_display()}\n'
+            f'Fornecedor: {pedido.fornecedor}\n'
+            f'Valor unitário: R$ {pedido.valor_unitario}\n'
+            f'Valor total: R$ {pedido.valor_total}\n'
+            f'Justificativa: {sol.justificativa}'
+        ),
+        solicitado_por=usuario,
+    )
 
 
 @login_required
@@ -432,22 +598,8 @@ def criar_pedido_compra(request, solicitacao_pk):
             return render(request, 'compras/criar_pedido.html', {'solicitacao': sol})
 
         # ─── Dispara o fluxo de aprovação central ───────────────────────────
-        from core.approval_workflow import criar_fluxo_compras
         try:
-            criar_fluxo_compras(
-                objeto=pedido,
-                titulo=f'Pedido de Compra: {sol.material.nome} — {pedido.fornecedor}',
-                descricao=(
-                    f'Material: {sol.material.nome}\n'
-                    f'Unidade destino: {sol.unidade_destino}\n'
-                    f'Quantidade: {sol.quantidade_solicitada} {sol.material.get_unidade_medida_display()}\n'
-                    f'Fornecedor: {pedido.fornecedor}\n'
-                    f'Valor unitário: R$ {pedido.valor_unitario}\n'
-                    f'Valor total: R$ {pedido.valor_total}\n'
-                    f'Justificativa: {sol.justificativa}'
-                ),
-                solicitado_por=request.user,
-            )
+            _criar_aprovacao_pedido(pedido, request.user)
         except ValidationError as exc:
             transaction.set_rollback(True)
             messages.error(request, '; '.join(exc.messages))

@@ -146,10 +146,10 @@ class Candidato(models.Model):
 
 class Talento(models.Model):
     nome = models.CharField(max_length=200, verbose_name='Nome Completo')
-    email = models.EmailField(verbose_name='E-mail', unique=True)
+    email = models.EmailField(verbose_name='E-mail', unique=True, blank=True, null=True)
     telefone = models.CharField(max_length=20, verbose_name='Telefone')
     cidade = models.CharField(max_length=100, blank=False, verbose_name='Cidade', default='Não Informado')
-    cpf_cnpj = models.CharField(max_length=18, blank=False, verbose_name='CPF/CNPJ', default='000.000.000-00')
+    cpf_cnpj = models.CharField(max_length=18, blank=True, verbose_name='CPF/CNPJ', default='')
     curriculo_texto = models.TextField(blank=True, verbose_name='Texto Extraído do Currículo')
     arquivo_pdf = models.BinaryField(null=True, blank=True, editable=True, verbose_name='Currículo PDF (Legado DB)')
     arquivo = models.FileField(upload_to='curriculos/', null=True, blank=True, verbose_name='Currículo PDF (Nuvem)')

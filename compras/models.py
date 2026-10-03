@@ -124,6 +124,16 @@ class RequisicaoCompra(models.Model):
     def numero(self):
         return f'REQ-{self.pk:06d}' if self.pk else 'REQ-NOVA'
 
+    @property
+    def status_entrega(self):
+        if self.status != 'aprovada':
+            return 'Não se aplica' if self.status == 'rejeitada' else 'Aguardando aprovação'
+        itens = [item for item in self.itens.all() if item.status != 'cancelado']
+        entregues = sum(item.status == 'entregue' for item in itens)
+        if itens and entregues == len(itens):
+            return 'Entregue'
+        return 'Entrega parcial' if entregues else 'Não entregue'
+
     @transaction.atomic
     def aprovar(self, usuario):
         """Após a decisão final, atende do estoque ou encaminha para compra."""
@@ -219,9 +229,36 @@ class SolicitacaoMaterial(models.Model):
     def numero(self):
         return f'SOL-{self.pk:06d}' if self.pk else 'SOL-NOVO'
 
+    @property
+    def status_entrega(self):
+        if self.requisicao_id and self.requisicao.status != 'aprovada':
+            return 'Não se aplica' if self.requisicao.status == 'rejeitada' else 'Aguardando aprovação'
+        if self.status == 'cancelado':
+            return 'Não se aplica'
+        if self.status == 'entregue':
+            return 'Entregue'
+        if self.status in {'atendido_interno', 'compra_externa', 'aguardando_entrega'}:
+            return 'Não entregue'
+        return 'Aguardando aprovação'
+
+    @property
+    def pode_confirmar_entrega(self):
+        if self.requisicao_id and self.requisicao.status != 'aprovada':
+            return False
+        if self.status == 'atendido_interno':
+            return True
+        return self.status == 'aguardando_entrega' and any(
+            pedido.status in PedidoCompra.STATUS_APOS_APROVACAO
+            for pedido in self.pedidos.all()
+        )
+
 
 class PedidoCompra(models.Model):
     CENTAVOS = Decimal('0.01')
+    STATUS_APOS_APROVACAO = {
+        'aprovado', 'pedido_emitido', 'aguardando_recebimento',
+        'recebido_conferencia', 'entrada_estoque', 'concluido',
+    }
     STATUS = [
         ('em_cotacao', 'Em Cotação'),
         ('aguardando_aprovacao', 'Aguardando Aprovação'),
@@ -275,6 +312,14 @@ class PedidoCompra(models.Model):
         return (Decimal(str(self.valor_unitario)) * quantidade).quantize(
             self.CENTAVOS, rounding=ROUND_HALF_UP
         )
+
+    @property
+    def status_entrega(self):
+        if self.status == 'reprovado':
+            return 'Não se aplica'
+        if self.status not in self.STATUS_APOS_APROVACAO:
+            return 'Aguardando aprovação'
+        return 'Entregue' if self.solicitacao.status == 'entregue' else 'Não entregue'
 
     def clean(self):
         super().clean()

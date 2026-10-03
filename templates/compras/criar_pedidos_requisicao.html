@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load l10n %}
+{% block title %}Criar pedidos selecionados — Compras ERP{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}Criar pedidos selecionados{% endblock %}
+{% block content %}
+<div class="module-banner mod-banner-5" style="margin-bottom:20px;">
+  <div class="mod-title">🛒 Pedidos de compra — {{ requisicao.numero }}</div>
+  <div class="mod-desc">{{ itens|length }} produto{{ itens|length|pluralize }} selecionado{{ itens|length|pluralize }} · {{ requisicao.unidade_destino }}</div>
+</div>
+<div class="card" style="max-width:1000px;">
+  <div class="card-header"><div class="card-title">Dados dos pedidos</div></div>
+  <p style="color:var(--text-secondary);">Informe o fornecedor e o valor de cada produto. Será criado um pedido por produto, seguindo o fluxo de aprovação da Adriana e do CEO.</p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-grid">
+      <div class="form-group form-full">
+        <label for="batchSupplier" class="form-label">Fornecedor <span class="required">*</span></label>
+        <input id="batchSupplier" type="text" name="fornecedor" class="form-control" value="{{ fornecedor }}" maxlength="200" required placeholder="Razão social do fornecedor">
+      </div>
+      <div class="form-group">
+        <label for="batchCnpj" class="form-label">CNPJ do fornecedor (opcional)</label>
+        <input id="batchCnpj" type="text" name="cnpj_fornecedor" class="form-control" value="{{ request.POST.cnpj_fornecedor }}" maxlength="18" placeholder="Pode ser preenchido depois da compra">
+      </div>
+      <div class="form-group">
+        <label for="batchDelivery" class="form-label">Prazo de entrega</label>
+        <input id="batchDelivery" type="date" name="prazo_entrega" class="form-control" value="{{ request.POST.prazo_entrega }}">
+      </div>
+    </div>
+    {% for item in itens %}
+    <div style="padding:16px;margin-bottom:12px;border:1px solid var(--border);border-radius:var(--radius-md);">
+      <input type="hidden" name="itens" value="{{ item.pk }}">
+      <strong>[{{ item.material.codigo }}] {{ item.material.nome }}</strong>
+      <p style="color:var(--text-secondary);margin:8px 0;">Quantidade: {{ item.quantidade_solicitada }} {{ item.material.get_unidade_medida_display }}</p>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="price{{ item.pk }}" class="form-label">Valor unitário (R$) <span class="required">*</span></label>
+          <input id="price{{ item.pk }}" type="number" name="valor_unitario_{{ item.pk }}" value="{{ item.valor_informado }}" class="form-control" min="0.01" step="0.01" max="99999999.99" required data-quantity="{{ item.quantidade_solicitada|unlocalize }}" data-total="total{{ item.pk }}" placeholder="0,00">
+        </div>
+        <div class="form-group">
+          <label for="total{{ item.pk }}" class="form-label">Valor total (R$)</label>
+          <input id="total{{ item.pk }}" type="text" class="form-control" readonly value="R$ 0,00">
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    <p><strong>Total dos pedidos: <span id="batchTotal" aria-live="polite">R$ 0,00</span></strong></p>
+    <div class="gateway-actions" style="margin-top:16px;">
+      <button type="submit" class="btn btn-mod5">Criar {{ itens|length }} pedido{{ itens|length|pluralize }}</button>
+      <a href="{% url 'detalhe_requisicao' requisicao.pk %}" class="btn btn-outline">← Cancelar</a>
+    </div>
+  </form>
+</div>
+<script>
+(() => {
+  const prices = Array.from(document.querySelectorAll('[data-quantity]'));
+  const currency = new Intl.NumberFormat('pt-BR', {style: 'currency', currency: 'BRL'});
+  function updateTotals() {
+    let totalCents = 0;
+    prices.forEach(input => {
+      const cents = Math.round((Number(input.value) || 0) * Number(input.dataset.quantity) * 100);
+      document.getElementById(input.dataset.total).value = currency.format(cents / 100);
+      totalCents += cents;
+    });
+    document.getElementById('batchTotal').textContent = currency.format(totalCents / 100);
+  }
+  prices.forEach(input => input.addEventListener('input', updateTotals));
+  updateTotals();
+})();
+</script>
+{% endblock %}
