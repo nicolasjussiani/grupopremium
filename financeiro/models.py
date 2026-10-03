@@ -8,6 +8,8 @@ class DocumentoFinanceiro(models.Model):
         ('nao_informado', 'Não informado'),
         ('a_pagar', 'A pagar'),
         ('pago', 'Pago'),
+        ('a_receber', 'A receber'),
+        ('recebido', 'Recebido'),
     ]
     situacao_pagamento = models.CharField(
         max_length=15, choices=SITUACOES_PAGAMENTO, default='nao_informado',
@@ -37,6 +39,7 @@ class DocumentoFinanceiro(models.Model):
     tipo = models.CharField(max_length=20, choices=TIPOS, verbose_name='Tipo de Documento')
     numero_documento = models.CharField(max_length=50, verbose_name='Número do Documento')
     descricao = models.CharField(max_length=300, verbose_name='Descrição')
+    observacoes = models.TextField(blank=True, verbose_name='Observações e detalhamento')
     valor = models.DecimalField(max_digits=14, decimal_places=2, verbose_name='Valor (R$)')
     centro_custo = models.CharField(max_length=100, blank=True, verbose_name='Centro de Custo')
     unidade = models.CharField(max_length=100, blank=True, verbose_name='Unidade')

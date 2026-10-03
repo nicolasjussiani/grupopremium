@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 
+from .calculo_folha import calcular_vt_antecipado
 from .models import Colaborador, PagamentoColaborador, PresencaDiaria, ProgramacaoVT
 
 
@@ -19,7 +20,7 @@ def segundas_no_periodo(inicio, fim):
 def equipe_vt(segunda):
     return Colaborador.objects.filter(tipo_contrato__in=('clt', 'pj')).exclude(
         status__in=Colaborador.STATUS_SEM_PAGAMENTO,
-    ).filter(Q(data_admissao__isnull=True) | Q(data_admissao__lte=segunda)).order_by('nome', 'pk')
+    ).filter(Q(data_admissao__isnull=True) | Q(data_admissao__lte=segunda + timedelta(days=6))).order_by('nome', 'pk')
 
 
 def tipo_beneficio(colaborador):
@@ -77,6 +78,16 @@ def linhas_semana(segunda, *, busca='', unidade='', categoria='', colaborador_id
         chave = (p.colaborador_id, p.tipo)
         if chave not in pagamentos or p.status != 'cancelado':
             pagamentos[chave] = p
+    anteriores = {d.colaborador_id: d for d in ProgramacaoVT.objects.filter(
+        colaborador_id__in=ids, segunda=segunda - timedelta(days=7), antecipado=True)}
+    pagos_anteriores = set(PagamentoColaborador.objects.filter(
+        colaborador_id__in=ids, tipo__in=('vale_transporte', 'ajuda_custo'),
+        data_vencimento=segunda - timedelta(days=7), status='pago',
+    ).values_list('colaborador_id', flat=True))
+    jornadas = {}
+    for d in ProgramacaoVT.objects.filter(colaborador_id__in=ids, segunda__lt=segunda,
+        antecipado=True).order_by('colaborador_id', '-segunda'):
+        jornadas.setdefault(d.colaborador_id, d.dias_jornada)
     linhas = []
     for pessoa in equipe:
         beneficio = tipo_beneficio(pessoa)
@@ -101,7 +112,31 @@ def linhas_semana(segunda, *, busca='', unidade='', categoria='', colaborador_id
                 'data': dia, 'nome': nome, 'status': status,
                 'descricao': dict(PresencaDiaria.STATUS_CHOICES).get(status, 'Não definido'),
             })
+        anterior = anteriores.get(pessoa.pk)
+        salvo = decisao if decisao and decisao.antecipado else None
+        jornada = salvo.dias_jornada if salvo else jornadas.get(pessoa.pk)
+        previstos = salvo.dias_previstos if salvo else jornada
+        if not salvo and jornada and pessoa.data_admissao and pessoa.data_admissao > segunda:
+            previstos = sum(segunda + timedelta(days=i) >= pessoa.data_admissao for i in range(jornada))
+        datas_faltas = [dia for dia, st in presenca['por_dia'].items() if st == 'falta']
+        faltas = salvo.faltas_descontar if salvo else (len(datas_faltas) if anterior and pessoa.pk in pagos_anteriores else 0)
+        diaria = salvo.diaria_desconto if salvo else (
+            anterior.valor_semana_completa / Decimal(anterior.dias_jornada)
+            if anterior and anterior.dias_jornada and anterior.valor_semana_completa else None)
+        if diaria is not None:
+            diaria = diaria.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
+        desconto = salvo.desconto_adicional if salvo else Decimal('0')
+        total_antecipado = None
+        if valor_base and jornada and previstos is not None:
+            try:
+                total_antecipado = calcular_vt_antecipado(valor_base, jornada, previstos, faltas, diaria, desconto)
+            except ValidationError:
+                pass
         linhas.append({
+            'dias_jornada': jornada, 'dias_previstos': previstos, 'faltas_descontar': faltas,
+            'diaria_desconto': diaria, 'desconto_adicional': desconto,
+            'datas_faltas': datas_faltas, 'valor_antecipado': total_antecipado,
+
             'pessoa': pessoa, 'pagamento': pagamento, 'situacao': situacao,
             'valor': valor_base,
             'valor_calculado': total_calculado,
@@ -131,7 +166,7 @@ def resumo_semana(linhas):
 
 
 @transaction.atomic
-def salvar_decisao(*, pessoa_id, segunda, pagar, valor, usuario):
+def salvar_decisao(*, pessoa_id, segunda, pagar, valor, usuario, antecipado=False, dias_jornada=None, dias_previstos=None, faltas_descontar=0, diaria_desconto=None, desconto_adicional=Decimal("0")):
     if segunda.weekday() != 0:
         raise ValidationError('Selecione uma segunda-feira.')
     # Serializa decisões da mesma pessoa e evita dois lançamentos na semana.
@@ -149,7 +184,12 @@ def salvar_decisao(*, pessoa_id, segunda, pagar, valor, usuario):
             raise ValidationError('Informe o valor da semana completa maior que zero.')
         presenca = presencas_por_pessoa([pessoa.pk], segunda - timedelta(days=7), segunda - timedelta(days=1))
         dias_presentes = len(presenca.get(pessoa.pk, {'datas': []})['datas'])
-        total = valor_proporcional(valor, dias_presentes)
+        if antecipado:
+            if dias_jornada is None or dias_previstos is None:
+                raise ValidationError('Informe a jornada e os dias previstos para a semana que será paga.')
+            total = calcular_vt_antecipado(valor, dias_jornada, dias_previstos, faltas_descontar, diaria_desconto, desconto_adicional)
+        else:
+            total = valor_proporcional(valor, dias_presentes)
         if total <= 0:
             raise ValidationError('O valor calculado é R$ 0,00. Confira as presenças ou selecione Não precisa.')
         pagamento = pagamentos[0] if pagamentos else PagamentoColaborador(
@@ -168,6 +208,12 @@ def salvar_decisao(*, pessoa_id, segunda, pagar, valor, usuario):
         colaborador=pessoa, segunda=segunda,
         defaults={
             'pagar': pagar, 'atualizado_por': usuario,
-            **({'valor_semana_completa': valor, 'dias_presentes': dias_presentes} if pagar else {}),
+            **({'valor_semana_completa': valor, 'dias_presentes': dias_presentes,
+                'antecipado': antecipado, 'dias_jornada': dias_jornada if antecipado else None,
+                'dias_previstos': dias_previstos if antecipado else None,
+                'faltas_descontar': faltas_descontar if antecipado else 0,
+                'diaria_desconto': diaria_desconto if antecipado else None,
+                'desconto_adicional': desconto_adicional if antecipado else Decimal('0'),
+            } if pagar else {}),
         },
     )

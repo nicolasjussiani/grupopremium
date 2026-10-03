@@ -4,8 +4,24 @@ from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import transaction
 
-from core.models import Fornecedor, PerfilUsuario, Unidade
+from core.models import ArquivoImportado, Fornecedor, PerfilUsuario, Unidade
 from admissional.models import Colaborador, PagamentoColaborador
+
+
+class DetalhamentoArquivoForm(forms.ModelForm):
+    class Meta:
+        model = ArquivoImportado
+        fields = ('area', 'categoria', 'subcategoria', 'descricao', 'observacoes', 'data_documento')
+        widgets = {
+            'observacoes': forms.Textarea(attrs={'rows': 5}),
+            'data_documento': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+        }
+        help_texts = {'data_documento': 'Use a data comprovada no documento. Se não houver certeza, deixe em branco; não use a data do envio.'}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'
 
 
 class RevisaoPagamentoImportadoForm(forms.Form):

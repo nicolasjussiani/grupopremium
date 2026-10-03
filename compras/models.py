@@ -74,6 +74,33 @@ class Material(models.Model):
         return self.quantidade_estoque <= self.estoque_minimo
 
 
+class EquipamentoManutencao(models.Model):
+    """Máquinas e ferramentas cadastradas para abrir solicitações de manutenção."""
+
+    TIPOS = [
+        ('maquina', 'Máquina'),
+        ('ferramenta', 'Ferramenta'),
+        ('equipamento', 'Equipamento'),
+    ]
+
+    nome = models.CharField(max_length=200, verbose_name='Nome')
+    tipo = models.CharField(max_length=20, choices=TIPOS, default='equipamento')
+    codigo = models.CharField(max_length=40, blank=True, verbose_name='Código / patrimônio')
+    localizacao = models.CharField(max_length=150, blank=True, verbose_name='Unidade / localização')
+    descricao = models.TextField(blank=True, verbose_name='Descrição')
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['nome']
+        verbose_name = 'Equipamento de manutenção'
+        verbose_name_plural = 'Equipamentos de manutenção'
+
+    def __str__(self):
+        return f'{self.nome} ({self.codigo})' if self.codigo else self.nome
+
+
 class RequisicaoCompra(models.Model):
     """Agrupa vários materiais destinados à mesma unidade."""
 
@@ -81,6 +108,7 @@ class RequisicaoCompra(models.Model):
         ('aguardando_adriana', 'Aguardando aprovação da Adriana'),
         ('aguardando_ceo', 'Aguardando aprovação do CEO'),
         ('aprovada', 'Aprovada'),
+        ('pedido', 'Pedido'),
         ('rejeitada', 'Rejeitada'),
     ]
 
@@ -126,7 +154,7 @@ class RequisicaoCompra(models.Model):
 
     @property
     def status_entrega(self):
-        if self.status != 'aprovada':
+        if self.status not in {'aprovada', 'pedido'}:
             return 'Não se aplica' if self.status == 'rejeitada' else 'Aguardando aprovação'
         itens = [item for item in self.itens.all() if item.status != 'cancelado']
         entregues = sum(item.status == 'entregue' for item in itens)
@@ -156,6 +184,7 @@ class RequisicaoCompra(models.Model):
             else:
                 item.status = 'compra_externa'
             item.save(update_fields=['status', 'atendida_por', 'atualizado_em'])
+        self.manutencoes.filter(status='pendente').update(status='aguardando_manutencao')
         self.status = 'aprovada'
         self.save(update_fields=['status', 'atualizado_em'])
 
@@ -163,6 +192,7 @@ class RequisicaoCompra(models.Model):
         if self.status not in {'aguardando_adriana', 'aguardando_ceo'}:
             raise ValidationError('A requisição não está aguardando aprovação.')
         self.itens.filter(status='pendente').update(status='cancelado')
+        self.manutencoes.filter(status='pendente').update(status='cancelada')
         self.status = 'rejeitada'
         self.save(update_fields=['status', 'atualizado_em'])
 
@@ -231,7 +261,7 @@ class SolicitacaoMaterial(models.Model):
 
     @property
     def status_entrega(self):
-        if self.requisicao_id and self.requisicao.status != 'aprovada':
+        if self.requisicao_id and self.requisicao.status not in {'aprovada', 'pedido'}:
             return 'Não se aplica' if self.requisicao.status == 'rejeitada' else 'Aguardando aprovação'
         if self.status == 'cancelado':
             return 'Não se aplica'
@@ -242,15 +272,51 @@ class SolicitacaoMaterial(models.Model):
         return 'Aguardando aprovação'
 
     @property
+    def todos_pedidos(self):
+        pedidos = {pedido.pk: pedido for pedido in self.pedidos.all()}
+        for item in self.itens_pedido.all():
+            pedidos[item.pedido_id] = item.pedido
+        return sorted(pedidos.values(), key=lambda pedido: pedido.pk, reverse=True)
+
+    @property
     def pode_confirmar_entrega(self):
-        if self.requisicao_id and self.requisicao.status != 'aprovada':
+        if self.requisicao_id and self.requisicao.status not in {'aprovada', 'pedido'}:
             return False
         if self.status == 'atendido_interno':
             return True
         return self.status == 'aguardando_entrega' and any(
             pedido.status in PedidoCompra.STATUS_APOS_APROVACAO
-            for pedido in self.pedidos.all()
+            for pedido in self.todos_pedidos
         )
+
+
+class SolicitacaoManutencao(models.Model):
+    STATUS = [
+        ('pendente', 'Aguardando aprovação da RC'),
+        ('aguardando_manutencao', 'Aguardando manutenção'),
+        ('em_manutencao', 'Em manutenção'),
+        ('concluida', 'Concluída'),
+        ('cancelada', 'Cancelada'),
+    ]
+
+    requisicao = models.ForeignKey(
+        RequisicaoCompra, on_delete=models.CASCADE, related_name='manutencoes'
+    )
+    equipamento = models.ForeignKey(
+        EquipamentoManutencao, on_delete=models.PROTECT, related_name='solicitacoes'
+    )
+    problema = models.TextField(verbose_name='Manutenção necessária')
+    status = models.CharField(max_length=30, choices=STATUS, default='pendente')
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'Solicitação de manutenção'
+        verbose_name_plural = 'Solicitações de manutenção'
+
+    def __str__(self):
+        return f'{self.equipamento} — {self.get_status_display()}'
 
 
 class PedidoCompra(models.Model):
@@ -264,7 +330,7 @@ class PedidoCompra(models.Model):
         ('aguardando_aprovacao', 'Aguardando Aprovação'),
         ('aprovado', 'Aprovado'),
         ('reprovado', 'Reprovado — Nova Cotação'),
-        ('pedido_emitido', 'Pedido Emitido ao Fornecedor'),
+        ('pedido_emitido', 'Pedido'),
         ('aguardando_recebimento', 'Aguardando Recebimento'),
         ('recebido_conferencia', 'Recebido — Em Conferência'),
         ('entrada_estoque', 'Entrada no Estoque'),
@@ -272,10 +338,16 @@ class PedidoCompra(models.Model):
     ]
 
     solicitacao = models.ForeignKey(SolicitacaoMaterial, on_delete=models.CASCADE,
+                                     null=True, blank=True,
                                      related_name='pedidos', verbose_name='Solicitação de Origem')
+    requisicao = models.ForeignKey(
+        RequisicaoCompra, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='pedidos', verbose_name='Requisição de Origem',
+    )
     fornecedor = models.CharField(max_length=200, verbose_name='Fornecedor')
     cnpj_fornecedor = models.CharField(max_length=18, blank=True, verbose_name='CNPJ do Fornecedor')
-    valor_unitario = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Valor Unitário')
+    valor_unitario = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+                                        verbose_name='Valor Unitário')
     valor_total = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor Total')
     prazo_entrega = models.DateField(null=True, blank=True, verbose_name='Prazo de Entrega')
     status = models.CharField(max_length=30, choices=STATUS, default='em_cotacao')
@@ -292,6 +364,11 @@ class PedidoCompra(models.Model):
         verbose_name_plural = 'Pedidos de Compra'
         ordering = ['-criado_em']
         constraints = [
+            models.CheckConstraint(
+                condition=(models.Q(solicitacao__isnull=False, requisicao__isnull=True, valor_unitario__isnull=False)
+                           | models.Q(solicitacao__isnull=True, requisicao__isnull=False, valor_unitario__isnull=True)),
+                name='compras_pedido_origem_valida',
+            ),
             models.CheckConstraint(condition=models.Q(valor_unitario__gt=0), name='compras_valor_unitario_positivo'),
             models.CheckConstraint(condition=models.Q(valor_total__gt=0), name='compras_valor_total_positivo'),
             models.UniqueConstraint(
@@ -302,11 +379,40 @@ class PedidoCompra(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.numero_pedido or 'PC-NOVO'} | {self.solicitacao.material.nome} — {self.fornecedor}"
+        origem = self.requisicao.numero if self.requisicao_id else self.solicitacao.material.nome
+        return f"{self.numero_pedido or 'PC-NOVO'} | {origem} — {self.fornecedor}"
+
+    @classmethod
+    def para_solicitacao(cls, pk):
+        return cls.objects.filter(
+            models.Q(solicitacao_id=pk) | models.Q(
+                pk__in=ItemPedidoCompra.objects.filter(solicitacao_id=pk).values('pedido_id')
+            )
+        )
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('detalhe_pedido', args=[self.pk])
+
+    @property
+    def solicitacoes_vinculadas(self):
+        if self.solicitacao_id:
+            return [self.solicitacao]
+        return [item.solicitacao for item in self.itens.all()]
+
+    @property
+    def materiais_descricao(self):
+        return ', '.join(sol.material.nome for sol in self.solicitacoes_vinculadas)
 
     def calcular_valor_total(self):
         """Calcula o total em centavos, mesmo para quantidades fracionadas."""
-        if self.valor_unitario is None or not self.solicitacao_id:
+        if not self.solicitacao_id:
+            if self.pk:
+                itens = list(self.itens.all())
+                if itens:
+                    return sum((item.valor_total for item in itens), Decimal('0.00'))
+            return self.valor_total
+        if self.valor_unitario is None:
             return None
         quantidade = Decimal(str(self.solicitacao.quantidade_solicitada))
         return (Decimal(str(self.valor_unitario)) * quantidade).quantize(
@@ -319,35 +425,45 @@ class PedidoCompra(models.Model):
             return 'Não se aplica'
         if self.status not in self.STATUS_APOS_APROVACAO:
             return 'Aguardando aprovação'
-        return 'Entregue' if self.solicitacao.status == 'entregue' else 'Não entregue'
+        solicitacoes = self.solicitacoes_vinculadas
+        entregues = sum(sol.status == 'entregue' for sol in solicitacoes)
+        if solicitacoes and entregues == len(solicitacoes):
+            return 'Entregue'
+        return 'Entrega parcial' if entregues else 'Não entregue'
 
     def clean(self):
         super().clean()
         if self.valor_unitario is not None and self.valor_unitario <= 0:
             raise ValidationError({'valor_unitario': 'O valor unitário deve ser maior que zero.'})
+        if self.solicitacao_id and ItemPedidoCompra.objects.filter(
+            solicitacao_id=self.solicitacao_id, ativo=True,
+        ).exists() and self.status != 'reprovado':
+            raise ValidationError('Esta solicitação já possui um pedido de compra ativo.')
         total = self.calcular_valor_total()
         if total is not None:
             self.valor_total = total
 
+    @transaction.atomic
     def aprovar(self, usuario):
-        """Emite o pedido e mantém a solicitação sincronizada."""
+        """Emite o pedido e mantém as solicitações sincronizadas."""
         if self.status != 'aguardando_aprovacao':
             raise ValidationError('Este pedido não está aguardando aprovação.')
         self.status = 'pedido_emitido'
         self.aprovado_por = usuario
         self.save(update_fields=['status', 'aprovado_por', 'atualizado_em'])
-        SolicitacaoMaterial.objects.filter(pk=self.solicitacao_id).update(
+        SolicitacaoMaterial.objects.filter(pk__in=[sol.pk for sol in self.solicitacoes_vinculadas]).update(
             status='aguardando_entrega'
         )
 
+    @transaction.atomic
     def reprovar(self, motivo=''):
-        """Reabre a solicitação para permitir uma nova cotação."""
+        """Reabre as solicitações para permitir uma nova cotação."""
         if self.status != 'aguardando_aprovacao':
             raise ValidationError('Este pedido não está aguardando aprovação.')
         self.status = 'reprovado'
         self.obs = motivo or 'Reprovado — nova cotação necessária.'
         self.save(update_fields=['status', 'obs', 'atualizado_em'])
-        SolicitacaoMaterial.objects.filter(pk=self.solicitacao_id).update(
+        SolicitacaoMaterial.objects.filter(pk__in=[sol.pk for sol in self.solicitacoes_vinculadas]).update(
             status='compra_externa'
         )
 
@@ -359,6 +475,51 @@ class PedidoCompra(models.Model):
             if kwargs.get('update_fields') is not None:
                 kwargs['update_fields'] = set(kwargs['update_fields']) | {'valor_total'}
         super().save(*args, **kwargs)
+        if self.requisicao_id:
+            self.itens.update(ativo=self.status != 'reprovado')
         if gerar_numero:
             self.numero_pedido = f'PC-{self.pk:06d}'
             type(self).objects.filter(pk=self.pk).update(numero_pedido=self.numero_pedido)
+
+
+class ItemPedidoCompra(models.Model):
+    """Uma linha de um pedido que reúne os produtos selecionados da requisição."""
+
+    pedido = models.ForeignKey(PedidoCompra, on_delete=models.CASCADE, related_name='itens')
+    solicitacao = models.ForeignKey(
+        SolicitacaoMaterial, on_delete=models.PROTECT, related_name='itens_pedido',
+    )
+    quantidade = models.DecimalField(max_digits=10, decimal_places=2)
+    valor_unitario = models.DecimalField(max_digits=10, decimal_places=2)
+    valor_total = models.DecimalField(max_digits=12, decimal_places=2)
+    ativo = models.BooleanField(default=True, editable=False)
+
+    class Meta:
+        ordering = ['pk']
+        constraints = [
+            models.UniqueConstraint(fields=['pedido', 'solicitacao'], name='compras_item_unico_no_pedido'),
+            models.UniqueConstraint(fields=['solicitacao'], condition=models.Q(ativo=True),
+                                    name='compras_um_item_pedido_ativo'),
+            models.CheckConstraint(condition=models.Q(quantidade__gt=0), name='compras_item_pedido_qtd_positiva'),
+            models.CheckConstraint(condition=models.Q(valor_unitario__gt=0), name='compras_item_pedido_preco_positivo'),
+            models.CheckConstraint(condition=models.Q(valor_total__gt=0), name='compras_item_pedido_total_positivo'),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.pedido_id and self.solicitacao_id:
+            if not self.pedido.requisicao_id or self.pedido.requisicao_id != self.solicitacao.requisicao_id:
+                raise ValidationError('O produto deve pertencer à requisição deste pedido.')
+            if self.ativo and self.solicitacao.pedidos.exclude(status='reprovado').exists():
+                raise ValidationError('Esta solicitação já possui um pedido de compra ativo.')
+        if self.valor_unitario is not None and self.quantidade is not None:
+            self.valor_total = (Decimal(str(self.valor_unitario)) * Decimal(str(self.quantidade))).quantize(
+                PedidoCompra.CENTAVOS, rounding=ROUND_HALF_UP,
+            )
+
+    def save(self, *args, **kwargs):
+        self.valor_total = (Decimal(str(self.valor_unitario)) * Decimal(str(self.quantidade))).quantize(
+            PedidoCompra.CENTAVOS, rounding=ROUND_HALF_UP,
+        )
+        self.ativo = self.pedido.status != 'reprovado'
+        super().save(*args, **kwargs)

@@ -1,0 +1,10 @@
+<div class="card" style="margin-bottom:20px;border-top-color:var(--danger);">
+  <div class="card-header"><div class="card-title">Reprovação da requisição</div></div>
+  <div>{% include 'compras/responsavel_reprovacao.html' with decisao=requisicao.reprovacao only %}</div>
+  {% if requisicao.reprovacao.decidido_em %}
+  <div style="margin-top:8px;color:var(--text-secondary);">Data: {{ requisicao.reprovacao.decidido_em|date:"d/m/Y H:i" }}</div>
+  {% endif %}
+  {% if requisicao.reprovacao.motivo_rejeicao %}
+  <div style="margin-top:12px;overflow-wrap:anywhere;"><strong>Motivo:</strong> {{ requisicao.reprovacao.motivo_rejeicao|linebreaksbr }}</div>
+  {% endif %}
+</div>

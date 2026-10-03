@@ -143,3 +143,19 @@ class EntregaComprasTests(TestCase):
         self.assertRedirects(response, reverse('detalhe_solicitacao', args=[self.item.pk]))
         pedido.refresh_from_db()
         self.assertEqual(pedido.status, 'concluido')
+
+    def test_pedido_gerado_de_rc_aprovada_permite_confirmar_entrega(self):
+        self.item.status = 'compra_externa'
+        self.item.save()
+        response = self.client.post(reverse('criar_pedido', args=[self.item.pk]), {
+            'fornecedor': 'Fornecedor', 'valor_unitario': '5.00',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.requisicao.refresh_from_db()
+        self.assertEqual(self.requisicao.status, 'pedido')
+        self.assertEqual(self.requisicao.status_entrega, 'Não entregue')
+        detalhe = self.client.get(reverse('detalhe_requisicao', args=[self.requisicao.pk]))
+        self.assertContains(detalhe, self.url)
+        self.client.post(self.url)
+        self.assertEqual(self.requisicao.status_entrega, 'Entregue')
+        self.assertEqual(self.item.pedidos.get().status, 'concluido')

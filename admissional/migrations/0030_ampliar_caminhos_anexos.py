@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('admissional', '0028_colaborador_chave_pix'),
+        ('admissional', '0029_colaborador_chave_pix'),
     ]
 
     operations = [

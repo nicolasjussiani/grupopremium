@@ -1,16 +1,16 @@
 {% extends 'base.html' %}
 {% load l10n %}
-{% block title %}Criar pedidos selecionados — Compras ERP{% endblock %}
+{% block title %}Criar pedido — Compras ERP{% endblock %}
 {% block nav_compras %}active{% endblock %}
-{% block topbar_title %}Criar pedidos selecionados{% endblock %}
+{% block topbar_title %}Criar pedido{% endblock %}
 {% block content %}
 <div class="module-banner mod-banner-5" style="margin-bottom:20px;">
-  <div class="mod-title">🛒 Pedidos de compra — {{ requisicao.numero }}</div>
+  <div class="mod-title">🛒 Pedido de compra — {{ requisicao.numero }}</div>
   <div class="mod-desc">{{ itens|length }} produto{{ itens|length|pluralize }} selecionado{{ itens|length|pluralize }} · {{ requisicao.unidade_destino }}</div>
 </div>
 <div class="card" style="max-width:1000px;">
-  <div class="card-header"><div class="card-title">Dados dos pedidos</div></div>
-  <p style="color:var(--text-secondary);">Informe o fornecedor e o valor de cada produto. Será criado um pedido por produto, seguindo o fluxo de aprovação da Adriana e do CEO.</p>
+  <div class="card-header"><div class="card-title">Dados do pedido</div></div>
+  <p style="color:var(--text-secondary);">Todos os produtos selecionados farão parte de um único pedido. Informe o fornecedor uma vez e o valor unitário de cada produto.</p>
   <form method="post">
     {% csrf_token %}
     <div class="form-grid">
@@ -25,6 +25,10 @@
       <div class="form-group">
         <label for="batchDelivery" class="form-label">Prazo de entrega</label>
         <input id="batchDelivery" type="date" name="prazo_entrega" class="form-control" value="{{ request.POST.prazo_entrega }}">
+      </div>
+      <div class="form-group form-full">
+        <label for="batchNotes" class="form-label">Observações do pedido</label>
+        <textarea id="batchNotes" name="obs" class="form-control" rows="3">{{ request.POST.obs }}</textarea>
       </div>
     </div>
     {% for item in itens %}
@@ -44,9 +48,9 @@
       </div>
     </div>
     {% endfor %}
-    <p><strong>Total dos pedidos: <span id="batchTotal" aria-live="polite">R$ 0,00</span></strong></p>
+    <p><strong>Total do pedido: <span id="batchTotal" aria-live="polite">R$ 0,00</span></strong></p>
     <div class="gateway-actions" style="margin-top:16px;">
-      <button type="submit" class="btn btn-mod5">Criar {{ itens|length }} pedido{{ itens|length|pluralize }}</button>
+      <button type="submit" class="btn btn-mod5">Criar pedido com {{ itens|length }} {{ itens|length|pluralize:"item,itens" }}</button>
       <a href="{% url 'detalhe_requisicao' requisicao.pk %}" class="btn btn-outline">← Cancelar</a>
     </div>
   </form>

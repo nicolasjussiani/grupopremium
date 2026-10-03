@@ -1,6 +1,6 @@
 from django import forms
 
-from compras.models import Material
+from compras.models import EquipamentoManutencao, Material
 
 
 class MaterialForm(forms.ModelForm):
@@ -24,3 +24,28 @@ class MaterialForm(forms.ModelForm):
             'accept': '.png,.jpg,.jpeg',
             'aria-describedby': 'foto-ajuda',
         })
+
+
+class EquipamentoManutencaoForm(forms.ModelForm):
+    class Meta:
+        model = EquipamentoManutencao
+        fields = ('nome', 'tipo', 'codigo', 'localizacao', 'descricao', 'ativo')
+        widgets = {'descricao': forms.Textarea(attrs={'rows': 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        categorias_ativos = {'ferramentas', 'manutencao'}
+        self.fields['categoria'].choices = [
+            choice for choice in self.fields['categoria'].choices
+            if choice[0] not in categorias_ativos
+        ]
+        if self.instance.pk and self.instance.categoria in categorias_ativos:
+            valor = self.instance.categoria
+            etiqueta = dict(Material.CATEGORIAS)[valor]
+            self.fields['categoria'].choices = [(valor, etiqueta)] + list(
+                self.fields['categoria'].choices
+            )
+        for field in self.fields.values():
+            if not isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs['class'] = 'form-control'
+        self.fields['ativo'].label = 'Disponível para novas solicitações'

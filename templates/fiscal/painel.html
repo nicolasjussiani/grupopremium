@@ -50,7 +50,9 @@
 
 <section id="lotes" data-fiscal-section aria-label="Lotes importados">
 <div class="card">
-  <div class="card-header"><div class="card-title">Lotes importados</div><span class="badge badge-info">{{ folhas|length }}</span></div>
+  <div class="report-toolbar"><a class="btn btn-outline" href="{% url 'exportar_lotes_fiscal_xlsx' %}">Exportar lotes para Excel</a><p>Para exportar colaboradores e valores, abra o lote desejado.</p></div>
+{% include 'core/_graficos_relatorio.html' %}
+<div class="card-header"><div class="card-title">Lotes importados</div><span class="badge badge-info">{{ folhas|length }}</span></div>
   <div class="table-wrap" style="border:none;">
     <table>
       <thead><tr><th>Competência</th><th>Versão</th><th>Folha</th><th>Benefícios</th><th>Pendências</th><th>Status</th><th></th></tr></thead>

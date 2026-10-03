@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Detalhamento do documento{% endblock %}
+{% block nav_financeiro %}active{% endblock %}
+{% block content %}
+<div class="card" style="max-width:850px;margin:auto;">
+  <h1>Detalhar {{ documento.numero_documento }}</h1>
+  <p>Acrescente o motivo da despesa ou receita, serviço, unidade e outras informações necessárias à conferência.</p>
+  <form method="post">{% csrf_token %}{{ form.non_field_errors }}
+    {% for field in form %}<div class="form-group">{{ field.label_tag }}{{ field }}{{ field.errors }}</div>{% endfor %}
+    <button class="btn btn-mod6" type="submit">Salvar detalhamento</button>
+    <a class="btn btn-outline" href="{% url 'detalhe_documento' documento.pk %}">Voltar</a>
+  </form>
+</div>
+{% endblock %}

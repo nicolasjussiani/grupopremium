@@ -447,6 +447,8 @@ def _anexar_dias_trabalhados(pagamentos, inicio, fim):
             dias = len(resumo['datas']) if resumo and resumo['definidos'] else None
             pagamento.inicio_presencas = segunda - timedelta(days=7)
             pagamento.fim_presencas = segunda - timedelta(days=1)
+        if pagamento.tipo == 'salario' and pagamento.salario_base is not None and dias is not None:
+            dias -= pagamento.faltas
         pagamento.dias_trabalhados_exibicao = dias
         pagamento.chave_pix_exibicao = pix
     return pagamentos
@@ -727,6 +729,8 @@ def resumo_colaborador_pagamento(request, pk):
         'categoria': colaborador.get_categoria_trabalho_display(),
         'tipo_contrato': colaborador.get_tipo_contrato_display(),
         'dias_trabalhados': dias_trabalhados if presencas.exclude(status='indefinido').exists() else None,
+        'faltas': list(presencas.filter(status='falta').order_by('data').values_list('data', flat=True)),
+        'salario_base': colaborador.salario,
         'periodo': f'{inicio:%d/%m/%Y} a {fim:%d/%m/%Y}',
     })
 
@@ -798,6 +802,8 @@ def novo_pagamento_colaborador(request):
                 else:
                     campo_valor = 'ajuda_custo_semanal'
                 initial['valor'] = getattr(colaborador, campo_valor)
+                if initial['tipo'] == 'salario':
+                    initial['salario_base'] = colaborador.salario
         form = PagamentoColaboradorForm(initial=initial)
     return render(request, 'admissional/form_pagamento.html', {
         'form': form,

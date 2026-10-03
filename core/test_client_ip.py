@@ -99,7 +99,7 @@ class ClientIPTests(TestCase):
     def test_migracao_recupera_so_ips_publicos_com_origem_nao_confirmada(self):
         for address in ['8.8.8.8', '8.8.8.8', '10.0.0.1', None]:
             LogAtividade.objects.create(usuario=self.user, acao='Histórico', ip_address=address)
-        migration = import_module('core.migrations.0017_ipusuario')
+        migration = import_module('core.migrations.0018_ipusuario')
         migration.importar_ips_auditoria(apps, SimpleNamespace(connection=connection))
         registro = IPUsuario.objects.get()
         self.assertEqual(registro.ip_address, '8.8.8.8')

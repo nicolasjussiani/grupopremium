@@ -15,7 +15,7 @@ from django.core.files.storage import default_storage
 from core.access import access_required, user_has_access
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_POST, require_http_methods
-from .forms import PagamentoDocumentoForm, CancelamentoDocumentoForm
+from .forms import PagamentoDocumentoForm, CancelamentoDocumentoForm, DetalhamentoDocumentoForm
 from core.validators import validate_document_upload, validate_pdf_upload
 from core.direct_uploads import verify_direct_upload
 from django.core.exceptions import ValidationError
@@ -31,6 +31,20 @@ logger = logging.getLogger(__name__)
 @login_required
 def painel_financeiro(request):
     pagamentos = DocumentoFinanceiro.objects.exclude(status='cancelado')
+    fluxos = {
+        'saidas': ('a_pagar', 'pago'),
+        'entradas': ('a_receber', 'recebido'),
+        'classificar': ('nao_informado',),
+    }
+    fluxo = request.GET.get('fluxo', '' if request.GET.get('pagamento') else 'saidas')
+    if fluxo in fluxos:
+        pagamentos = pagamentos.filter(situacao_pagamento__in=fluxos[fluxo])
+    else:
+        fluxo = ''
+    resumo_contas = DocumentoFinanceiro.objects.exclude(status='cancelado').aggregate(
+        a_pagar=Sum('valor', filter=Q(situacao_pagamento='a_pagar')),
+        a_receber=Sum('valor', filter=Q(situacao_pagamento='a_receber')),
+    )
     filtro_pagamento = request.GET.get('pagamento', '')
     if filtro_pagamento == 'cancelado':
         pagamentos = DocumentoFinanceiro.objects.filter(status='cancelado')
@@ -101,6 +115,9 @@ def painel_financeiro(request):
     return render(request, 'financeiro/painel.html', {
         'pagamentos': pagina_pagamentos,
         'filtro_pagamento': filtro_pagamento,
+        'fluxo': fluxo,
+        'resumo_contas': resumo_contas,
+        'total_classificar': DocumentoFinanceiro.objects.filter(situacao_pagamento='nao_informado').count(),
         'situacoes_pagamento': DocumentoFinanceiro.SITUACOES_PAGAMENTO,
         'docs_pendentes': docs_pendentes,
         'lancamentos_pendentes': lancamentos_pendentes,
@@ -181,7 +198,7 @@ def entrada_documento(request):
             })
         if arquivo_upload:
             try:
-                validate_pdf_upload(arquivo_upload)
+                validate_document_upload(arquivo_upload)
             except ValidationError as exc:
                 messages.error(request, exc.messages[0])
                 return render(request, 'financeiro/entrada_documento.html', {
@@ -395,6 +412,20 @@ def detalhe_documento(request, pk):
         'pode_alterar_pagamento': doc.status != 'cancelado' and user_has_access(request.user, **ACESSO_PAGAMENTO),
         'pode_cancelar': user_has_access(request.user, **ACESSO_PAGAMENTO) and doc.pode_cancelar,
     })
+
+
+@login_required
+@access_required(**ACESSO_PAGAMENTO)
+@transaction.atomic
+def editar_detalhamento_documento(request, pk):
+    doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=pk)
+    form = DetalhamentoDocumentoForm(request.POST if request.method == 'POST' else None, instance=doc)
+    if request.method == 'POST' and form.is_valid():
+        # Apenas metadados: não altera valores, baixas, datas ou o arquivo original.
+        form.save()
+        messages.success(request, 'Descrição e observações atualizadas.')
+        return redirect('detalhe_documento', pk=pk)
+    return render(request, 'financeiro/editar_detalhamento.html', {'form': form, 'documento': doc})
 
 
 @login_required

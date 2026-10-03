@@ -18,7 +18,7 @@
 </div>
 {% endif %}
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:20px;">
   <!-- Dados do Documento -->
   <div class="card">
     <div class="card-header">
@@ -70,7 +70,7 @@
 
     {% if documento.arquivo_pdf or documento.arquivo %}
     <div style="margin-top:14px;">
-      <a href="{% url 'download_pdf_financeiro' documento.pk %}" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;">📄 Visualizar Nota Fiscal (PDF)</a>
+      <a href="{% url 'download_pdf_financeiro' documento.pk %}" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;">📄 Visualizar documento original</a>
     </div>
     {% endif %}
   </div>
@@ -78,15 +78,21 @@
   <!-- Ações -->
   <div style="display:flex;flex-direction:column;gap:16px;">
     <div class="card">
-      <div class="card-title">{% if documento.status == 'cancelado' %}Pagamento suspenso — documento cancelado{% else %}Pagamento: {{ documento.get_situacao_pagamento_display }}{% endif %}</div>
-      {% if documento.data_pagamento %}<p>Pago em {{ documento.data_pagamento|date:"d/m/Y" }}</p>{% endif %}
+      <div class="card-title">{% if documento.status == 'cancelado' %}Pagamento suspenso — documento cancelado{% else %}Situação: {{ documento.get_situacao_pagamento_display }}{% endif %}</div>
+      {% if documento.data_pagamento %}<p>Baixa em {{ documento.data_pagamento|date:"d/m/Y" }}</p>{% endif %}
       {% if pode_alterar_pagamento %}
       <form method="post" action="{% url 'atualizar_pagamento_documento' documento.pk %}" style="margin-top:16px;">
         {% csrf_token %}
         {% include "financeiro/campos_pagamento.html" %}
-        <button type="submit" class="btn btn-mod6">Salvar pagamento</button>
+        <button type="submit" class="btn btn-mod6">Salvar situação</button>
       </form>
       {% endif %}
+    </div>
+    <div class="card">
+      <h2 class="card-title">Descrição e observações</h2>
+      <p>{{ documento.descricao }}</p>
+      <div style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ documento.observacoes|default:"Sem observações adicionais." }}</div>
+      {% if pode_alterar_pagamento %}<a class="btn btn-outline" style="margin-top:16px;" href="{% url 'editar_detalhamento_documento' documento.pk %}">Editar detalhamento</a>{% endif %}
     </div>
     <!-- Ação disponível conforme status -->
     {% if documento.status == 'em_auditoria' or documento.status == 'recebido' %}

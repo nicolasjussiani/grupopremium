@@ -2,7 +2,7 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-    dependencies = [('admissional', '0027_calculo_proporcional_vt')]
+    dependencies = [('admissional', '0028_calculo_salario_vt_antecipado')]
 
     operations = [
         migrations.AddField(

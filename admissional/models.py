@@ -336,6 +336,15 @@ class PagamentoColaborador(models.Model):
         verbose_name='Valor da diária',
         help_text='Obrigatório para freelancer. O total será dias trabalhados × diária.',
     )
+    salario_base = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0.01'))], verbose_name='Salário mensal para cálculo')
+    gratificacao = models.DecimalField(max_digits=10, decimal_places=2, default=0, blank=True,
+        validators=[MinValueValidator(Decimal('0'))], verbose_name='Gratificação integral')
+    faltas = models.DecimalField(max_digits=5, decimal_places=2, default=0, blank=True,
+        validators=[MinValueValidator(Decimal('0'))], verbose_name='Faltas a descontar (dias)')
+    outros_descontos = models.DecimalField(max_digits=10, decimal_places=2, default=0, blank=True,
+        validators=[MinValueValidator(Decimal('0'))], verbose_name='Outros descontos / adiantamentos')
+
     chave_pix = models.CharField(
         max_length=180,
         blank=True,
@@ -465,7 +474,10 @@ class PagamentoColaborador(models.Model):
             raise ValidationError({
                 'recorrente': 'A recorrência semanal é permitida apenas para VT ou ajuda de custo.'
             })
-        if bool(self.dias_trabalhados) != bool(self.valor_diaria):
+        if self.tipo == 'salario' and self.salario_base is not None:
+            from .calculo_folha import calcular_salario
+            self.valor = calcular_salario(self.salario_base, self.dias_trabalhados, self.faltas, self.gratificacao, self.outros_descontos)
+        elif bool(self.dias_trabalhados) != bool(self.valor_diaria):
             raise ValidationError({
                 'dias_trabalhados': 'Informe os dias trabalhados e o valor da diária juntos.',
                 'valor_diaria': 'Informe os dias trabalhados e o valor da diária juntos.',
@@ -566,6 +578,13 @@ class ProgramacaoVT(models.Model):
     pagar = models.BooleanField()
     valor_semana_completa = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     dias_presentes = models.PositiveSmallIntegerField(null=True, blank=True)
+    antecipado = models.BooleanField(default=False)
+    dias_jornada = models.PositiveSmallIntegerField(null=True, blank=True)
+    dias_previstos = models.PositiveSmallIntegerField(null=True, blank=True)
+    faltas_descontar = models.PositiveSmallIntegerField(default=0)
+    diaria_desconto = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    desconto_adicional = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     atualizado_por = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
     atualizado_em = models.DateTimeField(auto_now=True)
 

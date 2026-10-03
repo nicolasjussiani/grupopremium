@@ -202,7 +202,7 @@ class EntradaDocumentoOpcionalTests(TestCase):
         documento = DocumentoFinanceiro.objects.get(numero_documento='NF-SEM-PDF-001')
         self.assertFalse(documento.arquivo)
 
-    def test_novo_documento_rejeita_imagem_no_campo_pdf(self):
+    def test_novo_documento_aceita_imagem_no_campo_pdf(self):
         imagem = SimpleUploadedFile(
             'documento.png', b'\x89PNG\r\n\x1a\nconteudo', content_type='image/png'
         )
@@ -210,14 +210,13 @@ class EntradaDocumentoOpcionalTests(TestCase):
         response = self.client.post(reverse('entrada_documento'), {
             'tipo': 'nota_fiscal',
             'numero_documento': 'NF-IMAGEM-001',
-            'descricao': 'Arquivo com formato incorreto',
+            'descricao': 'Comprovante em imagem',
             'valor': '89.90',
             'arquivo_pdf': imagem,
         })
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Extensao de arquivo nao permitida.')
-        self.assertFalse(
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
             DocumentoFinanceiro.objects.filter(numero_documento='NF-IMAGEM-001').exists()
         )
 
@@ -231,7 +230,7 @@ class EntradaDocumentoOpcionalTests(TestCase):
         self.assertNotContains(
             response, 'name="data_vencimento" class="form-control" required'
         )
-        self.assertContains(response, 'inclusive o PDF')
+        self.assertContains(response, 'inclusive o arquivo')
         self.assertContains(response, 'Documento financeiro em PDF')
         self.assertContains(response, 'com até 50 MB')
         self.assertNotContains(

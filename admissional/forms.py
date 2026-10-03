@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django import forms
+from django.core.exceptions import ValidationError
 from .models import (
     Colaborador, PagamentoColaborador, TIPOS_PAGAMENTO_SEMANAIS,
     periodo_semanal,
@@ -152,7 +153,7 @@ class PagamentoColaboradorForm(forms.ModelForm):
         model = PagamentoColaborador
         fields = (
             'colaborador', 'tipo', 'competencia', 'competencia_fim', 'valor',
-            'dias_trabalhados', 'valor_diaria', 'chave_pix', 'data_vencimento', 'status',
+            'dias_trabalhados', 'salario_base', 'gratificacao', 'faltas', 'outros_descontos', 'valor_diaria', 'chave_pix', 'data_vencimento', 'status',
             'data_pagamento', 'recorrente', 'observacao',
         )
         widgets = {
@@ -195,15 +196,43 @@ class PagamentoColaboradorForm(forms.ModelForm):
         self.fields['valor'].widget.is_localized = True
         self.fields['valor_diaria'].localize = True
         self.fields['valor_diaria'].widget.is_localized = True
+        for name in ('salario_base', 'gratificacao', 'faltas', 'outros_descontos'):
+            self.fields[name].localize = True
+            self.fields[name].widget = forms.TextInput(attrs={'class': 'form-control', 'inputmode': 'decimal'})
+            self.fields[name].widget.is_localized = True
+        self.fields['salario_base'].help_text = 'Salário mensal ÷ 30. Deixe vazio somente para manter um lançamento manual antigo.'
+        self.fields['dias_trabalhados'].help_text = 'Salário: dias do período antes de descontar faltas (até 30). Não desconte a mesma falta neste campo e novamente em Faltas.'
+        self.fields['gratificacao'].help_text = 'Valor integral, sem proporcionalidade.'
+
 
     def clean(self):
         cleaned_data = super().clean()
+        if self.instance.pk and self.instance.status == 'pago' and self.instance.tipo == 'salario':
+            for name in ('salario_base', 'gratificacao', 'faltas', 'outros_descontos', 'dias_trabalhados', 'valor', 'tipo', 'competencia', 'competencia_fim', 'colaborador', 'status', 'data_vencimento'):
+                enviado = cleaned_data.get(name)
+                atual = getattr(self.instance, name)
+                if name in ('gratificacao', 'faltas', 'outros_descontos'):
+                    enviado = enviado or Decimal('0')
+                if enviado != atual:
+                    self.add_error(name, 'Salário já pago: o cálculo salvo não pode ser alterado.')
         colaborador = cleaned_data.get('colaborador')
         tipo = cleaned_data.get('tipo')
         valor = cleaned_data.get('valor')
         dias_trabalhados = cleaned_data.get('dias_trabalhados')
         valor_diaria = cleaned_data.get('valor_diaria')
-        if tipo == 'freelancer':
+        for name in ('gratificacao', 'faltas', 'outros_descontos'):
+            cleaned_data[name] = cleaned_data.get(name) or Decimal('0')
+        if tipo == 'salario' and cleaned_data.get('salario_base') is not None:
+            from .calculo_folha import calcular_salario
+            try:
+                cleaned_data['valor'] = calcular_salario(
+                    cleaned_data['salario_base'], dias_trabalhados,
+                    cleaned_data['faltas'], cleaned_data['gratificacao'], cleaned_data['outros_descontos'],
+                )
+                cleaned_data['valor_diaria'] = None
+            except ValidationError as exc:
+                self.add_error(None, exc)
+        elif tipo == 'freelancer':
             if bool(dias_trabalhados) != bool(valor_diaria):
                 if not dias_trabalhados:
                     self.add_error('dias_trabalhados', 'Informe os dias trabalhados.')

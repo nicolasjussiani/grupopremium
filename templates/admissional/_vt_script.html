@@ -29,6 +29,28 @@
       try { sessionStorage.setItem(storageKey, JSON.stringify({search:search.value, benefit:benefit.value, status, page})); } catch (_) {}
     };
     const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    const exportLink = panel.querySelector('[data-vt-export]');
+    const exportBase = exportLink?.href;
+    const report = matching => {
+      if (exportLink) {
+        const url = new URL(exportBase);
+        url.searchParams.set('busca_lista', search.value.trim());
+        url.searchParams.set('beneficio', benefit.value);
+        url.searchParams.set('situacao', status);
+        exportLink.href = url.toString();
+      }
+      panel.querySelectorAll('[data-report-chart]').forEach(chart => {
+        const money = chart.dataset.money === 'true';
+        const bars = Array.from(chart.querySelectorAll('[data-report-bar]'));
+        const totals = bars.map(bar => matching.filter(p => p.dataset.status === bar.dataset.reportBar)
+          .reduce((sum, p) => sum + (money ? Math.round(Number(p.dataset.savedAmount || 0) * 100) : 1), 0));
+        const max = Math.max(...totals, 1);
+        bars.forEach((bar, i) => {
+          bar.querySelector('[data-report-value]').textContent = money ? new Intl.NumberFormat('pt-BR', {style:'currency',currency:'BRL'}).format(totals[i] / 100) : String(totals[i]);
+          bar.querySelector('.report-bar-fill').style.width = `${totals[i] / max * 100}%`;
+        });
+      });
+    };
     const filter = () => {
       const query = normalize(search.value.trim());
       const matching = people.filter(person => (status === 'todos' || person.dataset.status === status)
@@ -44,6 +66,7 @@
       previous.disabled = page === 1;
       next.disabled = page === pages;
       pageLabel.textContent = `Página ${page} de ${pages}`;
+      report(matching);
       filters.forEach(button => {
         const active = button.dataset.vtFilter === status;
         button.classList.toggle('is-active', active);
@@ -78,7 +101,7 @@
         const [whole, fraction = ''] = raw.replace(',', '.').split('.');
         return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
       };
-      const value = () => JSON.stringify([form.querySelector('[name="decisao"]:checked')?.value || '', amount.value]);
+      const value = () => JSON.stringify([form.querySelector('[name="decisao"]:checked')?.value || '', ...Array.from(form.querySelectorAll('input[type=number]'), input => input.value)]);
       const initial = value();
       const person = form.closest('[data-vt-person]');
       const update = () => {
@@ -87,15 +110,24 @@
         amount.required = choice === 'pagar';
         amount.min = choice === 'pagar' ? '0.01' : '0';
         const baseCents = cents(amount.value);
-        const calculatedCents = baseCents === null ? null : Math.floor((baseCents * present + 3) / 7);
-        total.textContent = choice === 'nao' ? currency.format(0) : calculatedCents === null ? 'Informe o valor semanal' : currency.format(calculatedCents / 100);
-        formula.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : `${baseCents === null ? 'Valor semanal' : currency.format(baseCents / 100)} ÷ 7 × ${present} dia(s) presente(s).`;
+        const jornada = Number(form.elements.dias_jornada.value);
+        const previstosRaw = form.elements.dias_previstos.value;
+        const previstos = Number(previstosRaw);
+        const faltas = Number(form.elements.faltas_descontar.value || 0);
+        const diariaRaw = form.elements.diaria_desconto.value;
+        const desconto = Number(form.elements.desconto_adicional.value || 0);
+        const diaria = diariaRaw === '' ? (baseCents / 100 / jornada) : Number(diariaRaw);
+        const valido = baseCents !== null && jornada >= 1 && jornada <= 7 && previstosRaw !== '' && previstos >= 0 && previstos <= jornada;
+        const calculated = valido ? (baseCents / 100 / jornada * previstos - diaria * faltas - desconto) : null;
+        for (const nome of ['dias_jornada', 'dias_previstos']) form.elements[nome].required = choice === 'pagar';
+        total.textContent = choice === 'nao' ? currency.format(0) : calculated === null ? 'Informe jornada e dias previstos' : currency.format(calculated);
+        formula.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : `Semanal ÷ ${jornada || '?'} × ${previstosRaw || '?'} dias previstos − ${faltas} faltas anteriores − outros descontos.`;
         note.textContent = choice === 'nao' ? 'Não haverá pagamento nesta semana.' : (amount.value ? 'Confira o cálculo antes de salvar.' : 'Valor semanal não informado. Preencha se for pagar.');
         person.dataset.dirty = String(value() !== initial);
         if (person.dataset.dirty === 'true') note.textContent = 'Alteração não salva. Clique em Salvar decisão.';
       };
       form.querySelectorAll('[name="decisao"]').forEach(input => input.addEventListener('change', update));
-      amount.addEventListener('input', update);
+      form.querySelectorAll('input[type=number]').forEach(input => input.addEventListener('input', update));
       update();
       form.addEventListener('submit', () => {
         submitting = form;

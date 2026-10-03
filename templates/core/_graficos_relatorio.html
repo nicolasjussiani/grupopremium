@@ -1,0 +1,26 @@
+{% load l10n %}
+<style>
+ .report-charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:18px; margin:18px 0; }
+ .report-chart { margin:0; padding:20px; background:var(--bg-card,#fff); border:1px solid var(--border,#dce2eb); border-radius:12px; min-width:0; }
+ .report-chart figcaption { font-size:.95rem; font-weight:700; margin-bottom:18px; }
+ .report-bar { margin:12px 0; }
+ .report-bar-label { display:flex; justify-content:space-between; gap:12px; font-size:.8rem; margin-bottom:5px; }
+ .report-bar-label span { overflow-wrap:anywhere; } .report-bar-label strong { white-space:nowrap; }
+ .report-bar-track { height:12px; border-radius:4px; background:var(--bg-input,#eef2f6); overflow:hidden; }
+ .report-bar-fill { height:100%; background:#4878a8; border-radius:4px; transition:width .2s; }
+ .report-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin:16px 0; }
+ .report-toolbar p { font-size:.8rem; color:var(--text-muted); margin:0; }
+</style>
+<div class="report-charts">
+{% for grafico in graficos %}
+ <figure class="report-chart" data-report-chart="{{ grafico.chave }}" data-money="{{ grafico.moeda|yesno:'true,false' }}">
+  <figcaption>{{ grafico.titulo }}</figcaption>
+  {% for barra in grafico.barras %}
+  <div class="report-bar" data-report-bar="{{ barra.chave }}">
+   <div class="report-bar-label"><span>{{ barra.nome }}</span><strong data-report-value>{% if grafico.moeda %}R$ {{ barra.valor|floatformat:2 }}{% else %}{{ barra.valor }}{% endif %}</strong></div>
+   <div class="report-bar-track" aria-hidden="true"><div class="report-bar-fill" style="width:{{ barra.largura|unlocalize }}%"></div></div>
+  </div>
+  {% empty %}<p>Sem dados para este gráfico.</p>{% endfor %}
+ </figure>
+{% endfor %}
+</div>

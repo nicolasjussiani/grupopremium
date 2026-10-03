@@ -76,7 +76,7 @@ class CalculoProporcionalVTTest(TestCase):
             data_vencimento=date(2026, 9, 28), valor=87.50,
         )
         resposta = self.client.get(self.url, {'segunda': '2026-09-28'})
-        self.assertContains(resposta, 'Valor da semana completa (7 dias)')
+        self.assertContains(resposta, 'Valor da semana completa da jornada')
         self.assertContains(resposta, 'Pagamento salvo: R$ 87,50')
         self.assertEqual(resposta.context['linhas'][0]['valor'], Decimal('140'))
         antigo.refresh_from_db()

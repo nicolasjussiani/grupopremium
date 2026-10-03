@@ -128,7 +128,7 @@
       </a>
       {% endif %}
 
-      {% if not is_estoque_compras and request.user.is_superuser or not is_estoque_compras and request.user.perfil.perfil == 'sesmet' or not is_estoque_compras and request.user.perfil.perfil == 'rh' or not is_estoque_compras and request.user.perfil.perfil == 'gestor' or not is_estoque_compras and request.user.perfil.perfil == 'compras' %}
+      {% if perms.manutencao.view_ativo or not is_estoque_compras and request.user.is_superuser or not is_estoque_compras and request.user.perfil.perfil == 'sesmet' or not is_estoque_compras and request.user.perfil.perfil == 'rh' or not is_estoque_compras and request.user.perfil.perfil == 'gestor' or not is_estoque_compras and request.user.perfil.perfil == 'compras' %}
       <a href="{% url 'painel_manutencao' %}" class="nav-item mod3 {% block nav_manutencao %}{% endblock %}">
         <span class="nav-icon">🔧</span>
         Manutenção / Patrimônio

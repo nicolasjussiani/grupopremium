@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %}Pedido {{ pedido.numero_pedido }} — Compras ERP{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}Detalhe do pedido{% endblock %}
+{% block content %}
+<style>
+  .order-mobile-items { display:none; }
+  .order-mobile-item { padding:16px; border:1px solid var(--border); border-radius:var(--radius-md); }
+  @media (max-width:720px) {
+    .order-desktop-items { display:none; }
+    .order-mobile-items { display:grid; gap:12px; }
+  }
+</style>
+<div class="module-banner mod-banner-5" style="margin-bottom:20px;">
+  <div class="mod-title">🛒 {{ pedido.numero_pedido }}</div>
+  <div class="mod-desc">{{ itens_pedido|length }} {{ itens_pedido|length|pluralize:"item,itens" }} · {{ pedido.get_status_display }}</div>
+</div>
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header">
+    <div class="card-title">Dados do pedido</div>
+    {% include 'compras/status_entrega.html' with status_entrega=pedido.status_entrega %}
+  </div>
+  <div class="form-grid">
+    <div class="form-group"><span class="form-label">Fornecedor</span><strong>{{ pedido.fornecedor }}</strong></div>
+    <div class="form-group"><span class="form-label">Prazo de entrega</span>{{ pedido.prazo_entrega|date:"d/m/Y"|default:"Não informado" }}</div>
+    <div class="form-group"><span class="form-label">CNPJ do fornecedor</span>
+      {% if pode_atualizar_cnpj %}
+      <form method="post" action="{% url 'atualizar_cnpj_pedido' pedido.pk %}" style="display:flex;gap:8px;flex-wrap:wrap;">
+        {% csrf_token %}
+        <input name="cnpj_fornecedor" aria-label="CNPJ do fornecedor" class="form-control" value="{{ pedido.cnpj_fornecedor }}" maxlength="18" placeholder="00.000.000/0001-00" style="flex:1;min-width:180px;">
+        <button type="submit" class="btn btn-sm btn-outline">Salvar CNPJ</button>
+      </form>
+      {% else %}{{ pedido.cnpj_fornecedor|default:"Não informado" }}{% endif %}
+    </div>
+    <div class="form-group"><span class="form-label">Unidade de destino</span>{% if requisicao %}{{ requisicao.unidade_destino }}{% else %}{{ pedido.solicitacao.unidade_destino }}{% endif %}</div>
+    {% if pedido.obs %}<div class="form-group form-full"><span class="form-label">Observações</span>{{ pedido.obs|linebreaksbr }}</div>{% endif %}
+  </div>
+  {% if pedido.status == 'reprovado' %}
+  <div style="margin-top:12px;">{% include 'compras/responsavel_reprovacao.html' with decisao=pedido.reprovacao only %}</div>
+  {% if pedido.reprovacao.decidido_em %}<div>{{ pedido.reprovacao.decidido_em|date:"d/m/Y H:i" }}</div>{% endif %}
+  {% if pedido.reprovacao.motivo_rejeicao %}<div>Motivo: {{ pedido.reprovacao.motivo_rejeicao|linebreaksbr }}</div>{% endif %}
+  {% endif %}
+</div>
+<div class="card">
+  <div class="card-header"><div class="card-title">Itens do pedido</div></div>
+  <div class="table-wrap order-desktop-items" style="border:none;">
+    <table>
+      <thead><tr><th>Produto</th><th>Quantidade</th><th>Valor unitário</th><th>Subtotal</th><th>Entrega</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for linha in itens_pedido %}
+        <tr>
+          <td><strong>[{{ linha.solicitacao.material.codigo }}] {{ linha.solicitacao.material.nome }}</strong></td>
+          <td>{{ linha.quantidade }} {{ linha.solicitacao.material.get_unidade_medida_display }}</td>
+          <td>R$ {{ linha.valor_unitario|floatformat:2 }}</td>
+          <td>R$ {{ linha.valor_total|floatformat:2 }}</td>
+          <td>{% include 'compras/status_entrega.html' with status_entrega=linha.solicitacao.status_entrega %}</td>
+          <td style="white-space:nowrap;">
+            {% include 'compras/confirmar_entrega.html' with item=linha.solicitacao %}
+            <a href="{% url 'detalhe_solicitacao' linha.solicitacao.pk %}" class="btn btn-sm btn-outline">Detalhes</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="order-mobile-items">
+    {% for linha in itens_pedido %}
+    <div class="order-mobile-item">
+      <strong>[{{ linha.solicitacao.material.codigo }}] {{ linha.solicitacao.material.nome }}</strong>
+      <p style="margin:8px 0;">{{ linha.quantidade }} {{ linha.solicitacao.material.get_unidade_medida_display }} · R$ {{ linha.valor_unitario|floatformat:2 }} por unidade</p>
+      <div><strong>Subtotal: R$ {{ linha.valor_total|floatformat:2 }}</strong></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        {% include 'compras/status_entrega.html' with status_entrega=linha.solicitacao.status_entrega %}
+        {% include 'compras/confirmar_entrega.html' with item=linha.solicitacao %}
+        <a href="{% url 'detalhe_solicitacao' linha.solicitacao.pk %}" class="btn btn-sm btn-outline">Detalhes</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div style="text-align:right;padding-top:20px;font-size:1.2rem;"><strong>Total do pedido: R$ {{ pedido.valor_total|floatformat:2 }}</strong></div>
+</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+  {% if requisicao %}<a href="{% url 'detalhe_requisicao' requisicao.pk %}" class="btn btn-outline">← Ver requisição {{ requisicao.numero }}</a>{% endif %}
+  <a href="{% url 'painel_compras' %}" class="btn btn-outline">Voltar ao painel</a>
+</div>
+{% endblock %}

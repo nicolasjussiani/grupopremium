@@ -47,8 +47,10 @@
 
   <div style="display:grid;gap:16px;">
     <div class="card">
-      <div class="card-header"><div class="card-title">Organização</div></div>
+      <div class="card-header"><div class="card-title">Organização</div>{% if pode_editar %}<a class="btn btn-sm btn-outline" href="{% url 'editar_detalhamento_arquivo' arquivo.pk %}">Editar detalhes</a>{% endif %}</div>
       <div style="display:grid;gap:10px;font-size:.86rem;">
+        <div><strong>Descrição:</strong> {{ arquivo.descricao|default:"—" }}</div>
+        <div style="white-space:pre-wrap;overflow-wrap:anywhere;"><strong>Observações:</strong> {{ arquivo.observacoes|default:"—" }}</div>
         <div><strong>Área:</strong> {{ arquivo.get_area_display }}</div>
         <div><strong>Categoria:</strong> {{ arquivo.get_categoria_display }}</div>
         <div><strong>Tipo:</strong> {{ arquivo.subcategoria|default:"—" }}</div>
@@ -80,11 +82,35 @@
         {% empty %}<span style="color:var(--text-muted);">Origem não registrada.</span>{% endfor %}
       </div>
     </div>
+    {% if arquivo.metadados.classificacao_conteudo %}
+    <div class="card">
+      <h2 class="card-title">Leitura e organização do documento</h2>
+      {% with leitura=arquivo.metadados.classificacao_conteudo %}
+        {% if arquivo.metadados.classificacao_manual %}
+          <p>Organização ajustada manualmente.</p>
+        {% elif leitura.aplicada %}
+          <p>Organizado pelo conteúdo em <strong>{{ arquivo.get_area_display }}</strong>.</p>
+        {% else %}
+          <p>{{ leitura.motivo }}</p>
+        {% endif %}
+        {% if leitura.resumo %}<p>{{ leitura.resumo }}</p>{% endif %}
+        {% if leitura.evidencia %}<p class="form-help">Trecho usado na identificação:</p><blockquote style="overflow-wrap:anywhere;">{{ leitura.evidencia }}</blockquote>{% endif %}
+      {% endwith %}
+      <p class="form-help">Confira a leitura com o original. Use Editar detalhes para corrigir a área quando necessário.</p>
+    </div>
+    {% endif %}
+    {% if arquivo.texto_extraido %}
+    <div class="card">
+      <details><summary style="cursor:pointer;font-weight:600;">Ver texto identificado no documento</summary>
+        <pre style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:400px;overflow:auto;margin-top:16px;">{{ arquivo.texto_extraido }}</pre>
+      </details>
+    </div>
+    {% endif %}
     {% if arquivo.metadados %}
     <div class="card">
       <div class="card-header"><div class="card-title">Dados identificados</div></div>
       <div style="display:grid;gap:8px;font-size:.82rem;">
-        {% for chave, valor in arquivo.metadados.items %}<div><strong>{{ chave }}:</strong> {{ valor }}</div>{% endfor %}
+        {% for chave, valor in arquivo.metadados.items %}{% if chave != 'classificacao_conteudo' %}<div><strong>{{ chave }}:</strong> {{ valor }}</div>{% endif %}{% endfor %}
       </div>
     </div>
     {% endif %}

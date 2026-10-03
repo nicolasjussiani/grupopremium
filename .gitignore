@@ -31,3 +31,13 @@ backups/
 # OS
 .DS_Store
 Thumbs.db
+.vercel
+.env*
+
+# Arquivos locais de trabalho e verificacao
+/tmp/
+/output/
+/.codex-remote-attachments/
+/.codex-*.sqlite3
+/.codex-*.out
+/.codex-*.err

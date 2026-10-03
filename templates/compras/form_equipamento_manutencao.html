@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }} — Manutenção{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-5" style="margin-bottom:20px;">
+  <div class="mod-title">🛠 {{ titulo }}</div>
+  <div class="mod-desc">Cadastre uma máquina ou ferramenta que poderá ser selecionada em uma requisição de manutenção.</div>
+</div>
+<div class="card" style="max-width:760px;">
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="form-grid">
+      {% for field in form %}
+      <div class="form-group {% if field.name == 'descricao' %}form-full{% endif %}">
+        {% if field.field.widget.input_type == 'checkbox' %}<label class="form-label">{{ field }} {{ field.label }}</label>{% else %}<label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% endif %}
+        {% if field.help_text %}<small style="color:var(--text-muted);">{{ field.help_text }}</small>{% endif %}
+        {% for error in field.errors %}<small style="color:var(--danger);">{{ error }}</small>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button type="submit" class="btn btn-mod5">Salvar equipamento</button>
+      <a href="{% url 'lista_equipamentos_manutencao' %}" class="btn btn-outline">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

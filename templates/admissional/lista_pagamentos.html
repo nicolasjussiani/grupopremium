@@ -30,6 +30,7 @@
 {% endblock %}
 
 {% block content %}
+<div style="margin-bottom:16px"><a href="{% url 'programacao_salarios' %}" class="btn btn-mod6">Calcular salários do mês</a></div>
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
   <h1 class="mod-title">{% if visao == 'atrasados' %}Pagamentos atrasados{% else %}💵 Folha de Pagamento{% endif %}</h1>
   <div class="mod-desc">Acompanhe somente a equipe atual, os dias trabalhados, o PIX e a confirmação de cada pagamento.</div>
@@ -81,7 +82,7 @@
 
 {% if visao != 'atrasados' %}<div class="card" style="margin-bottom:20px;">
   <div class="card-title">{% if visao == 'atual' %}VT e ajuda de custo da semana atual{% else %}VT e ajuda de custo de todas as segundas-feiras{% endif %}</div>
-  <p>{% if visao == 'atual' %}Confira quem recebe nesta semana e as presenças da semana anterior.{% else %}Selecione a segunda para definir quem recebe e conferir os dias trabalhados na semana anterior.{% endif %} A revisão independe do pagamento das semanas anteriores.</p>
+  <p>Selecione a segunda da semana que será paga. Informe os dias previstos e confira as faltas já pagas da semana anterior para descontar.</p>
   {% if calendario_vt_limitado %}<p>Exibindo os primeiros três anos. Ajuste o período para consultar as demais segundas-feiras.</p>{% endif %}
   <div style="display:flex;flex-wrap:wrap;gap:8px;">
     {% for segunda in segundas_vt %}<a class="btn btn-outline" href="{% url 'programacao_vt' %}?segunda={{ segunda|date:'Y-m-d' }}">Segunda · {{ segunda|date:"d/m/Y" }}</a>{% empty %}<span>Nenhuma segunda-feira no período selecionado.</span>{% endfor %}

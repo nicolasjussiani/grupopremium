@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Organizar documento{% endblock %}
+{% block nav_arquivo_central %}active{% endblock %}
+{% block content %}
+<div class="card" style="max-width:850px;margin:auto;">
+  <h1>Organizar e detalhar</h1>
+  <p style="overflow-wrap:anywhere;">{{ arquivo.nome_original }}</p>
+  <form method="post">{% csrf_token %}{{ form.non_field_errors }}
+    {% for field in form %}<div class="form-group">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<p class="form-help">{{ field.help_text }}</p>{% endif %}</div>{% endfor %}
+    <p class="form-help">A data acima organiza o acervo. Datas e valores de pagamentos vinculados devem ser conferidos no respectivo lançamento.</p>
+    <button class="btn btn-mod6" type="submit">Salvar organização e detalhes</button>
+    <a class="btn btn-outline" href="{% url 'detalhe_arquivo_importado' arquivo.pk %}">Voltar</a>
+  </form>
+</div>
+{% endblock %}

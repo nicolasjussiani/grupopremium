@@ -42,7 +42,7 @@ def importar_ips_auditoria(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('core', '0016_perfil_entregas_consulta'),
+        ('core', '0017_detalhamento_e_recebimentos'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

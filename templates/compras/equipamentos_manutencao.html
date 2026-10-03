@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Manutenção de equipamentos — Compras{% endblock %}
+{% block nav_compras %}active{% endblock %}
+{% block topbar_title %}Manutenção{% endblock %}
+
+{% block content %}
+<div class="module-banner mod-banner-5" style="margin-bottom:20px;">
+  <div class="mod-title">🛠 Máquinas e ferramentas</div>
+  <div class="mod-desc">Equipamentos que podem receber solicitações de manutenção. O cadastro é separado dos produtos de consumo.</div>
+</div>
+
+<div class="page-header" style="margin-bottom:20px;">
+  <a href="{% url 'painel_compras' %}" class="btn btn-outline">← Processo de Compras</a>
+  {% if pode_gerenciar %}<a href="{% url 'novo_equipamento_manutencao' %}" class="btn btn-mod5">+ Cadastrar equipamento</a>{% endif %}
+</div>
+
+<div class="card">
+  <div class="card-header"><div class="card-title">Equipamentos cadastrados</div><span class="badge badge-primary">{{ equipamentos|length }}</span></div>
+  {% if equipamentos %}
+  <div class="table-wrap" style="border:none;">
+    <table>
+      <thead><tr><th>Tipo</th><th>Máquina / ferramenta</th><th>Código</th><th>Unidade / localização</th><th>Solicitações</th><th>Situação</th><th></th></tr></thead>
+      <tbody>
+        {% for equipamento in equipamentos %}
+        <tr>
+          <td>{{ equipamento.get_tipo_display }}</td>
+          <td><strong>{{ equipamento.nome }}</strong>{% if equipamento.descricao %}<div style="color:var(--text-muted);font-size:.8rem;">{{ equipamento.descricao }}</div>{% endif %}</td>
+          <td>{{ equipamento.codigo|default:'—' }}</td>
+          <td>{{ equipamento.localizacao|default:'—' }}</td>
+          <td>{{ equipamento.solicitacoes.count }}</td>
+          <td><span class="badge {% if equipamento.ativo %}badge-success{% else %}badge-warning{% endif %}">{% if equipamento.ativo %}Ativo{% else %}Inativo{% endif %}</span></td>
+          <td>{% if pode_gerenciar %}<a href="{% url 'editar_equipamento_manutencao' equipamento.pk %}" class="btn btn-sm btn-outline">Editar</a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p style="color:var(--text-muted);">Ainda não há máquinas ou ferramentas cadastradas.</p>{% endif %}
+</div>
+{% endblock %}

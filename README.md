@@ -51,7 +51,7 @@ Na Vercel, o IP vem de `x-vercel-forwarded-for` ou `x-forwarded-for`; fora dela,
 somente de `REMOTE_ADDR`, sem confiar em cabeçalhos enviados pelo visitante.
 
 Antes de publicar esta versão, aplique `python manage.py migrate` no banco do
-ambiente. A migração `core.0017_ipusuario` cria o histórico e recupera os IPs
+ambiente. A migração `core.0018_ipusuario` cria o histórico e recupera os IPs
 públicos disponíveis nos logs anteriores. Esses registros aparecem como
 **Auditoria anterior · não confirmado**, pois o sistema antigo podia registrar
 o proxy. Um novo acesso pelo mesmo IP confirma o endereço. Acessos antigos
@@ -90,38 +90,31 @@ ou o bucket configurado nos arquivos `.env`.
   referencia do objeto; isso evita o limite de 4,5 MB das Functions da Vercel.
 - O limite da aplicacao para upload direto e 50 MB por arquivo.
 
-## Programação semanal de VT e ajuda de custo
+## Folha salarial e VT antecipado
 
-Na Folha de Pagamento, o quadro **VT e ajuda de custo de todas as segundas-feiras** permite abrir
-cada segunda do período, inclusive quando a semana anterior ainda está pendente.
-A própria folha exibe os colaboradores da segunda selecionada, mesmo sem
-lançamentos cadastrados. Ao salvar uma decisão, mantém os filtros e atualiza os
-totais. A Base Fiscal e a visão de benefícios também oferecem acesso à programação.
+Na Folha de Pagamento, **Calcular salários do mês** abre a revisão por colaborador.
+Informe salário mensal, dias do período antes das faltas (até 30), gratificação integral,
+faltas a descontar, outros descontos/adiantamentos e vencimento. O servidor calcula:
+`salário / 30 × (dias do período − faltas) + gratificação − outros descontos`.
+Arredonda somente o resultado. O quadro mostra as datas das faltas da presença e
+permite editar os números do cálculo sem reescrever a lista de presença. Repetir o
+salvamento atualiza o salário pendente; salários pagos ficam somente para consulta.
 
-A interface oferece busca por nome, unidade ou cadastro, filtros por decisão e
-resumo dos valores pendentes. Os sete dias da semana anterior são exibidos com
-a situação registrada (presença, falta, atestado, folga ou sem informação). No
-celular, a revisão usa cartões individuais.
+O VT/ajuda semanal passa a antecipar a semana que começa na segunda selecionada.
+Informe jornada (normalmente 5 ou 6 dias), dias previstos e faltas anteriores já pagas
+a descontar. É possível corrigir o valor diário do desconto quando a tarifa anterior
+for diferente e lançar outros descontos. Sem preenchimento, a diária do desconto é
+calculada como valor semanal dividido pela jornada. Novos admitidos até o domingo
+da semana aparecem mesmo sem presença anterior. Dias sem registro não viram falta.
+A sugestão de faltas a descontar só é automática quando há antecipação paga da semana
+anterior; para os demais casos, confira e informe os dias manualmente.
 
-A revisão inclui CLT e PJ disponíveis. O tipo do pagamento vem do cadastro:
-**Pagar VT** para CLT e **Pagar ajuda** para PJ. Selecione a opção e informe o valor,
-ou **Não precisa**. A escolha vale somente para aquela semana. Pagar VT cria
-ou atualiza um lançamento pendente; a baixa continua exigindo comprovante.
-Pagamentos já realizados não podem ser alterados pela programação.
-
-Os dias trabalhados vêm das presenças da segunda ao domingo anteriores ao
-vencimento. A tela informa as datas presentes e os dias com situação definida;
-ausência de registro não é tratada como falta. Informe o valor da semana completa: o sistema divide por 7 e multiplica pelos dias
-presentes, arredondando apenas o total para centavos. Falta, folga e atestado não
-contam como presença. Dias sem informação são destacados para conferência. O
-valor base e a quantidade de presenças ficam salvos por semana; o valor líquido
-não é reaproveitado como base da próxima semana. Pagamentos proporcionais
-precisam de nova revisão semanal e não geram recorrência com o valor anterior.
-
-O calendário é exibido ao abrir a página, sem depender de um agendamento externo
-ou criar pagamentos durante a consulta. Ao publicar esta versão, execute
-`python manage.py migrate` para aplicar `0026_programacao_vt_semanal` antes de
-servir o novo código.
+A programação salva a base semanal e os parâmetros por semana. Ler as telas não
+altera pagamentos anteriores. Pagamentos já realizados preservam o cálculo salvo;
+a próxima antecipação exige nova revisão. Lançamentos antigos continuam com seus
+valores e cálculo histórico. Totais sem valor positivo são recusados para revisão.
+Execute `python manage.py migrate` antes de publicar para aplicar
+`0028_calculo_salario_vt_antecipado`.
 
 ## PWA de aprovacoes no iPhone
 

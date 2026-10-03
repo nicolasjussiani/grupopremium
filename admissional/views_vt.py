@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django import forms
 from django.contrib import messages
@@ -24,6 +25,13 @@ class DecisaoVTForm(forms.Form):
     segunda = forms.DateField()
     decisao = forms.ChoiceField(choices=[('pagar', 'Pagar benefício'), ('nao', 'Não precisa')])
     valor = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, localize=True)
+
+    antecipado = forms.BooleanField(required=False)
+    dias_jornada = forms.IntegerField(required=False, min_value=1, max_value=7)
+    dias_previstos = forms.IntegerField(required=False, min_value=0, max_value=7)
+    faltas_descontar = forms.IntegerField(required=False, min_value=0, max_value=7)
+    diaria_desconto = forms.DecimalField(required=False, min_value=0, max_digits=12, decimal_places=6, localize=True)
+    desconto_adicional = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, localize=True)
 
     def clean(self):
         dados = super().clean()
@@ -62,6 +70,12 @@ def programacao_vt(request):
                     pessoa_id=formulario.cleaned_data['pessoa_id'], segunda=segunda,
                     pagar=formulario.cleaned_data['decisao'] == 'pagar',
                     valor=formulario.cleaned_data['valor'], usuario=request.user,
+                    antecipado=formulario.cleaned_data['antecipado'],
+                    dias_jornada=formulario.cleaned_data['dias_jornada'],
+                    dias_previstos=formulario.cleaned_data['dias_previstos'],
+                    faltas_descontar=formulario.cleaned_data['faltas_descontar'] or 0,
+                    diaria_desconto=formulario.cleaned_data['diaria_desconto'],
+                    desconto_adicional=formulario.cleaned_data['desconto_adicional'] or Decimal('0'),
                 )
             except ValidationError as exc:
                 erro = ' '.join(exc.messages)
@@ -87,6 +101,8 @@ def programacao_vt(request):
                 linha['erro_edicao'] = erro
                 linha['decisao'] = request.POST.get('decisao', '')
                 linha['valor'] = request.POST.get('valor', '').replace(',', '.')
+                for campo in ('dias_jornada', 'dias_previstos', 'faltas_descontar', 'diaria_desconto', 'desconto_adicional'):
+                    linha[campo] = request.POST.get(campo, '').replace(',', '.')
     return render(request, 'admissional/programacao_vt.html', {
         'segunda': segunda, 'anterior': segunda - timedelta(days=7),
         'proxima': segunda + timedelta(days=7), 'fim_anterior': segunda - timedelta(days=1),

@@ -1,0 +1,3 @@
+<span>Reprovado por:
+  <strong>{% if decisao.aprovado_por %}{{ decisao.aprovado_por.get_full_name|default:decisao.aprovado_por.username }}{% else %}Responsável não registrado{% endif %}</strong>
+</span>
