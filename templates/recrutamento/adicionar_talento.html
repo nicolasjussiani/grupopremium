@@ -31,10 +31,10 @@
                placeholder="Ex: João da Silva" required maxlength="200">
       </div>
       <div>
-        <label class="form-label" for="id_email">E-mail *</label>
+        <label class="form-label" for="id_email">E-mail (opcional)</label>
         <input type="email" id="id_email" name="email" class="form-control"
                value="{{ post_data.email|default:'' }}"
-               placeholder="Ex: joao@email.com" required>
+               placeholder="Ex: joao@email.com">
       </div>
     </div>
 
@@ -54,7 +54,7 @@
     </div>
 
     <div style="margin-bottom:16px;">
-      <label class="form-label" for="id_cpf_cnpj">CPF / CNPJ</label>
+      <label class="form-label" for="id_cpf_cnpj">CPF / CNPJ (opcional)</label>
       <input type="text" id="id_cpf_cnpj" name="cpf_cnpj" class="form-control"
              value="{{ post_data.cpf_cnpj|default:'' }}"
              placeholder="000.000.000-00" maxlength="18" style="max-width:260px;">
