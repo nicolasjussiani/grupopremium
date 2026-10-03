@@ -60,14 +60,14 @@ def painel_compras(request):
     materiais_produtos = Material.objects.exclude(categoria__in=('manutencao', 'ferramentas'))
     materiais_criticos = materiais_produtos.filter(quantidade_estoque__lte=F('estoque_minimo'))
     solicitacoes_pendentes = SolicitacaoMaterial.objects.filter(
-        status__in=['pendente', 'em_analise'])
+        status__in=['pendente', 'em_analise']).select_related('material')
     pedidos_abertos = PedidoCompra.objects.exclude(
         status__in=['concluido', 'reprovado'])
     pedidos = PedidoCompra.objects.exclude(status='reprovado').select_related(
         'solicitacao__material', 'solicitacao__requisicao',
     ).prefetch_related('solicitacao__pedidos', 'solicitacao__itens_pedido__pedido',
                        'itens__solicitacao__material')
-    requisicoes_recentes = list(RequisicaoCompra.objects.prefetch_related('itens').all())
+    requisicoes_recentes = list(RequisicaoCompra.objects.prefetch_related('itens', 'manutencoes').all())
     _carregar_reprovacoes(requisicoes_recentes)
 
     return render(request, 'compras/painel.html', {
