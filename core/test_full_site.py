@@ -358,6 +358,7 @@ class FullSiteRouteTests(TestCase):
             ('editar_requisicao', (self.requisicao_compra.pk,), 200),
             ('excluir_requisicao', (self.requisicao_compra.pk,), 405),
             ('detalhe_solicitacao', (self.solicitacao.pk,), 200),
+            ('detalhe_pedido', (self.pedido.pk,), 200),
             ('criar_pedido', (self.solicitacao.pk,), 200),
             ('aprovar_pedido', (self.pedido.pk,), 200),
             ('atualizar_cnpj_pedido', (self.pedido.pk,), 405),

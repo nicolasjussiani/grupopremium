@@ -128,7 +128,7 @@
       <tbody>
         {% for p in pedidos %}
         <tr>
-          <td style="font-family:monospace;font-size:0.78rem;">{{ p.numero_pedido }}</td>
+          <td style="font-family:monospace;font-size:0.78rem;"><a href="{{ p.get_absolute_url }}">{{ p.numero_pedido }}</a></td>
           <td style="font-weight:600;">{{ p.fornecedor }}</td>
           <td style="font-size:0.78rem;color:var(--text-muted);">
             {% if p.status == 'pedido_emitido' or p.status == 'aguardando_recebimento' or p.status == 'recebido_conferencia' or p.status == 'entrada_estoque' or p.status == 'concluido' %}
@@ -141,8 +141,8 @@
               {{ p.cnpj_fornecedor|default:"Opcional após a compra" }}
             {% endif %}
           </td>
-          <td>R$ {{ p.valor_unitario|floatformat:2 }}</td>
-          <td style="font-weight:700;">R$ {{ p.valor_total|floatformat:2 }}</td>
+          <td>R$ {{ p.valor_unitario_exibido|floatformat:2 }}</td>
+          <td style="font-weight:700;">R$ {{ p.valor_total|floatformat:2 }}{% if p.requisicao_id %}<div style="font-size:.75rem;font-weight:400;">Total do pedido completo</div>{% endif %}</td>
           <td style="font-size:0.82rem;">{{ p.prazo_entrega|date:"d/m/Y"|default:"—" }}</td>
           <td>
             <span class="badge {% if p.status == 'aprovado' or p.status == 'concluido' %}badge-success{% elif p.status == 'reprovado' %}badge-danger{% elif p.status == 'aguardando_aprovacao' %}badge-warning{% else %}badge-info{% endif %}">

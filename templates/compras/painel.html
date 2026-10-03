@@ -229,7 +229,7 @@
         {% for pedido in pedidos %}
         <tr>
           <td style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">{{ pedido.numero_pedido }}</td>
-          <td style="font-weight:600;font-size:0.84rem;">{{ pedido.solicitacao.material.nome }}</td>
+          <td style="font-weight:600;font-size:0.84rem;">{{ pedido.materiais_descricao }}</td>
           <td>{{ pedido.fornecedor }}</td>
           <td style="font-weight:700;">R$ {{ pedido.valor_total|floatformat:2 }}</td>
           <td>
@@ -240,11 +240,11 @@
           <td style="font-size:0.82rem;">{{ pedido.prazo_entrega|date:"d/m/Y"|default:"—" }}</td>
           <td>{% include 'compras/status_entrega.html' with status_entrega=pedido.status_entrega %}</td>
           <td>
-            {% include 'compras/confirmar_entrega.html' with item=pedido.solicitacao %}
+            {% if pedido.solicitacao_id %}{% include 'compras/confirmar_entrega.html' with item=pedido.solicitacao %}{% endif %}
             {% if pedido.status == 'aguardando_aprovacao' %}
             <a href="{% url 'aprovar_pedido' pedido.pk %}" class="btn btn-sm btn-mod5">Aprovar</a>
             {% else %}
-            <a href="{% url 'detalhe_solicitacao' pedido.solicitacao.pk %}" class="btn btn-sm btn-outline">Ver</a>
+            <a href="{{ pedido.get_absolute_url }}" class="btn btn-sm btn-outline">Ver pedido</a>
             {% endif %}
           </td>
         </tr>

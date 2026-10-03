@@ -8,7 +8,7 @@ from django.db.models import F
 from django.db import IntegrityError, transaction
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from .models import (
-    EquipamentoManutencao, Material, PedidoCompra, RequisicaoCompra,
+    EquipamentoManutencao, ItemPedidoCompra, Material, PedidoCompra, RequisicaoCompra,
     SolicitacaoManutencao, SolicitacaoMaterial,
 )
 from .forms import EquipamentoManutencaoForm, MaterialForm
@@ -65,7 +65,8 @@ def painel_compras(request):
         status__in=['concluido', 'reprovado'])
     pedidos = PedidoCompra.objects.exclude(status='reprovado').select_related(
         'solicitacao__material', 'solicitacao__requisicao',
-    ).prefetch_related('solicitacao__pedidos')
+    ).prefetch_related('solicitacao__pedidos', 'solicitacao__itens_pedido__pedido',
+                       'itens__solicitacao__material')
     requisicoes_recentes = list(RequisicaoCompra.objects.prefetch_related('itens').all())
     _carregar_reprovacoes(requisicoes_recentes)
 
@@ -442,7 +443,8 @@ def nova_solicitacao(request):
 def detalhe_requisicao(request, pk):
     requisicao = get_object_or_404(
         RequisicaoCompra.objects.select_related('solicitante_usuario').prefetch_related(
-            'itens__material', 'itens__pedidos', 'manutencoes__equipamento'
+            'itens__material', 'itens__pedidos', 'itens__itens_pedido__pedido',
+            'pedidos__itens__solicitacao__material', 'manutencoes__equipamento'
         ),
         pk=pk,
     )
@@ -451,7 +453,7 @@ def detalhe_requisicao(request, pk):
     for item in itens:
         item.requisicao = requisicao
         item.tem_pedido_ativo = any(
-            pedido.status != 'reprovado' for pedido in item.pedidos.all()
+            pedido.status != 'reprovado' for pedido in item.todos_pedidos
         )
     pode_criar_pedido = user_has_access(
         request.user, permission='compras.add_pedidocompra',
@@ -470,6 +472,7 @@ def detalhe_requisicao(request, pk):
         'total_estoque': sum(item.status == 'atendido_interno' for item in itens),
         'total_compra': sum(item.status == 'compra_externa' for item in itens),
         'tem_itens_selecionaveis': any(item.pode_selecionar_compra for item in itens),
+        'pedidos_agrupados': requisicao.pedidos.all(),
         'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
     })
 
@@ -477,10 +480,16 @@ def detalhe_requisicao(request, pk):
 @login_required
 def detalhe_solicitacao(request, pk):
     sol = get_object_or_404(
-        SolicitacaoMaterial.objects.select_related('material', 'requisicao').prefetch_related('pedidos'),
+        SolicitacaoMaterial.objects.select_related('material', 'requisicao').prefetch_related(
+            'pedidos', 'itens_pedido__pedido__itens__solicitacao',
+        ),
         pk=pk,
     )
-    pedidos = list(sol.pedidos.all())
+    pedidos = sol.todos_pedidos
+    linhas = {item.pedido_id: item for item in sol.itens_pedido.all()}
+    for pedido in pedidos:
+        linha = linhas.get(pedido.pk)
+        pedido.valor_unitario_exibido = linha.valor_unitario if linha else pedido.valor_unitario
     _carregar_reprovacoes(pedidos)
     if sol.requisicao_id:
         _carregar_reprovacoes([sol.requisicao])
@@ -493,6 +502,35 @@ def detalhe_solicitacao(request, pk):
 
 
 @login_required
+def detalhe_pedido(request, pk):
+    pedido = get_object_or_404(
+        PedidoCompra.objects.select_related('requisicao', 'solicitacao__material', 'solicitacao__requisicao')
+        .prefetch_related('itens__solicitacao__material', 'itens__solicitacao__pedidos',
+                          'itens__solicitacao__itens_pedido__pedido',
+                          'solicitacao__pedidos', 'solicitacao__itens_pedido__pedido'), pk=pk,
+    )
+    _carregar_reprovacoes([pedido])
+    itens = list(pedido.itens.all())
+    if pedido.solicitacao_id:
+        # Pedidos antigos e individuais continuam com os valores originais.
+        itens = [{
+            'solicitacao': pedido.solicitacao,
+            'quantidade': pedido.solicitacao.quantidade_solicitada,
+            'valor_unitario': pedido.valor_unitario, 'valor_total': pedido.valor_total,
+        }]
+    return render(request, 'compras/detalhe_pedido.html', {
+        'pedido': pedido, 'itens_pedido': itens,
+        'requisicao': pedido.requisicao if pedido.requisicao_id else pedido.solicitacao.requisicao,
+        'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
+        'pode_atualizar_cnpj': pedido.status in STATUS_COMPRA_REALIZADA and user_has_access(
+            request.user, permission='compras.change_pedidocompra',
+            profiles=('compras', 'gestor', 'estoque_compras'),
+            groups=('Compras_Aprovador', 'Diretoria_Final'),
+        ),
+    })
+
+
+@login_required
 @require_POST
 @access_required(
     permission='compras.change_solicitacaomaterial',
@@ -501,7 +539,7 @@ def detalhe_solicitacao(request, pk):
 @transaction.atomic
 def confirmar_entrega(request, pk):
     # Mesma ordem de bloqueio do fluxo de aprovação: pedido, depois solicitação.
-    pedidos = list(PedidoCompra.objects.select_for_update().filter(solicitacao_id=pk).exclude(status='reprovado'))
+    pedidos = list(PedidoCompra.para_solicitacao(pk).select_for_update().exclude(status='reprovado').order_by('pk'))
     sol = get_object_or_404(SolicitacaoMaterial.objects.select_for_update(), pk=pk)
     if sol.status == 'entregue':
         messages.info(request, 'A entrega deste material já foi confirmada.')
@@ -514,8 +552,9 @@ def confirmar_entrega(request, pk):
         sol.atendida_por = request.user
         sol.save(update_fields=['status', 'atendida_por', 'atualizado_em'])
         for pedido in pedidos:
-            pedido.status = 'concluido'
-            pedido.save(update_fields=['status', 'atualizado_em'])
+            if all(item.status == 'entregue' for item in pedido.solicitacoes_vinculadas):
+                pedido.status = 'concluido'
+                pedido.save(update_fields=['status', 'atualizado_em'])
         from core.models import LogAtividade
         LogAtividade.objects.create(
             usuario=request.user, modulo='compras', acao='Entrega confirmada',
@@ -552,6 +591,7 @@ def criar_pedidos_requisicao(request, pk):
         requisicao.status not in {'aprovada', 'pedido'} or len(itens) != len(ids)
         or any(item.status != 'compra_externa' for item in itens)
         or PedidoCompra.objects.filter(solicitacao__in=itens).exclude(status='reprovado').exists()
+        or ItemPedidoCompra.objects.filter(solicitacao__in=itens, ativo=True).exists()
     ):
         messages.error(request, 'A seleção contém produtos indisponíveis para compra ou com pedido ativo. Selecione novamente.')
         return redirect('detalhe_requisicao', pk=pk)
@@ -569,7 +609,7 @@ def criar_pedidos_requisicao(request, pk):
         })
 
     if request.method == 'POST':
-        pedidos = []
+        linhas = []
         try:
             if not fornecedor.strip():
                 raise ValidationError('Informe o fornecedor.')
@@ -583,22 +623,27 @@ def criar_pedidos_requisicao(request, pk):
                     raise ValidationError(f'Informe um valor unitário válido para {item.material.nome}.')
                 if valor <= 0 or valor > Decimal('99999999.99'):
                     raise ValidationError(f'O valor unitário de {item.material.nome} deve ser entre R$ 0,01 e R$ 99.999.999,99.')
-                pedido = PedidoCompra(
-                    solicitacao=item, fornecedor=fornecedor.strip(),
-                    cnpj_fornecedor=request.POST.get('cnpj_fornecedor', '').strip(),
-                    prazo_entrega=request.POST.get('prazo_entrega') or None,
-                    valor_unitario=valor,
-                    valor_total=(valor * item.quantidade_solicitada).quantize(
+                linhas.append(ItemPedidoCompra(
+                    solicitacao=item, quantidade=item.quantidade_solicitada,
+                    valor_unitario=valor, valor_total=(valor * item.quantidade_solicitada).quantize(
                         Decimal('0.01'), rounding=ROUND_HALF_UP,
                     ),
-                    status='pedido_emitido',
-                )
-                pedido.full_clean()
-                pedidos.append(pedido)
-            # Qualquer falha desfaz todos os pedidos e mudanças de status.
+                ))
+            pedido = PedidoCompra(
+                requisicao=requisicao, fornecedor=fornecedor.strip(),
+                cnpj_fornecedor=_normalizar_cnpj(request.POST.get('cnpj_fornecedor', '')),
+                prazo_entrega=request.POST.get('prazo_entrega') or None,
+                obs=request.POST.get('obs', '').strip(), status='pedido_emitido',
+                valor_total=sum((linha.valor_total for linha in linhas), Decimal('0.00')),
+            )
+            pedido.full_clean()
+            # Cabeçalho, linhas e status são gravados juntos ou desfeitos juntos.
             with transaction.atomic():
-                for pedido in pedidos:
-                    pedido.save()
+                pedido.save()
+                for linha in linhas:
+                    linha.pedido = pedido
+                    linha.full_clean()
+                    linha.save()
                 SolicitacaoMaterial.objects.filter(pk__in=ids).update(status='aguardando_entrega')
                 RequisicaoCompra.objects.filter(pk=pk, status='aprovada').update(
                     status='pedido', atualizado_em=timezone.now(),
@@ -607,10 +652,10 @@ def criar_pedidos_requisicao(request, pk):
             mensagem = '; '.join(exc.messages) if isinstance(exc, ValidationError) else 'Um dos produtos já possui pedido ativo. Selecione novamente.'
             messages.error(request, mensagem)
             return formulario()
-        quantidade = len(pedidos)
-        mensagem = 'Pedido criado.' if quantidade == 1 else f'{quantidade} pedidos criados.'
-        messages.success(request, f'{mensagem} Aguardando entrega.')
-        return redirect('detalhe_requisicao', pk=pk)
+        quantidade = len(linhas)
+        rotulo = 'item' if quantidade == 1 else 'itens'
+        messages.success(request, f'Pedido {pedido.numero_pedido} criado com {quantidade} {rotulo}. Aguardando entrega.')
+        return redirect('detalhe_pedido', pk=pedido.pk)
     return formulario()
 
 
@@ -623,7 +668,7 @@ def criar_pedido_compra(request, solicitacao_pk):
         if sol.status != 'compra_externa':
             messages.error(request, 'A solicitacao nao esta disponivel para compra externa.')
             return redirect('detalhe_solicitacao', pk=sol.pk)
-        if sol.pedidos.exclude(status='reprovado').exists():
+        if PedidoCompra.para_solicitacao(sol.pk).exclude(status='reprovado').exists():
             messages.error(request, 'Esta solicitação já possui um pedido de compra ativo.')
             return redirect('detalhe_solicitacao', pk=sol.pk)
         fornecedor = request.POST.get('fornecedor', '').strip()
@@ -682,6 +727,8 @@ def criar_pedido_compra(request, solicitacao_pk):
 def aprovar_pedido(request, pk):
     """Compatibilidade: toda decisão passa pela fila nominal central."""
     pedido = get_object_or_404(PedidoCompra.objects.select_for_update(), pk=pk)
+    if pedido.requisicao_id:
+        return redirect('detalhe_pedido', pk=pedido.pk)
     if request.method == 'POST':
         if pedido.status != 'aguardando_aprovacao':
             messages.error(request, 'Este pedido nao esta aguardando aprovacao.')
@@ -726,7 +773,7 @@ def atualizar_cnpj_pedido(request, pk):
     pedido = get_object_or_404(PedidoCompra.objects.select_for_update(), pk=pk)
     if pedido.status not in STATUS_COMPRA_REALIZADA:
         messages.error(request, 'O CNPJ poderá ser informado depois que a compra for aprovada e emitida.')
-        return redirect('detalhe_solicitacao', pk=pedido.solicitacao_id)
+        return redirect('detalhe_pedido', pk=pedido.pk) if pedido.requisicao_id else redirect('detalhe_solicitacao', pk=pedido.solicitacao_id)
 
     try:
         cnpj = _normalizar_cnpj(request.POST.get('cnpj_fornecedor', ''))
@@ -739,7 +786,7 @@ def atualizar_cnpj_pedido(request, pk):
             messages.success(request, 'CNPJ do fornecedor atualizado com sucesso.')
         else:
             messages.success(request, 'CNPJ removido. Ele continua sendo um dado opcional.')
-    return redirect('detalhe_solicitacao', pk=pedido.solicitacao_id)
+    return redirect('detalhe_pedido', pk=pedido.pk) if pedido.requisicao_id else redirect('detalhe_solicitacao', pk=pedido.solicitacao_id)
 
 
 @login_required

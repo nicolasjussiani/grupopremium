@@ -870,24 +870,21 @@ def painel_sla_processos(request):
     # 2. Pedidos de Compra Pendentes
     pedidos = PedidoCompra.objects.exclude(
         status='concluido'
-    ).select_related('solicitacao__material', 'aprovado_por').only(
-        'status', 'fornecedor', 'criado_em', 'aprovado_por__first_name',
-        'aprovado_por__last_name', 'solicitacao__material__nome',
-    )
+    ).select_related('solicitacao__material', 'aprovado_por').prefetch_related('itens__solicitacao__material')
     for pc in pedidos:
         delta = agora - pc.criado_em
         resp = pc.aprovado_por.get_full_name() if pc.aprovado_por else 'Setor de Compras'
         processos.append({
             'tipo': 'Pedido de Compra',
             'modulo': 'Compras',
-            'titulo': f"{pc.solicitacao.material.nome} - {pc.fornecedor}",
+            'titulo': f"{pc.materiais_descricao} - {pc.fornecedor}",
             'status': pc.get_status_display(),
             'responsavel': resp,
             'criado_em': pc.criado_em,
             'dias': delta.days,
             'horas': delta.seconds // 3600,
             'alerta': delta.days >= 2,
-            'url': reverse('detalhe_solicitacao', args=[pc.solicitacao_id]),
+            'url': pc.get_absolute_url(),
         })
 
     # 3. Documentos Financeiros Pendentes

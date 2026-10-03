@@ -109,7 +109,7 @@
     </label>
     <span id="selectedItemsCount" class="request-selection-count" role="status" aria-live="polite">0 itens selecionados</span>
     <div id="selectedItemsInputs"></div>
-    <button type="submit" id="createSelectedOrders" class="btn btn-mod5" disabled>Criar pedidos selecionados</button>
+    <button type="submit" id="createSelectedOrders" class="btn btn-mod5" disabled>Criar pedido com os itens selecionados</button>
   </form>
   {% endif %}
 
@@ -188,6 +188,18 @@
     {% endfor %}
   </div>
 </div>
+
+{% if pedidos_agrupados %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><div class="card-title">Pedidos de compra</div></div>
+  {% for pedido in pedidos_agrupados %}
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 0;">
+    <div><strong>{{ pedido.numero_pedido }}</strong> · {{ pedido.fornecedor }} · {{ pedido.itens.count }} {{ pedido.itens.count|pluralize:"item,itens" }} · R$ {{ pedido.valor_total|floatformat:2 }}</div>
+    <a href="{{ pedido.get_absolute_url }}" class="btn btn-sm btn-outline">Ver pedido</a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
   <a href="{% url 'nova_solicitacao' %}" class="btn btn-mod5">+ Nova requisição</a>

@@ -15,6 +15,7 @@ urlpatterns = [
     path('solicitacao/<int:pk>/entrega/', views.confirmar_entrega, name='confirmar_entrega'),
     path('solicitacao/<int:solicitacao_pk>/pedido/', views.criar_pedido_compra, name='criar_pedido'),
     path('pedido/<int:pk>/aprovar/', views.aprovar_pedido, name='aprovar_pedido'),
+    path('pedido/<int:pk>/', views.detalhe_pedido, name='detalhe_pedido'),
     path('pedido/<int:pk>/cnpj/', views.atualizar_cnpj_pedido, name='atualizar_cnpj_pedido'),
     path('requisicao/<int:pk>/editar/', views.editar_requisicao, name='editar_requisicao'),
     path('requisicao/<int:pk>/excluir/', views.excluir_requisicao, name='excluir_requisicao'),
