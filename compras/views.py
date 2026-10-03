@@ -15,7 +15,7 @@ from .forms import EquipamentoManutencaoForm, MaterialForm
 from core.access import access_required, user_has_access
 from core.direct_uploads import assign_direct_upload
 from django.core.exceptions import ValidationError
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.utils import timezone
 
 
@@ -431,6 +431,15 @@ def detalhe_requisicao(request, pk):
         item.tem_pedido_ativo = any(
             pedido.status != 'reprovado' for pedido in item.pedidos.all()
         )
+    pode_criar_pedido = user_has_access(
+        request.user, permission='compras.add_pedidocompra',
+        profiles=('compras', 'gestor', 'estoque_compras'),
+    )
+    for item in itens:
+        item.pode_selecionar_compra = (
+            pode_criar_pedido and requisicao.status in {'aprovada', 'pedido'}
+            and item.status == 'compra_externa' and not item.tem_pedido_ativo
+        )
     return render(request, 'compras/detalhe_requisicao.html', {
         'requisicao': requisicao,
         'itens': itens,
@@ -438,6 +447,7 @@ def detalhe_requisicao(request, pk):
         'total_itens': len(itens) + requisicao.manutencoes.count(),
         'total_estoque': sum(item.status == 'atendido_interno' for item in itens),
         'total_compra': sum(item.status == 'compra_externa' for item in itens),
+        'tem_itens_selecionaveis': any(item.pode_selecionar_compra for item in itens),
         'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
     })
 
@@ -490,6 +500,93 @@ def confirmar_entrega(request, pk):
     if sol.requisicao_id:
         return redirect('detalhe_requisicao', pk=sol.requisicao_id)
     return redirect('detalhe_solicitacao', pk=sol.pk)
+
+
+@login_required
+@access_required(permission='compras.add_pedidocompra', profiles=('compras', 'gestor', 'estoque_compras'))
+@require_http_methods(['GET', 'POST'])
+@transaction.atomic
+def criar_pedidos_requisicao(request, pk):
+    requisicao = get_object_or_404(RequisicaoCompra, pk=pk)
+    dados = request.POST if request.method == 'POST' else request.GET
+    try:
+        ids = {int(valor) for valor in dados.getlist('itens')}
+        if any(valor <= 0 or valor > 9223372036854775807 for valor in ids):
+            ids = set()
+    except (ValueError, TypeError):
+        ids = set()
+    if not ids:
+        messages.error(request, 'Selecione ao menos um produto para criar o pedido.')
+        return redirect('detalhe_requisicao', pk=pk)
+
+    # Bloqueia as mesmas solicitações usadas na criação individual, em ordem fixa.
+    itens = list(SolicitacaoMaterial.objects.select_for_update().filter(
+        requisicao=requisicao, pk__in=ids,
+    ).order_by('pk'))
+    if (
+        requisicao.status not in {'aprovada', 'pedido'} or len(itens) != len(ids)
+        or any(item.status != 'compra_externa' for item in itens)
+        or PedidoCompra.objects.filter(solicitacao__in=itens).exclude(status='reprovado').exists()
+    ):
+        messages.error(request, 'A seleção contém produtos indisponíveis para compra ou com pedido ativo. Selecione novamente.')
+        return redirect('detalhe_requisicao', pk=pk)
+
+    fornecedor = dados.get('fornecedor', '')
+    if request.method == 'GET':
+        fornecedores = {item.material.fornecedor_preferencial for item in itens}
+        fornecedor = fornecedores.pop() if len(fornecedores) == 1 else ''
+    for item in itens:
+        item.valor_informado = dados.get(f'valor_unitario_{item.pk}', '')
+
+    def formulario():
+        return render(request, 'compras/criar_pedidos_requisicao.html', {
+            'requisicao': requisicao, 'itens': itens, 'fornecedor': fornecedor,
+        })
+
+    if request.method == 'POST':
+        pedidos = []
+        try:
+            if not fornecedor.strip():
+                raise ValidationError('Informe o fornecedor.')
+            for item in itens:
+                try:
+                    valor = Decimal(item.valor_informado.replace(',', '.'))
+                    if not valor.is_finite():
+                        raise InvalidOperation
+                    valor = valor.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                except InvalidOperation:
+                    raise ValidationError(f'Informe um valor unitário válido para {item.material.nome}.')
+                if valor <= 0 or valor > Decimal('99999999.99'):
+                    raise ValidationError(f'O valor unitário de {item.material.nome} deve ser entre R$ 0,01 e R$ 99.999.999,99.')
+                pedido = PedidoCompra(
+                    solicitacao=item, fornecedor=fornecedor.strip(),
+                    cnpj_fornecedor=request.POST.get('cnpj_fornecedor', '').strip(),
+                    prazo_entrega=request.POST.get('prazo_entrega') or None,
+                    valor_unitario=valor,
+                    valor_total=(valor * item.quantidade_solicitada).quantize(
+                        Decimal('0.01'), rounding=ROUND_HALF_UP,
+                    ),
+                    status='pedido_emitido',
+                )
+                pedido.full_clean()
+                pedidos.append(pedido)
+            # Qualquer falha desfaz todos os pedidos e mudanças de status.
+            with transaction.atomic():
+                for pedido in pedidos:
+                    pedido.save()
+                SolicitacaoMaterial.objects.filter(pk__in=ids).update(status='aguardando_entrega')
+                RequisicaoCompra.objects.filter(pk=pk, status='aprovada').update(
+                    status='pedido', atualizado_em=timezone.now(),
+                )
+        except (ValidationError, IntegrityError) as exc:
+            mensagem = '; '.join(exc.messages) if isinstance(exc, ValidationError) else 'Um dos produtos já possui pedido ativo. Selecione novamente.'
+            messages.error(request, mensagem)
+            return formulario()
+        quantidade = len(pedidos)
+        mensagem = 'Pedido criado.' if quantidade == 1 else f'{quantidade} pedidos criados.'
+        messages.success(request, f'{mensagem} Aguardando entrega.')
+        return redirect('detalhe_requisicao', pk=pk)
+    return formulario()
 
 
 @login_required
