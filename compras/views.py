@@ -35,6 +35,26 @@ def _normalizar_cnpj(valor):
     return f'{digitos[:2]}.{digitos[2:5]}.{digitos[5:8]}/{digitos[8:12]}-{digitos[12:]}'
 
 
+def _carregar_reprovacoes(objetos):
+    """Busca a última decisão de reprovação sem uma consulta por linha."""
+    from core.models import AprovacaoRegistro
+
+    reprovados = [objeto for objeto in objetos if objeto.status in {'rejeitada', 'reprovado'}]
+    if not reprovados:
+        return
+    modelo = reprovados[0]._meta
+    decisoes = AprovacaoRegistro.objects.filter(
+        content_type__app_label=modelo.app_label, content_type__model=modelo.model_name,
+        object_id__in=[objeto.pk for objeto in reprovados],
+        modulo='compras', status='rejeitado',
+    ).select_related('aprovado_por').order_by(F('decidido_em').desc(nulls_last=True), '-pk')
+    ultimas = {}
+    for decisao in decisoes:
+        ultimas.setdefault(decisao.object_id, decisao)
+    for objeto in reprovados:
+        objeto.reprovacao = ultimas.get(objeto.pk)
+
+
 @login_required
 def painel_compras(request):
     materiais_produtos = Material.objects.exclude(categoria__in=('manutencao', 'ferramentas'))
@@ -46,7 +66,8 @@ def painel_compras(request):
     pedidos = PedidoCompra.objects.exclude(status='reprovado').select_related(
         'solicitacao__material', 'solicitacao__requisicao',
     ).prefetch_related('solicitacao__pedidos')
-    requisicoes_recentes = RequisicaoCompra.objects.prefetch_related('itens').all()
+    requisicoes_recentes = list(RequisicaoCompra.objects.prefetch_related('itens').all())
+    _carregar_reprovacoes(requisicoes_recentes)
 
     return render(request, 'compras/painel.html', {
         'materiais_criticos': materiais_criticos,
@@ -425,6 +446,7 @@ def detalhe_requisicao(request, pk):
         ),
         pk=pk,
     )
+    _carregar_reprovacoes([requisicao])
     itens = list(requisicao.itens.all())
     for item in itens:
         item.requisicao = requisicao
@@ -458,11 +480,14 @@ def detalhe_solicitacao(request, pk):
         SolicitacaoMaterial.objects.select_related('material', 'requisicao').prefetch_related('pedidos'),
         pk=pk,
     )
-    pedidos = sol.pedidos.all()
+    pedidos = list(sol.pedidos.all())
+    _carregar_reprovacoes(pedidos)
+    if sol.requisicao_id:
+        _carregar_reprovacoes([sol.requisicao])
     return render(request, 'compras/detalhe_solicitacao.html', {
         'solicitacao': sol,
         'pedidos': pedidos,
-        'tem_pedido_ativo': pedidos.exclude(status='reprovado').exists(),
+        'tem_pedido_ativo': any(pedido.status != 'reprovado' for pedido in pedidos),
         'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
     })
 

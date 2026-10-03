@@ -96,7 +96,12 @@
           <td style="font-family:monospace;font-weight:700;">{{ requisicao.numero }}</td>
           <td>{{ requisicao.unidade_destino }}</td>
           <td>{{ requisicao.itens.count|add:requisicao.manutencoes.count }}</td>
-          <td><span class="badge {% if requisicao.status == 'aprovada' or requisicao.status == 'pedido' %}badge-success{% elif requisicao.status == 'rejeitada' %}badge-danger{% else %}badge-warning{% endif %}">{{ requisicao.get_status_display }}</span></td>
+          <td>
+            <span class="badge {% if requisicao.status == 'aprovada' or requisicao.status == 'pedido' %}badge-success{% elif requisicao.status == 'rejeitada' %}badge-danger{% else %}badge-warning{% endif %}">{{ requisicao.get_status_display }}</span>
+            {% if requisicao.status == 'rejeitada' %}
+            <div style="margin-top:6px;font-size:.8rem;">{% include 'compras/responsavel_reprovacao.html' with decisao=requisicao.reprovacao only %}</div>
+            {% endif %}
+          </td>
           <td>{% include 'compras/status_entrega.html' with status_entrega=requisicao.status_entrega %}</td>
           <td>{{ requisicao.solicitante }}</td>
           <td>{{ requisicao.criado_em|date:"d/m/Y H:i" }}</td>

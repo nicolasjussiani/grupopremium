@@ -29,6 +29,10 @@
   <div class="mod-desc">{{ total_itens }} item{{ total_itens|pluralize }} para {{ requisicao.unidade_destino }} · {{ requisicao.get_status_display }}</div>
 </div>
 
+{% if requisicao.status == 'rejeitada' %}
+{% include 'compras/detalhes_reprovacao.html' %}
+{% endif %}
+
 <div class="request-summary">
   <div class="request-summary-item">
     <small>Status da requisição</small>

@@ -14,6 +14,10 @@
   {% endif %}
 </div>
 
+{% if solicitacao.requisicao.status == 'rejeitada' %}
+{% include 'compras/detalhes_reprovacao.html' with requisicao=solicitacao.requisicao %}
+{% endif %}
+
 <div class="card" style="margin-bottom:20px;">
   <div class="card-header">
     <div class="card-title">📦 Entrega do material</div>
@@ -144,6 +148,11 @@
             <span class="badge {% if p.status == 'aprovado' or p.status == 'concluido' %}badge-success{% elif p.status == 'reprovado' %}badge-danger{% elif p.status == 'aguardando_aprovacao' %}badge-warning{% else %}badge-info{% endif %}">
               {{ p.get_status_display }}
             </span>
+            {% if p.status == 'reprovado' %}
+            <div style="margin-top:8px;font-size:.8rem;">{% include 'compras/responsavel_reprovacao.html' with decisao=p.reprovacao only %}</div>
+            {% if p.reprovacao.decidido_em %}<div style="font-size:.8rem;">{{ p.reprovacao.decidido_em|date:"d/m/Y H:i" }}</div>{% endif %}
+            {% if p.reprovacao.motivo_rejeicao %}<div style="margin-top:6px;overflow-wrap:anywhere;">Motivo: {{ p.reprovacao.motivo_rejeicao|linebreaksbr }}</div>{% endif %}
+            {% endif %}
           </td>
           <td>
             {% include 'compras/status_entrega.html' with status_entrega=p.status_entrega %}
