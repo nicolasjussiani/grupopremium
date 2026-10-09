@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Aprovação de acesso — Grupo PremiumBR</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #0d2149; color: #192b46; font-family: system-ui, sans-serif; }
+    main { width: 100%; max-width: 480px; padding: 32px; background: white; border-radius: 16px; border-top: 5px solid #c5a059; }
+    h1 { font-size: 26px; } p { line-height: 1.6; }
+    .label { font-size: 12px; letter-spacing: .12em; font-weight: 700; color: #57657b; }
+    .ip { padding: 16px; background: #f1f4f8; border-radius: 8px; overflow-wrap: anywhere; }
+    a, button { display: block; width: 100%; padding: 13px; border: 0; border-radius: 8px; font: inherit; text-align: center; cursor: pointer; text-decoration: none; }
+    a { background: #0d2149; color: white; margin: 24px 0 12px; }
+    button { background: #eef1f6; color: #192b46; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="label">GRUPO PREMIUMBR · ACESSO PROTEGIDO</p>
+  {% if not endereco_ip %}
+  <h1>Não foi possível identificar seu IP</h1>
+  <p>Seu login foi validado, mas o acesso continua restrito. Entre em contato com o administrador para verificar a conexão.</p>
+  {% elif bloqueado %}
+  <h1>Acesso não autorizado</h1>
+  <p>Esta rede foi bloqueada pelo administrador. Entre em contato com ele para solicitar uma revisão.</p>
+  {% else %}
+  <h1>Aguardando aprovação</h1>
+  <p>Olá, {{ request.user.first_name|default:request.user.username }}. Seu usuário e senha estão corretos. O administrador precisa aprovar o IP desta rede antes de você acessar o sistema.</p>
+  {% endif %}
+  <div class="ip">Seu IP atual<br><strong>{{ endereco_ip|default:'Não identificado' }}</strong></div>
+  <p>O conteúdo do sistema permanece bloqueado até a liberação.</p>
+  <a href="{% url 'aguardando_ip' %}">Verificar aprovação</a>
+  <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Sair da conta</button></form>
+</main>
+{% if endereco_ip and not bloqueado %}
+<script>setTimeout(function () { window.location.reload(); }, 15000);</script>
+{% endif %}
+</body>
+</html>

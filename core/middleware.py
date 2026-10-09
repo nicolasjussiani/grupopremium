@@ -7,6 +7,9 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
+from django.http import HttpResponse, JsonResponse
+from django.db import DatabaseError
+from django.utils.cache import add_never_cache_headers
 
 from core.notifications import destinatarios_da_area
 from core.access import user_is_executive
@@ -14,6 +17,53 @@ from core.client_ip import obter_ip_cliente, registrar_ip_acesso
 
 
 logger = logging.getLogger(__name__)
+
+
+class ControleIPMiddleware:
+    """Barreira anterior às views, arquivos e permissões de módulos, sem exceção de admin."""
+
+    PUBLICOS = {
+        '/login/', '/api/csrf/', '/logout/', '/acesso/aguardando/',
+        '/static/logo.jpeg', '/static/favicon.jpeg', '/static/pwa-icon-180.png',
+        '/static/pwa-icon-192.png', '/static/pwa-icon-512.png',
+        '/manifest.webmanifest', '/service-worker.js',
+    }
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from core.ip_access import controle_ip_ativo, ip_aprovado, solicitar_ip
+
+        try:
+            ativo = controle_ip_ativo()
+            if ativo and request.path_info not in self.PUBLICOS and not ip_aprovado(request):
+                if request.user.is_authenticated:
+                    solicitar_ip(request)
+                    if request.method in {'GET', 'HEAD'} and not request.path_info.startswith(('/api/', '/mobile/status/')):
+                        response = redirect('aguardando_ip')
+                    else:
+                        response = JsonResponse({'erro': 'IP não autorizado. Aguarde a aprovação.', 'codigo': 'ip_nao_autorizado'}, status=403)
+                else:
+                    response = HttpResponse(
+                        '<!doctype html><html lang="pt-BR"><meta charset="utf-8">'
+                        '<title>Acesso restrito</title><h1>Acesso restrito</h1>'
+                        '<p>Esta rede não está autorizada.</p>'
+                        '<a href="/login/">Entrar para solicitar aprovação</a></html>', status=403,
+                    )
+                add_never_cache_headers(response)
+                return response
+        except DatabaseError:
+            # Nunca transformar falha da lista de autorização em acesso liberado.
+            logger.exception('Não foi possível verificar a autorização do IP')
+            response = HttpResponse('Não foi possível verificar o acesso. Tente novamente.', status=503)
+            add_never_cache_headers(response)
+            return response
+
+        response = self.get_response(request)
+        if ativo:
+            add_never_cache_headers(response)
+        return response
 
 
 class AcessoModuloMiddleware(MiddlewareMixin):
@@ -37,6 +87,8 @@ class AcessoModuloMiddleware(MiddlewareMixin):
     ROTAS_LIVRES = ('/admin/', '/static/', '/media/', '/login', '/logout')
 
     def process_request(self, request):
+        if request.path_info in ControleIPMiddleware.PUBLICOS:
+            return None
         if not request.user.is_authenticated:
             return None
 

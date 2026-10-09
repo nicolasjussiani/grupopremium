@@ -345,10 +345,11 @@ def csrf_token_json(request):
 @never_cache
 @ensure_csrf_cookie
 def login_view(request):
-    # ── Modo Demo (sem Supabase configurado) ──────────────────────────────────
-    # Não toca no banco de dados. Qualquer acesso é permitido.
-    # ── Modo Real (Supabase configurado) ─────────────────────────────────────
+    from core.ip_access import controle_ip_ativo, ip_aprovado, solicitar_ip
     if request.user.is_authenticated:
+        if controle_ip_ativo() and not ip_aprovado(request):
+            solicitar_ip(request)
+            return redirect('aguardando_ip')
         return redirect('dashboard')
 
     if request.method == 'POST':
@@ -357,6 +358,9 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
+            if controle_ip_ativo() and not ip_aprovado(request):
+                solicitar_ip(request)
+                return redirect('aguardando_ip')
             if getattr(getattr(user, 'perfil', None), 'perfil', None) == 'entregas_consulta':
                 return redirect('consulta_entregas')
             return redirect(_next_url_segura(request))

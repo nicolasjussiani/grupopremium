@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Aprovação de IPs — Grupo PremiumBR{% endblock %}
+{% block topbar_title %}Aprovação e bloqueio por IP{% endblock %}
+{% block content %}
+<div class="module-banner mod-banner-3">
+  <div class="mod-title">Controle de acesso por IP</div>
+  <div class="mod-desc">Confira a rede e os usuários antes de autorizar o acesso.</div>
+</div>
+<div class="page-header"><a class="btn btn-outline" href="{% url 'lista_usuarios' %}">Voltar aos usuários</a></div>
+<section class="card" style="padding:24px; margin-bottom:24px;">
+  <h2>{% if ativo %}Bloqueio ativo{% else %}Bloqueio desativado{% endif %}</h2>
+  <p>Com o bloqueio ativo, somente IPs aprovados acessam o conteúdo do ERP. Login e tela de espera continuam disponíveis para solicitar aprovação.</p>
+  <p>A aprovação vale para todas as contas conectadas ao mesmo IP. Cada pessoa ainda precisa do próprio usuário e senha. Trocar de rede pode exigir nova aprovação, inclusive para administradores.</p>
+  <p>Seu IP atual: <strong>{{ endereco_ip|default:'Não identificado' }}</strong></p>
+  <form method="post" action="{% url 'alterar_controle_ip' %}">
+    {% csrf_token %}
+    {% if ativo %}
+    <button class="btn btn-outline" name="acao" value="desativar" type="submit">Desativar bloqueio por IP</button>
+    {% else %}
+    <p>Ativar aprova seu IP atual. Os IPs históricos não serão aprovados automaticamente.</p>
+    <button class="btn btn-mod3" name="acao" value="ativar" type="submit" {% if not endereco_ip %}disabled{% endif %}>Ativar bloqueio e aprovar meu IP</button>
+    {% endif %}
+  </form>
+</section>
+<section class="card" style="padding:24px; margin-bottom:24px;">
+  <h2>Cadastrar IP autorizado</h2>
+  <form method="post" action="{% url 'alterar_controle_ip' %}" style="display:flex; flex-wrap:wrap; gap:12px; align-items:end;">
+    {% csrf_token %}
+    <div><label for="ip-address">Endereço IPv4 ou IPv6</label><input id="ip-address" name="ip_address" required maxlength="45" class="form-control" placeholder="Ex.: 203.0.113.10"></div>
+    <button class="btn btn-mod3" name="acao" value="cadastrar" type="submit">Cadastrar e aprovar</button>
+  </form>
+</section>
+<h2>Solicitações e redes · {{ pendentes }} pendente{{ pendentes|pluralize:"s" }}</h2>
+<p class="text-muted">Novas solicitações aparecem após um login válido. Atualize esta página para consultar novos pedidos. Revogar bloqueia também as sessões que já estavam abertas.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>IP / situação</th><th>Solicitante</th><th>Contas observadas nesta rede</th><th>Última decisão</th><th>Ações</th></tr></thead>
+  <tbody>{% for item in registros %}
+    <tr>
+      <td><strong style="overflow-wrap:anywhere">{{ item.ip_address }}</strong><br><span class="badge {% if item.status == 'aprovado' %}badge-success{% elif item.status == 'bloqueado' %}badge-danger{% else %}badge-warning{% endif %}">{{ item.get_status_display }}</span>{% if item.ip_address == endereco_ip %}<br><small>Sua rede atual</small>{% endif %}</td>
+      <td>{% if item.solicitado_por %}{{ item.solicitado_por.get_full_name|default:item.solicitado_por.username }}{% else %}Cadastro administrativo{% endif %}<br><small>{{ item.criado_em|date:'d/m/Y H:i' }}</small></td>
+      <td>{% for usuario in item.usuarios_observados %}{{ usuario.get_full_name|default:usuario.username }} ({{ usuario.username }}){% if not usuario.is_active %} · inativo{% endif %}<br>{% empty %}Nenhum acesso observado{% endfor %}</td>
+      <td>{% if item.decidido_por %}{{ item.decidido_por.get_full_name|default:item.decidido_por.username }}{% elif item.decidido_em %}Console do servidor{% else %}Sem decisão{% endif %}<br><small>{{ item.decidido_em|date:'d/m/Y H:i' }}</small></td>
+      <td><form method="post" action="{% url 'alterar_controle_ip' %}">
+        {% csrf_token %}<input type="hidden" name="registro_id" value="{{ item.pk }}">
+        {% if item.status != 'aprovado' %}<button class="btn btn-sm btn-mod3" name="acao" value="aprovar" type="submit">Aprovar IP</button>{% endif %}
+        {% if item.status != 'bloqueado' %}
+          {% if ativo and item.ip_address == endereco_ip %}<small>Rede atual protegida contra revogação</small>{% else %}<button class="btn btn-sm btn-outline" name="acao" value="bloquear" type="submit">{% if item.status == 'aprovado' %}Revogar acesso{% else %}Recusar{% endif %}</button>{% endif %}
+        {% endif %}
+      </form></td>
+    </tr>
+  {% empty %}<tr><td colspan="5">Nenhuma solicitação. Cadastre os IPs conhecidos ou ative o bloqueio para receber pedidos após o login.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

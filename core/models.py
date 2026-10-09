@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from uuid import uuid4
+from django.utils import timezone
 
 
 class CadastroBase(models.Model):
@@ -343,6 +344,27 @@ class AprovacaoRegistro(models.Model):
             nivel=nivel,
             solicitado_por=solicitado_por,
         )
+
+
+class ControleAcessoIP(models.Model):
+    """Configuração única; ativada explicitamente por um administrador."""
+    ativo = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [models.CheckConstraint(check=models.Q(pk=1), name='core_controle_ip_unico')]
+
+
+class PermissaoIP(models.Model):
+    STATUS = [('pendente', 'Pendente'), ('aprovado', 'Aprovado'), ('bloqueado', 'Bloqueado')]
+    ip_address = models.GenericIPAddressField(unique=True)
+    status = models.CharField(max_length=10, choices=STATUS, default='pendente')
+    solicitado_por = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='solicitacoes_ip')
+    criado_em = models.DateTimeField(default=timezone.now)
+    decidido_por = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='decisoes_ip')
+    decidido_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['status', '-criado_em']
 
 
 class IPUsuario(models.Model):

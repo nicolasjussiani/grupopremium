@@ -225,14 +225,14 @@ def pwa_manifest(request):
 
 def service_worker(request):
     script = """
-const CACHE = 'premiumbr-mobile-v6';
-const ASSETS = ['/static/css/mobile.css?v=5', '/static/pwa-icon-192.png', '/static/pwa-icon-512.png', '/static/favicon.jpeg'];
+const CACHE = 'premiumbr-mobile-v7';
+const ASSETS = ['/static/pwa-icon-192.png', '/static/pwa-icon-512.png', '/static/favicon.jpeg'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))));
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || event.request.mode === 'navigate') return;
   const url = new URL(event.request.url);
-  if (url.origin === self.location.origin && url.pathname.startsWith('/static/')) {
+  if (url.origin === self.location.origin && ASSETS.includes(url.pathname)) {
     event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
   }
 });

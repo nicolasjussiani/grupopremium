@@ -3,9 +3,13 @@ from django.urls import path
 from core import views
 from core import views_aprovacao
 from core import views_upload
+from core import views_ip
 from compras.views_entregas import consulta_entregas
 
 urlpatterns = [
+    path('acesso/aguardando/', views_ip.aguardando_ip, name='aguardando_ip'),
+    path('usuarios/ips/', views_ip.controle_ips, name='controle_ips'),
+    path('usuarios/ips/alterar/', views_ip.alterar_controle_ip, name='alterar_controle_ip'),
     path('entregas/', consulta_entregas, name='consulta_entregas'),
     path('', views.dashboard, name='dashboard'),
     path('ajuda/', views.ajuda, name='ajuda'),
