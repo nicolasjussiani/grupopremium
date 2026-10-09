@@ -28,10 +28,11 @@
   <p>Esta rede foi bloqueada pelo administrador. Entre em contato com ele para solicitar uma revisão.</p>
   {% else %}
   <h1>Aguardando aprovação</h1>
-  <p>Olá, {{ request.user.first_name|default:request.user.username }}. Seu usuário e senha estão corretos. O administrador precisa aprovar o IP desta rede antes de você acessar o sistema.</p>
+  <p>Olá, {{ request.user.first_name|default:request.user.username }}. Seu login deu certo! Sua solicitação foi enviada para aprovação.</p>
+  <p><strong>Você não precisa tentar entrar novamente.</strong> Assim que o administrador liberar esta rede, o sistema abrirá automaticamente.</p>
   {% endif %}
   <div class="ip">Seu IP atual<br><strong>{{ endereco_ip|default:'Não identificado' }}</strong></div>
-  <p>O conteúdo do sistema permanece bloqueado até a liberação.</p>
+  {% if endereco_ip and not bloqueado %}<p style="font-size:14px;color:#57657b;">Verificamos a aprovação a cada 15 segundos. Se precisar falar com o administrador, informe o IP acima.</p>{% endif %}
   <a href="{% url 'aguardando_ip' %}">Verificar aprovação</a>
   <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Sair da conta</button></form>
 </main>

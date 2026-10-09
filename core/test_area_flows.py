@@ -33,7 +33,7 @@ class AreaFlowRenderingTests(TestCase):
         response = self.client.get(reverse('lista_vagas'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Fluxo da área')
+        self.assertContains(response, 'Como usar esta área')
         self.assertContains(response, 'Recrutamento e seleção')
         self.assertContains(response, 'Encaminhar')
 
@@ -48,4 +48,4 @@ class AreaFlowRenderingTests(TestCase):
         response = self.client.get(reverse('dashboard'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'Fluxo da área')
+        self.assertNotContains(response, 'Como usar esta área')

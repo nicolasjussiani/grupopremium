@@ -76,11 +76,17 @@
     <a href="{% url 'nova_demanda' %}" class="btn btn-mod3 btn-sm" style="font-weight: 500; border-radius: var(--radius-sm);">+ Nova Demanda</a>
     {% endif %}
     {% if is_visao_executiva or request.user.perfil.perfil == 'financeiro' or request.user.perfil.perfil == 'gestor' or perms.financeiro.view_documentofinanceiro %}
-    <a href="{% url 'entrada_documento' %}" class="btn btn-mod6 btn-sm" style="font-weight: 500; border-radius: var(--radius-sm);">+ Documento Fin.</a>
+    <a href="{% url 'entrada_documento' %}" class="btn btn-mod6 btn-sm" style="font-weight: 500; border-radius: var(--radius-sm);">+ Documento financeiro</a>
     {% endif %}
   </div>{% endif %}
 </div>
 
+{% if dashboard_section == 'resumo' %}
+<section class="home-shortcuts" id="home-shortcuts" hidden aria-labelledby="home-shortcuts-title">
+  <div class="home-shortcuts-heading"><div><span class="interface-eyebrow">SEU DIA A DIA</span><h2 id="home-shortcuts-title">Aonde você quer ir?</h2><p>Abra uma área ou marque uma estrela para deixá-la sempre à mão.</p></div><button class="btn btn-primary" type="button" data-open-navigation>Buscar uma função <span aria-hidden="true">→</span></button></div>
+  <div class="home-shortcuts-grid" id="home-shortcuts-grid"></div>
+</section>
+{% endif %}
 <nav class="dashboard-sections" aria-label="Seções do painel">
   {% for section in dashboard_sections %}
   <a href="{% url 'dashboard' %}?secao={{ section.key }}" {% if dashboard_section == section.key %}class="is-active" aria-current="page"{% endif %}>{{ section.label }}</a>

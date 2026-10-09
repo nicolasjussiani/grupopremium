@@ -13,9 +13,10 @@
   <link rel="manifest" href="{% url 'pwa_manifest' %}">
   <link rel="apple-touch-icon" sizes="180x180" href="{% static 'pwa-icon-180.png' %}">
   <link rel="stylesheet" href="{% static 'css/main.css' %}?v=8">
+  <link rel="stylesheet" href="{% static 'css/usability.css' %}?v=1">
   {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body data-interface-user="{{ request.user.pk|default:'visitante' }}">
 <a class="skip-link" href="#conteudo-principal">Pular para o conteúdo</a>
 <script>
   if (localStorage.getItem('theme') === 'dark') {
@@ -31,6 +32,7 @@
       {% if message.tags == 'error' %}❌{% elif message.tags == 'success' %}✅{% elif message.tags == 'warning' %}⚠️{% else %}ℹ️{% endif %}
     </span>
     <span>{{ message }}</span>
+    <button type="button" class="dismiss-alert" aria-label="Fechar aviso">×</button>
   </div>
   {% endfor %}
 </div>
@@ -53,7 +55,7 @@
     <nav class="sidebar-nav" aria-label="Áreas do sistema">
       <a href="{% url 'dashboard' %}" class="nav-item {% block nav_dashboard %}{% endblock %}">
         <span class="nav-icon">🏠</span>
-        Dashboard
+        Início
       </a>
       <a href="{% url 'ajuda' %}" class="nav-item {% block nav_ajuda %}{% endblock %}">
         <span class="nav-icon">❓</span>
@@ -193,12 +195,13 @@
         <span class="nav-icon">📱</span>
         Aprovações no Celular
       </a>
-      {% if request.user.is_superuser or request.user.perfil.perfil == 'admin' or perms.core.add_perfilusuario %}
+      {% endif %}
+      {% if pode_gerenciar_acessos %}
       <a href="{% url 'lista_usuarios' %}" class="nav-item" style="color: #FCD34D;">
         <span class="nav-icon">🔐</span>
         Usuários e Acessos
       </a>
-      {% endif %}
+      <a href="{% url 'controle_ips' %}" class="nav-item"><span class="nav-icon" aria-hidden="true">🛡️</span>Acessos por IP</a>
       {% endif %}
 
         </div>
@@ -236,6 +239,7 @@
         {% block topbar_title %}Dashboard{% endblock %}
       </div>
       <div class="topbar-actions">
+        <button class="global-search-trigger" type="button" data-open-navigation hidden><span aria-hidden="true">⌕</span><span>Buscar função</span><kbd>Ctrl K</kbd></button>
         <span style="font-size:0.78rem;color:var(--text-muted);">
           {% if user.perfil %}{{ user.perfil.get_marca_display }}{% endif %}
         </span>
@@ -295,8 +299,11 @@ function setMobileMenu(open) {
   document.body.classList.toggle('sidebar-open', open);
   mobileMenuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
   mobileMenuButton.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+  sidebar.inert = !open && window.innerWidth <= 1024;
+  if (!open && sidebar.contains(document.activeElement)) mobileMenuButton.focus();
 }
 
+setMobileMenu(false);
 if (mobileMenuButton) {
   mobileMenuButton.addEventListener('click', () => {
     setMobileMenu(!sidebar.classList.contains('is-open'));
@@ -313,6 +320,7 @@ document.addEventListener('keydown', event => {
 });
 window.addEventListener('resize', () => {
   if (window.innerWidth > 1024) setMobileMenu(false);
+  else sidebar.inert = !sidebar.classList.contains('is-open');
 });
 
 const notifButton = document.getElementById('notifBtn');
@@ -389,15 +397,10 @@ if (notifButton && notifPopover) {
   }, 120000);
 }
 
-// Auto-dismiss alerts after 5s
-setTimeout(() => {
-  document.querySelectorAll('.alert:not([data-persistent-alert])').forEach(el => {
-    el.style.transition = 'opacity 0.4s, transform 0.4s';
-    el.style.opacity = '0';
-    el.style.transform = 'translateX(20px)';
-    setTimeout(() => el.remove(), 400);
-  });
-}, 5000);
+// Avisos permanecem visíveis até a pessoa terminar de ler.
+document.querySelectorAll('.dismiss-alert').forEach(button => {
+  button.addEventListener('click', () => button.closest('.alert').remove());
+});
 
 // Badge de aprovações pendentes (polling a cada 60s)
 function atualizarBadgeAprovacoes() {
@@ -566,6 +569,8 @@ document.querySelectorAll('form[enctype="multipart/form-data"]').forEach(form =>
 </script>
 {% endif %}
 
+{% include 'components/navigation_search.html' %}
+<script src="{% static 'js/usability.js' %}?v=1" defer></script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

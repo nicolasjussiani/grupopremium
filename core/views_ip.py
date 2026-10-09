@@ -34,14 +34,18 @@ def controle_ips(request):
         raise PermissionDenied
     registros = list(PermissaoIP.objects.select_related('solicitado_por', 'decidido_por'))
     usuarios_por_ip = {}
-    for historico in IPUsuario.objects.filter(confirmado=True).select_related('usuario'):
+    for historico in IPUsuario.objects.filter(ip_address__in=[item.ip_address for item in registros]).select_related('usuario'):
         usuarios_por_ip.setdefault(historico.ip_address, []).append(historico.usuario)
     for registro in registros:
         registro.usuarios_observados = usuarios_por_ip.get(registro.ip_address, [])
+    ordem = {'pendente': 0, 'aprovado': 1, 'bloqueado': 2}
+    registros.sort(key=lambda item: ordem.get(item.status, 3))
     return render(request, 'core/controle_ips.html', {
         'ativo': controle_ip_ativo(), 'endereco_ip': obter_ip_cliente(request),
         'registros': registros,
         'pendentes': sum(item.status == 'pendente' for item in registros),
+        'aprovados': sum(item.status == 'aprovado' for item in registros),
+        'bloqueados': sum(item.status == 'bloqueado' for item in registros),
     })
 
 

@@ -4,6 +4,7 @@ from django.core.cache import cache
 from django.db import DatabaseError
 
 from core.area_flows import flow_for_request
+from core.access import user_is_executive
 
 
 def navigation_access(request):
@@ -16,6 +17,10 @@ def navigation_access(request):
     }
     if not request.user.is_authenticated:
         return contexto
+    contexto['pode_gerenciar_acessos'] = (
+        user_is_executive(request.user)
+        or getattr(getattr(request.user, 'perfil', None), 'perfil', None) == 'admin'
+    )
 
     opcoes = cache.get('cadastros_gerais_opcoes_v1')
     if opcoes is None:
