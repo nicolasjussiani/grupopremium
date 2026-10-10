@@ -338,13 +338,15 @@
         <div class="aprovacao-acoes">
           <!-- Aprovar direto (com modal de comentário opcional) -->
           <button class="btn-aprovar"
-                  onclick="abrirModalAprovar({{ aprov.pk }}, '{{ aprov.titulo|escapejs }}')"
+                  data-url="{% url 'aprovar_registro' aprov.pk %}"
+                  onclick="abrirModalAprovar(this.dataset.url, '{{ aprov.titulo|escapejs }}')"
                   id="btn-aprovar-{{ aprov.pk }}">
             ✅ Aprovar
           </button>
           <!-- Rejeitar com motivo obrigatório -->
           <button class="btn-rejeitar"
-                  onclick="abrirModalRejeitar({{ aprov.pk }}, '{{ aprov.titulo|escapejs }}')"
+                  data-url="{% url 'rejeitar_registro' aprov.pk %}"
+                  onclick="abrirModalRejeitar(this.dataset.url, '{{ aprov.titulo|escapejs }}')"
                   id="btn-rejeitar-{{ aprov.pk }}">
             🚫 Rejeitar
           </button>
@@ -424,17 +426,14 @@
 
 {% block extra_js %}
 <script>
-const BASE_APROVAR = "{% url 'aprovar_registro' 0 %}".replace('/0/', '/');
-const BASE_REJEITAR = "{% url 'rejeitar_registro' 0 %}".replace('/0/', '/');
-
-function abrirModalAprovar(pk, titulo) {
+function abrirModalAprovar(url, titulo) {
   document.getElementById('modalAprovarSub').textContent = titulo;
-  document.getElementById('formAprovar').action = BASE_APROVAR + pk + '/';
+  document.getElementById('formAprovar').action = url;
   document.getElementById('modalAprovar').classList.add('active');
 }
-function abrirModalRejeitar(pk, titulo) {
+function abrirModalRejeitar(url, titulo) {
   document.getElementById('modalRejeitarSub').textContent = titulo;
-  document.getElementById('formRejeitar').action = BASE_REJEITAR + pk + '/';
+  document.getElementById('formRejeitar').action = url;
   document.getElementById('modalRejeitar').classList.add('active');
 }
 function fecharModal(id) {
