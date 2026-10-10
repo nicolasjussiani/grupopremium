@@ -64,42 +64,24 @@ administrativa da tabela e não altera o firewall. Confira os endereços antes
 de configurar uma lista de permissão na Vercel: redes móveis, troca de conexão
 e IPs dinâmicos podem mudar o endereço de usuários autorizados.
 
-## Aprovação e bloqueio por IP
+## Registros de IPs sem bloqueio de acesso
 
-Aplique `python manage.py migrate` antes de publicar esta versão (migração
-`core.0020_controle_acesso_ip`). O recurso começa **desativado**. Em
-**Usuários e acessos > Aprovação e bloqueio por IP**, cadastre os IPs conhecidos
-e clique em **Ativar bloqueio e aprovar meu IP**. Só o IP atual do administrador
-é aprovado na ativação; o histórico de IPs não concede autorização.
+A aprovação por IP foi removida do login e das demais requisições. IPs novos,
+pendentes ou marcados como bloqueados podem acessar com credenciais válidas,
+respeitando as permissões do perfil. A troca de rede não interrompe a sessão,
+e a página antiga de espera redireciona para o sistema.
 
-Com o controle ativo, um login válido de uma rede nova cria uma solicitação
-pendente e abre uma tela independente de espera. O administrador confere o IP,
-o solicitante e as contas observadas naquela rede e escolhe **Aprovar IP** ou
-**Recusar**. A tela de espera verifica a liberação a cada 15 segundos. **Revogar
-acesso** interrompe as próximas requisições de sessões abertas; mudar de IP
-também exige nova aprovação. Recusas não são reabertas automaticamente.
+As tabelas `IPUsuario`, `PermissaoIP` e `ControleAcessoIP` foram preservadas.
+O histórico de acessos e a exportação de IPs continuam na lista de usuários.
+Em **Usuários e acessos > Registros de IPs**, os status são apenas registros
+administrativos, sem efeito sobre o acesso. Alterações exigem administrador,
+POST e proteção CSRF e ficam registradas na auditoria.
 
-A lista é global por IP (IPv4/IPv6), incluindo administradores. Aprovar uma
-rede permite que todas as contas nela façam login, mantendo as permissões
-individuais. Usuários sem credenciais válidas não criam pedidos. Alterações
-exigem administrador, POST e proteção CSRF e ficam registradas na auditoria.
-O download de IPs históricos na tela de usuários continua sendo um relatório
-de endereços observados, não a lista de autorizações.
-
-A barreira roda no servidor antes das páginas, APIs, mídia local e arquivos
-estáticos do ERP. As exceções são login, token CSRF, saída, espera e recursos
-públicos de identificação/instalação (logo, ícones, manifesto e service worker).
-Falhas na consulta de autorização retornam indisponibilidade, sem liberar
-acesso. As tabelas novas têm RLS habilitado no PostgreSQL sem políticas para
-clientes públicos; seu acesso ocorre pelo backend Django.
-
-Este fluxo permite carregar o login e solicitar aprovação. Não é um bloqueio
-de conexão no firewall: negar absolutamente todas as respostas de um IP
-desconhecido impediria também a solicitação. URLs de arquivos já emitidas
-diretamente pelo storage ficam fora desta barreira até expirarem; conteúdo
-já baixado não pode ser recolhido. Não publique mídia privada por um servidor
-ou CDN que ignore o Django. Em desenvolvimento, use `runserver --nostatic`
-para que o servidor de arquivos estáticos não passe por fora do middleware.
+A migração `core.0021_desativar_bloqueio_ip`, aplicada com
+`python manage.py migrate`, desativa a configuração legada sem apagar dados.
+O acesso também funciona antes dessa migração, mesmo se a configuração antiga
+ainda estiver ativa. Formulários antigos não podem reativar a exigência de
+aprovação. As proteções das tabelas no PostgreSQL continuam preservadas.
 
 O IP usa a origem confiável já configurada: na Vercel, os cabeçalhos da borda;
 fora dela, `REMOTE_ADDR`. Outro proxy exige configuração específica antes de

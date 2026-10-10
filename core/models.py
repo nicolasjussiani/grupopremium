@@ -347,7 +347,7 @@ class AprovacaoRegistro(models.Model):
 
 
 class ControleAcessoIP(models.Model):
-    """Configuração única; ativada explicitamente por um administrador."""
+    """Configuração legada preservada; o acesso não depende de aprovação por IP."""
     ativo = models.BooleanField(default=False)
 
     class Meta:

@@ -1,10 +1,11 @@
-"""Lista global de redes aprovadas, independente do histórico de IPs."""
+"""Registros administrativos de IPs, sem restrição de acesso por rede."""
 from core.client_ip import obter_ip_cliente, registrar_ip_acesso
-from core.models import ControleAcessoIP, PermissaoIP
+from core.models import PermissaoIP
 
 
 def controle_ip_ativo():
-    return ControleAcessoIP.objects.filter(pk=1, ativo=True).exists()
+    """Compatibilidade com o controle antigo; aprovação de IP não bloqueia acesso."""
+    return False
 
 
 def ip_aprovado(request):

@@ -6,7 +6,7 @@ from core.models import LogAtividade, PermissaoIP
 
 
 class Command(BaseCommand):
-    help = 'Autoriza uma rede pelo console do servidor para recuperar acesso administrativo.'
+    help = 'Marca um IP como aprovado no cadastro administrativo, sem alterar o acesso.'
 
     def add_arguments(self, parser):
         parser.add_argument('ip')
@@ -23,4 +23,4 @@ class Command(BaseCommand):
             LogAtividade.objects.create(
                 acao='Controle de IP: recuperação pelo console', modulo='sistema', detalhes=f'IP: {address}',
             )
-        self.stdout.write(self.style.SUCCESS(f'IP {address} autorizado. O login continua obrigatório.'))
+        self.stdout.write(self.style.SUCCESS(f'IP {address} registrado como aprovado. Este status não interfere no acesso.'))
