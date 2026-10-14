@@ -1,11 +1,12 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from core.models import AprovacaoRegistro
+from core.models import AprovacaoRegistro, Notificacao
 from core.telegram_utils import enviar_mensagem_telegram
 from django.db import transaction
 from django.utils.html import escape
 from django.contrib.auth.signals import user_logged_in
 from core.client_ip import registrar_ip_acesso
+from django.urls import reverse
 
 
 @receiver(user_logged_in)
@@ -18,7 +19,15 @@ def notificar_nova_aprovacao_telegram(sender, instance, created, **kwargs):
     """
     Se uma nova aprovação for criada com status 'pendente', envia um aviso para o CEO.
     """
-    if created and instance.status == 'pendente':
+    if created and instance.status == 'pendente' and not kwargs.get('raw'):
+        Notificacao.objects.using(kwargs.get('using', 'default')).create(
+            destinatario_id=instance.destinatario_id,
+            tipo='gateway',
+            modulo=instance.modulo,
+            titulo=instance.titulo[:200],
+            mensagem='Uma nova solicitação aguarda a decisão do ceo_premium.',
+            url_acao=reverse('detalhe_aprovacao_mobile', args=[instance.pk]),
+        )
         if instance.solicitado_por:
             solicitante_nome = instance.solicitado_por.get_full_name() or instance.solicitado_por.username
         else:
@@ -34,5 +43,6 @@ def notificar_nova_aprovacao_telegram(sender, instance, created, **kwargs):
         )
         
         transaction.on_commit(
-            lambda: enviar_mensagem_telegram(instance.modulo, mensagem)
+            lambda: enviar_mensagem_telegram('default', mensagem),
+            using=kwargs.get('using', 'default'),
         )

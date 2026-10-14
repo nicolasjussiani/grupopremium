@@ -1,5 +1,5 @@
 """ERP Grupo PremiumBR — Models do Core (Perfil de Usuário + Aprovações)"""
-from django.db import models
+from django.db import models, router, transaction
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -330,6 +330,18 @@ class AprovacaoRegistro(models.Model):
 
     def esta_pendente(self):
         return self.status == 'pendente'
+
+    def save(self, *args, **kwargs):
+        # Inclui criações diretas, como Manutenção. Preserva decisões antigas.
+        using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        if self.status == 'pendente':
+            from core.approval_workflow import aprovador_central
+            self.destinatario = aprovador_central(using=using)
+            self.nivel = 2
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = set(kwargs['update_fields']) | {'destinatario', 'nivel'}
+        with transaction.atomic(using=using):
+            super().save(*args, **kwargs)
 
     @classmethod
     def criar_para(cls, objeto, titulo, descricao='', modulo='sistema', nivel=1, solicitado_por=None):

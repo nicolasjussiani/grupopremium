@@ -13,6 +13,7 @@ from financeiro.services.ocr_service import extrair_dados_documento
 
 class PagamentoDocumentoTests(TestCase):
     def setUp(self):
+        self.ceo = User.objects.create_user('ceo_premium')
         self.user = User.objects.create_user('operador-pagamento')
         PerfilUsuario.objects.create(usuario=self.user, perfil='financeiro')
         grupo, _ = Group.objects.get_or_create(name='Financeiro_Operador')
@@ -111,7 +112,7 @@ class PagamentoDocumentoTests(TestCase):
         self.assertFalse(LancamentoERP.objects.exists())
 
     def test_aprovar_documento_nao_quita_e_baixa_funciona_apos_arquivamento(self):
-        self.client.force_login(User.objects.create_superuser('aprovador-teste', password='teste'))
+        self.client.force_login(self.ceo)
         self.criar()
         doc = DocumentoFinanceiro.objects.get()
         self.client.post(reverse('auditoria_documento', args=[doc.pk]), {
@@ -159,6 +160,7 @@ class LeituraProvisoriaDocumentoTests(SimpleTestCase):
 
 class EntradaDocumentoOpcionalTests(TestCase):
     def setUp(self):
+        User.objects.create_user('ceo_premium')
         self.user = User.objects.create_user('financeiro-opcional', password='senha-forte-123')
         PerfilUsuario.objects.create(usuario=self.user, perfil='financeiro')
         grupo, _ = Group.objects.get_or_create(name='Financeiro_Operador')

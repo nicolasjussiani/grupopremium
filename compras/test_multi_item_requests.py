@@ -34,11 +34,6 @@ class RequisicaoComVariosProdutosTests(TestCase):
         )
 
     def aprovar_requisicao(self, requisicao):
-        nivel_adriana = AprovacaoRegistro.objects.get(
-            object_id=requisicao.pk, nivel=1, destinatario=self.adriana
-        )
-        self.client.force_login(self.adriana)
-        self.client.post(reverse('aprovar_registro', args=[nivel_adriana.pk]))
         nivel_ceo = AprovacaoRegistro.objects.get(
             object_id=requisicao.pk, nivel=2, destinatario=self.ceo
         )
@@ -67,12 +62,15 @@ class RequisicaoComVariosProdutosTests(TestCase):
             reverse('detalhe_requisicao', args=[requisicao.pk]),
         )
         self.assertEqual(requisicao.itens.count(), 2)
-        self.assertEqual(requisicao.status, 'aguardando_adriana')
+        self.assertEqual(requisicao.status, 'aguardando_ceo')
         self.assertTrue(AprovacaoRegistro.objects.filter(
-            object_id=requisicao.pk, nivel=1, destinatario=self.adriana,
+            object_id=requisicao.pk, nivel=2, destinatario=self.ceo,
             status='pendente',
         ).exists())
         self.assertTrue(Notificacao.objects.filter(
+            destinatario=self.ceo, modulo='compras'
+        ).exists())
+        self.assertFalse(Notificacao.objects.filter(
             destinatario=self.adriana, modulo='compras'
         ).exists())
         self.disponivel.refresh_from_db()
@@ -110,6 +108,25 @@ class RequisicaoComVariosProdutosTests(TestCase):
         self.assertContains(response, 'O mesmo produto não pode ser repetido')
         self.assertFalse(RequisicaoCompra.objects.exists())
         self.assertFalse(SolicitacaoMaterial.objects.exists())
+        self.disponivel.refresh_from_db()
+        self.assertEqual(self.disponivel.quantidade_estoque, Decimal('10.00'))
+
+    def test_ceo_inativo_desfaz_nova_requisicao_e_seus_itens(self):
+        self.ceo.is_active = False
+        self.ceo.save(update_fields=['is_active'])
+
+        response = self.client.post(reverse('nova_solicitacao'), {
+            'material': str(self.disponivel.pk),
+            'quantidade_solicitada': '2',
+            'unidade_destino': 'Matriz',
+            'justificativa': 'Reposição sem aprovador disponível',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'ceo_premium')
+        self.assertFalse(RequisicaoCompra.objects.exists())
+        self.assertFalse(SolicitacaoMaterial.objects.exists())
+        self.assertFalse(AprovacaoRegistro.objects.exists())
         self.disponivel.refresh_from_db()
         self.assertEqual(self.disponivel.quantidade_estoque, Decimal('10.00'))
 

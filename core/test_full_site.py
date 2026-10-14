@@ -11,7 +11,9 @@ from admissional.models import (
     Admissao, Colaborador, DocumentoAdmissional, DocumentoColaborador,
     PagamentoColaborador,
 )
-from compras.models import Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial
+from compras.models import (
+    EquipamentoManutencao, Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial,
+)
 from core.models import (
     AprovacaoRegistro, ArquivoImportado, Fornecedor, Notificacao,
     PerfilUsuario, Unidade,
@@ -31,7 +33,7 @@ class FullSiteRouteTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_superuser(
-            username='admin-full-site',
+            username='ceo_premium',
             email='admin-full-site@example.com',
             password='senha-forte-123',
         )
@@ -131,6 +133,7 @@ class FullSiteRouteTests(TestCase):
             solicitante_usuario=cls.user,
             unidade_destino='Matriz',
             justificativa='Teste integral agrupado',
+            documento='testes/requisicao-compra.pdf',
         )
         cls.solicitacao.requisicao = cls.requisicao_compra
         cls.solicitacao.save()
@@ -146,6 +149,10 @@ class FullSiteRouteTests(TestCase):
             numero_ca='12345',
             dias_durabilidade=30,
             estoque_atual=5,
+        )
+        cls.equipamento_manutencao = EquipamentoManutencao.objects.create(
+            nome='Lavadora Teste', tipo='maquina', codigo='LAV-FULL',
+            localizacao='Matriz',
         )
         cls.registro_epi = RegistroEPI.objects.create(
             colaborador=cls.colaborador,
@@ -260,6 +267,15 @@ class FullSiteRouteTests(TestCase):
         return names
 
     def test_todas_as_paginas_e_endpoints_get(self):
+        requisicao_aprovada = RequisicaoCompra.objects.create(
+            solicitante='Usuario Teste', solicitante_usuario=self.user,
+            unidade_destino='Matriz', justificativa='Itens liberados para pedido',
+            status='aprovada',
+        )
+        item_para_pedido = SolicitacaoMaterial.objects.create(
+            requisicao=requisicao_aprovada, material=self.material,
+            quantidade_solicitada=1, status='compra_externa',
+        )
         expected_routes = (
             ('admin:index', (), 200),
             ('login', (), 302),
@@ -291,6 +307,7 @@ class FullSiteRouteTests(TestCase):
             ('painel_sla', (), 200),
             ('arquivo_central', (), 200),
             ('detalhe_arquivo_importado', (self.arquivo_importado.pk,), 200),
+            ('editar_detalhamento_arquivo', (self.arquivo_importado.pk,), 200),
             ('baixar_arquivo_importado', (self.arquivo_importado.pk,), 302),
             ('revisar_arquivo_importado', (self.arquivo_importado.pk,), 200),
             ('lista_vagas', (), 200),
@@ -336,6 +353,7 @@ class FullSiteRouteTests(TestCase):
             ('reativar_colaborador', (self.colaborador.pk,), 405),
             ('lista_pagamentos_colaboradores', (), 200),
             ('programacao_vt', (), 200),
+            ('programacao_salarios', (), 200),
             ('exportar_vt_xlsx', (), 400),
             ('relatorio_folha_pagamento', (), 200),
             ('visao_beneficios_colaboradores', (), 200),
@@ -353,16 +371,23 @@ class FullSiteRouteTests(TestCase):
             ('detalhe_demanda', (self.demanda.pk,), 200),
             ('atualizar_status_demanda', (self.demanda.pk,), 405),
             ('painel_compras', (), 200),
+            ('consulta_entregas', (), 200),
             ('lista_materiais', (), 200),
             ('novo_material', (), 200),
             ('editar_material', (self.material.pk,), 200),
+            ('lista_equipamentos_manutencao', (), 200),
+            ('novo_equipamento_manutencao', (), 200),
+            ('editar_equipamento_manutencao', (self.equipamento_manutencao.pk,), 200),
             ('nova_solicitacao', (), 200),
             ('detalhe_requisicao', (self.requisicao_compra.pk,), 200),
             ('editar_requisicao', (self.requisicao_compra.pk,), 200),
+            ('remover_anexo_requisicao', (self.requisicao_compra.pk, 'documento'), 200),
             ('excluir_requisicao', (self.requisicao_compra.pk,), 405),
             ('detalhe_solicitacao', (self.solicitacao.pk,), 200),
+            ('confirmar_entrega', (self.solicitacao.pk,), 405),
             ('detalhe_pedido', (self.pedido.pk,), 200),
             ('criar_pedido', (self.solicitacao.pk,), 200),
+            ('criar_pedidos_requisicao', (requisicao_aprovada.pk,), 200),
             ('aprovar_pedido', (self.pedido.pk,), 200),
             ('atualizar_cnpj_pedido', (self.pedido.pk,), 405),
             ('dashboard_sesmet', (), 200),
@@ -378,6 +403,8 @@ class FullSiteRouteTests(TestCase):
             ('painel_financeiro', (), 200),
             ('entrada_documento', (), 200),
             ('detalhe_documento', (self.documento_financeiro.pk,), 200),
+            ('editar_detalhamento_documento', (self.documento_financeiro.pk,), 200),
+            ('cancelar_documento', (self.documento_financeiro.pk,), 200),
             ('atualizar_pagamento_documento', (self.documento_financeiro.pk,), 405),
             ('auditoria_documento', (self.documento_financeiro.pk,), 200),
             ('lancar_erp', (self.documento_financeiro.pk,), 200),
@@ -399,9 +426,12 @@ class FullSiteRouteTests(TestCase):
             ('concluir_manutencao', (self.manutencao.pk,), 200),
         )
 
+        query_params = {'criar_pedidos_requisicao': {'itens': [item_para_pedido.pk]}}
         for route_name, args, expected_status in expected_routes:
             with self.subTest(route=route_name):
-                response = self.client.get(reverse(route_name, args=args))
+                response = self.client.get(
+                    reverse(route_name, args=args), query_params.get(route_name, {}),
+                )
                 self.assertEqual(response.status_code, expected_status)
 
         tested_names = {name for name, _args, _status in expected_routes}

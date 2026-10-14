@@ -16,7 +16,10 @@ class AprovacaoRegistroAdmin(admin.ModelAdmin):
     list_display = ['titulo', 'modulo', 'nivel', 'status', 'destinatario', 'solicitado_por', 'aprovado_por', 'criado_em', 'decidido_em']
     list_filter = ['modulo', 'nivel', 'status']
     search_fields = ['titulo', 'descricao', 'solicitado_por__username', 'aprovado_por__username']
-    readonly_fields = ['criado_em', 'decidido_em', 'content_type', 'object_id']
+    readonly_fields = [
+        'criado_em', 'decidido_em', 'content_type', 'object_id',
+        'status', 'aprovado_por', 'destinatario', 'nivel', 'comentario', 'motivo_rejeicao',
+    ]
     date_hierarchy = 'criado_em'
     ordering = ['-criado_em']
 

@@ -54,15 +54,10 @@ class OperationalEndToEndTests(TestCase):
         PerfilUsuario.objects.create(usuario=self.ceo, perfil='gestor')
         self.client.force_login(self.user)
 
-    def _aprovar_compras_em_dois_niveis(self, objeto):
+    def _aprovar_compras_com_ceo(self, objeto):
         modelo = objeto._meta.model_name
-        nivel_um = AprovacaoRegistro.objects.get(
-            content_type__model=modelo, object_id=objeto.pk, nivel=1
-        )
-        self.client.force_login(self.adriana)
-        self.client.post(reverse('aprovar_registro', args=[nivel_um.pk]))
         nivel_dois = AprovacaoRegistro.objects.get(
-            content_type__model=modelo, object_id=objeto.pk, nivel=2
+            content_type__model=modelo, object_id=objeto.pk, nivel=2, destinatario=self.ceo,
         )
         self.client.force_login(self.ceo)
         self.client.post(reverse('aprovar_registro', args=[nivel_dois.pk]))
@@ -180,7 +175,7 @@ class OperationalEndToEndTests(TestCase):
         self.assertEqual(response.status_code, 302)
         solicitacao = SolicitacaoMaterial.objects.get(material=material)
         self.assertEqual(solicitacao.status, 'pendente')
-        self._aprovar_compras_em_dois_niveis(solicitacao.requisicao)
+        self._aprovar_compras_com_ceo(solicitacao.requisicao)
         solicitacao.refresh_from_db()
         self.assertEqual(solicitacao.status, 'compra_externa')
 
@@ -198,10 +193,15 @@ class OperationalEndToEndTests(TestCase):
         self.assertEqual(str(pedido.valor_total), '150.00')
         self.assertRegex(pedido.numero_pedido, r'^PC-\d{6}$')
 
-        self._aprovar_compras_em_dois_niveis(pedido)
         pedido.refresh_from_db()
         self.assertEqual(pedido.status, 'pedido_emitido')
-        self.assertEqual(pedido.aprovado_por, self.ceo)
+        self.assertFalse(AprovacaoRegistro.objects.filter(
+            content_type__model='pedidocompra', object_id=pedido.pk,
+        ).exists())
+        self.assertEqual(AprovacaoRegistro.objects.get(
+            content_type__model='requisicaocompra', object_id=solicitacao.requisicao_id,
+            status='aprovado',
+        ).aprovado_por, self.ceo)
 
     def test_pedido_aceita_valor_unitario_com_duas_casas_decimais(self):
         material = Material.objects.create(
@@ -297,6 +297,17 @@ class OperationalEndToEndTests(TestCase):
             object_id=manutencao.pk, modulo='manutencao'
         ).exists())
 
+        aprovacao = AprovacaoRegistro.objects.get(
+            content_type__model='registromanutencao', object_id=manutencao.pk,
+            destinatario=self.ceo, status='pendente',
+        )
+        self.client.force_login(self.ceo)
+        self.assertEqual(
+            self.client.post(reverse('aprovar_registro', args=[aprovacao.pk])).status_code,
+            302,
+        )
+        self.client.force_login(self.user)
+
         response = self.client.post(
             reverse('concluir_manutencao', args=[manutencao.pk]),
             {
@@ -365,6 +376,7 @@ class OperationalEndToEndTests(TestCase):
         lancamento = LancamentoERP.objects.get(documento=documento)
         self.assertEqual(lancamento.status, 'em_validacao')
 
+        self.client.force_login(self.ceo)
         response = self.client.post(
             reverse('validar_lancamento', args=[lancamento.pk]),
             {'acao': 'validar'},

@@ -546,14 +546,14 @@ class PagamentosColaboradoresTest(TestCase):
         self.assertEqual(pagamento.status, 'pendente')
 
     def test_lista_filtra_situacao(self):
-        PagamentoColaborador.objects.create(
+        pendente = PagamentoColaborador.objects.create(
             colaborador=self.colaborador,
             tipo='salario',
             competencia=date(2026, 9, 1),
             valor=Decimal('2000.00'),
             data_vencimento=date(2026, 9, 5),
         )
-        PagamentoColaborador.objects.create(
+        pago = PagamentoColaborador.objects.create(
             colaborador=self.colaborador,
             tipo='vale_transporte',
             competencia=date(2026, 9, 8),
@@ -563,12 +563,20 @@ class PagamentosColaboradoresTest(TestCase):
             data_pagamento=date(2026, 9, 8),
         )
 
-        response = self.client.get(
-            reverse('lista_pagamentos_colaboradores'), {'status': 'pendente'}
-        )
+        for pagamento in (pendente, pago):
+            with self.subTest(status=pagamento.status):
+                response = self.client.get(reverse('lista_pagamentos_colaboradores'), {
+                    'status': pagamento.status,
+                    'data_inicio': '2026-09-01',
+                    'data_fim': '2026-09-30',
+                })
 
-        self.assertContains(response, '2000,00')
-        self.assertNotContains(response, '80,00')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.context['status_filter'], pagamento.status)
+                self.assertEqual(
+                    [item.pk for item in response.context['pagamentos']],
+                    [pagamento.pk],
+                )
 
 
 class PresencaNaoDefinidaTest(TestCase):

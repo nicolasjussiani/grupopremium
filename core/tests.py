@@ -8,7 +8,7 @@ class AprovacaoProcessoTest(TestCase):
     def setUp(self):
         # Cria usuários
         self.solicitante = User.objects.create_user(username='solicitante', password='123')
-        self.aprovador = User.objects.create_user(username='aprovador', password='123')
+        self.aprovador = User.objects.create_user(username='ceo_premium', password='123')
         
         # Cria grupo de aprovação e adiciona o aprovador
         grupo, _ = Group.objects.get_or_create(name='Administrativo_Gestor')
@@ -40,7 +40,7 @@ class AprovacaoProcessoTest(TestCase):
         self.assertEqual(aprovacao.status, 'pendente')
 
         # 3. Faz login como aprovador
-        self.client.login(username='aprovador', password='123')
+        self.client.login(username='ceo_premium', password='123')
 
         # 4. Faz requisição POST para aprovar o registro
         url = reverse('aprovar_registro', args=[aprovacao.pk])
@@ -76,7 +76,7 @@ class AprovacaoProcessoTest(TestCase):
         )
 
         # Faz login como aprovador
-        self.client.login(username='aprovador', password='123')
+        self.client.login(username='ceo_premium', password='123')
 
         # Requisição POST para rejeitar o registro
         url = reverse('rejeitar_registro', args=[aprovacao.pk])

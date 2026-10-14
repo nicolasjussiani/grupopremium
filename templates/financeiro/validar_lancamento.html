@@ -73,7 +73,7 @@
       {% if lancamento.motivo_rejeicao %}<div style="margin-top:8px;font-size:0.84rem;">{{ lancamento.motivo_rejeicao }}</div>{% endif %}
     </div>
 
-    {% else %}
+    {% elif lancamento.status == 'em_validacao' and pode_aprovar %}
     <div class="gateway-box">
       <div class="gateway-question">Lançamento validado? Confirmar finalização no ERP?</div>
       <p style="font-size:0.82rem;color:var(--text-secondary);">SIM → Finalizado no ERP + Documento Arquivado | NÃO → Corrigir lançamento</p>
@@ -103,6 +103,8 @@
         <a href="{% url 'painel_financeiro' %}" class="btn btn-outline">← Painel</a>
       </div>
     </form>
+    {% elif lancamento.status == 'em_validacao' %}
+    <p>Este lançamento aguarda a aprovação de ceo_premium.</p>
     {% endif %}
 
     {% if lancamento.status == 'finalizado' or lancamento.status == 'rejeitado' %}

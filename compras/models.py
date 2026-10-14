@@ -135,7 +135,7 @@ class RequisicaoCompra(models.Model):
         verbose_name='Comprovante de Pagamento'
     )
     status = models.CharField(
-        max_length=30, choices=STATUS, default='aguardando_adriana'
+        max_length=30, choices=STATUS, default='aguardando_ceo'
     )
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)

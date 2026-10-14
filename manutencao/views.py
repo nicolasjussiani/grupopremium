@@ -219,16 +219,18 @@ def nova_manutencao(request):
             return redirect('nova_manutencao')
         
         from core.models import AprovacaoRegistro
-        from django.contrib.contenttypes.models import ContentType
-        AprovacaoRegistro.objects.create(
-            content_type=ContentType.objects.get_for_model(manut),
-            object_id=manut.id,
-            modulo='manutencao',
-            nivel=2,
-            titulo=f"Manutenção: {ativo.nome} ({manut.unidade_origem})",
-            descricao=f"Motivo: {manut.motivo}",
-            solicitado_por=request.user
-        )
+        try:
+            AprovacaoRegistro.criar_para(
+                objeto=manut,
+                modulo='manutencao',
+                titulo=f"Manutenção: {ativo.nome} ({manut.unidade_origem})",
+                descricao=f"Motivo: {manut.motivo}",
+                solicitado_por=request.user,
+            )
+        except ValidationError as exc:
+            transaction.set_rollback(True)
+            messages.error(request, '; '.join(exc.messages))
+            return redirect('nova_manutencao')
         
         messages.success(request, f'🔧 Solicitação de manutenção aberta para {ativo.nome} e enviada para aprovação do CEO.')
         return redirect('lista_manutencoes')
@@ -241,6 +243,12 @@ def nova_manutencao(request):
 @transaction.atomic
 def concluir_manutencao(request, pk):
     manut = get_object_or_404(RegistroManutencao.objects.select_for_update(), pk=pk)
+    if manut.status == 'aguardando_aprovacao':
+        messages.error(request, 'A manutenção aguarda a aprovação de ceo_premium antes do reparo ou conclusão.')
+        return redirect('lista_manutencoes')
+    if manut.status == 'cancelada':
+        messages.error(request, 'Uma manutenção cancelada não pode ser iniciada ou concluída.')
+        return redirect('lista_manutencoes')
     if request.method == 'POST':
         novo_status = request.POST.get('status', 'concluida')
         if novo_status not in {'andamento', 'concluida', 'cancelada'}:

@@ -34,17 +34,6 @@ class EquipamentoManutencaoForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        categorias_ativos = {'ferramentas', 'manutencao'}
-        self.fields['categoria'].choices = [
-            choice for choice in self.fields['categoria'].choices
-            if choice[0] not in categorias_ativos
-        ]
-        if self.instance.pk and self.instance.categoria in categorias_ativos:
-            valor = self.instance.categoria
-            etiqueta = dict(Material.CATEGORIAS)[valor]
-            self.fields['categoria'].choices = [(valor, etiqueta)] + list(
-                self.fields['categoria'].choices
-            )
         for field in self.fields.values():
             if not isinstance(field.widget, forms.CheckboxInput):
                 field.widget.attrs['class'] = 'form-control'

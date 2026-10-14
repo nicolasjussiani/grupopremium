@@ -9,8 +9,10 @@ from django.db import transaction
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from django.core.exceptions import ValidationError
 
 from core.access import user_has_access, user_is_executive
+from core.approval_workflow import usuario_e_aprovador_central
 from core.models import AprovacaoRegistro, LogAtividade, Notificacao
 from admissional.models import Colaborador
 
@@ -70,11 +72,14 @@ def _modulos_do_usuario(user):
 
 
 def _aprovacoes_do_usuario(user):
-    """Respeita atribuição nominal sem quebrar aprovações legadas por módulo."""
-    return AprovacaoRegistro.objects.filter(
+    """A fila pendente é exclusiva do CEO; o histórico mantém seu acesso legado."""
+    historico = ~Q(status='pendente') & (
         Q(destinatario=user)
         | Q(destinatario__isnull=True, modulo__in=_modulos_do_usuario(user))
     )
+    if usuario_e_aprovador_central(user):
+        return AprovacaoRegistro.objects.filter(Q(status='pendente') | historico)
+    return AprovacaoRegistro.objects.filter(historico)
 
 
 @login_required
@@ -128,7 +133,7 @@ def painel_mobile(request):
         'total_nao_lidas': Notificacao.objects.filter(
             destinatario=request.user, lida=False
         ).count(),
-        'pode_aprovar': bool(modulos),
+        'pode_aprovar': usuario_e_aprovador_central(request.user),
         'is_visao_executiva': is_visao_executiva,
         'atividades_recentes': atividades_recentes,
         'areas_movimentadas': areas_movimentadas,
@@ -288,28 +293,49 @@ def aprovacoes_pendentes(request):
     return render(request, 'core/aprovacoes_pendentes.html', context)
 
 
+def _pendencia_para_decisao(user, pk):
+    """Compras bloqueia a origem antes da fila, como edição e exclusão."""
+    autorizadas = _aprovacoes_do_usuario(user)
+    candidata = get_object_or_404(
+        autorizadas.select_related('content_type'), pk=pk, status='pendente',
+    )
+    if candidata.modulo == 'compras' and candidata.content_type.app_label == 'compras':
+        from compras.models import PedidoCompra, RequisicaoCompra
+        modelo = {
+            'pedidocompra': PedidoCompra,
+            'requisicaocompra': RequisicaoCompra,
+        }.get(candidata.content_type.model)
+        if modelo is not None:
+            get_object_or_404(modelo.objects.select_for_update(), pk=candidata.object_id)
+    # O bloqueio da origem pode ter aguardado uma edição, exclusão ou decisão.
+    # Revalida a fila e seu vínculo depois da espera, sem reutilizar o estado lido.
+    return get_object_or_404(
+        autorizadas.select_for_update(), pk=pk, status='pendente',
+        content_type_id=candidata.content_type_id, object_id=candidata.object_id,
+        modulo=candidata.modulo,
+    )
+
+
 @login_required
 @require_POST
 @transaction.atomic
 def aprovar_registro(request, pk):
     """Aprova um registro pendente."""
-    aprovacao = get_object_or_404(
-        _aprovacoes_do_usuario(request.user).select_for_update(),
-        pk=pk,
-        status='pendente',
-    )
+    aprovacao = _pendencia_para_decisao(request.user, pk)
 
     comentario = request.POST.get('comentario', '').strip()
-    aprovacao.status = 'aprovado'
-    aprovacao.aprovado_por = request.user
-    aprovacao.decidido_em = timezone.now()
-    aprovacao.comentario = comentario
-    aprovacao.save()
-
-    # Callback: atualiza status do objeto vinculado se ele tiver m├®todo
-    from core.approval_workflow import avancar_para_ceo
-    if avancar_para_ceo(aprovacao) is None:
-        _executar_callback_aprovacao(aprovacao, 'aprovado', request.user)
+    try:
+        with transaction.atomic():
+            aprovacao.status = 'aprovado'
+            aprovacao.destinatario = request.user
+            aprovacao.nivel = 2
+            aprovacao.aprovado_por = request.user
+            aprovacao.decidido_em = timezone.now()
+            aprovacao.comentario = comentario
+            aprovacao.save()
+            _executar_callback_aprovacao(aprovacao, 'aprovado', request.user)
+    except ValidationError as exc:
+        return JsonResponse({'status': 'erro', 'mensagem': '; '.join(exc.messages)}, status=400)
 
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'status': 'ok', 'mensagem': 'Registro aprovado com sucesso!'})
@@ -323,11 +349,7 @@ def aprovar_registro(request, pk):
 @transaction.atomic
 def rejeitar_registro(request, pk):
     """Rejeita um registro pendente."""
-    aprovacao = get_object_or_404(
-        _aprovacoes_do_usuario(request.user).select_for_update(),
-        pk=pk,
-        status='pendente',
-    )
+    aprovacao = _pendencia_para_decisao(request.user, pk)
 
     motivo = request.POST.get('motivo_rejeicao', '').strip()
     if not motivo:
@@ -336,13 +358,18 @@ def rejeitar_registro(request, pk):
         messages.error(request, 'ÔØî Informe o motivo da rejei├º├úo.')
         return _redirect_seguro(request)
 
-    aprovacao.status = 'rejeitado'
-    aprovacao.aprovado_por = request.user
-    aprovacao.decidido_em = timezone.now()
-    aprovacao.motivo_rejeicao = motivo
-    aprovacao.save()
-
-    _executar_callback_aprovacao(aprovacao, 'rejeitado', request.user)
+    try:
+        with transaction.atomic():
+            aprovacao.status = 'rejeitado'
+            aprovacao.destinatario = request.user
+            aprovacao.nivel = 2
+            aprovacao.aprovado_por = request.user
+            aprovacao.decidido_em = timezone.now()
+            aprovacao.motivo_rejeicao = motivo
+            aprovacao.save()
+            _executar_callback_aprovacao(aprovacao, 'rejeitado', request.user)
+    except ValidationError as exc:
+        return JsonResponse({'status': 'erro', 'mensagem': '; '.join(exc.messages)}, status=400)
 
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'status': 'ok', 'mensagem': 'Registro rejeitado.'})
@@ -409,27 +436,39 @@ def _callback_recrutamento(obj, decisao, usuario):
 def _callback_compras(obj, decisao, usuario, aprovacao):
     from compras.models import PedidoCompra, RequisicaoCompra
     if isinstance(obj, PedidoCompra):
+        obj = PedidoCompra.objects.select_for_update().get(pk=obj.pk)
         if decisao == 'aprovado':
             obj.aprovar(usuario)
         elif decisao == 'rejeitado':
             obj.reprovar(aprovacao.motivo_rejeicao)
     elif isinstance(obj, RequisicaoCompra):
+        obj = RequisicaoCompra.objects.select_for_update().get(pk=obj.pk)
         if decisao == 'aprovado':
+            if obj.status == 'aguardando_adriana':
+                obj.status = 'aguardando_ceo'
             obj.aprovar(usuario)
         elif decisao == 'rejeitado':
             obj.rejeitar()
 
 
 def _callback_financeiro(obj, decisao, usuario, aprovacao):
-    from financeiro.models import LancamentoERP
+    from financeiro.models import DocumentoFinanceiro, LancamentoERP
     if isinstance(obj, LancamentoERP):
+        documento = DocumentoFinanceiro.objects.select_for_update().get(pk=obj.documento_id)
+        obj = LancamentoERP.objects.select_for_update().get(pk=obj.pk)
+        if documento.status == 'cancelado' or obj.status != 'em_validacao':
+            raise ValidationError('Este lançamento não está disponível para validação.')
         if decisao == 'aprovado':
-            obj.status = 'validado'
+            obj.status = 'finalizado'
             obj.validado_por = usuario
+            obj.finalizado_em = timezone.now()
+            documento.status = 'arquivado'
         elif decisao == 'rejeitado':
             obj.status = 'rejeitado'
             obj.motivo_rejeicao = aprovacao.motivo_rejeicao
-        obj.save(update_fields=['status', 'validado_por', 'motivo_rejeicao'])
+            documento.status = 'aprovado_lancamento'
+        obj.save(update_fields=['status', 'validado_por', 'finalizado_em', 'motivo_rejeicao'])
+        documento.save(update_fields=['status'])
 
 
 def _callback_administrativo(obj, decisao, usuario):

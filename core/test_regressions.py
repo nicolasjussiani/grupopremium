@@ -350,12 +350,17 @@ class MobilePwaTests(TestCase):
         self.client.force_login(ceo)
 
         desktop = self.client.get(reverse('dashboard'))
+        atividade = self.client.get(reverse('dashboard'), {'secao': 'atividade'})
         mobile = self.client.get(reverse('painel_mobile'))
 
         self.assertEqual(desktop.status_code, 200)
         self.assertTrue(desktop.context['is_visao_executiva'])
-        self.assertContains(desktop, 'O que está acontecendo agora')
+        self.assertContains(desktop, 'Resumo executivo')
         self.assertContains(desktop, 'Auditoria completa')
+        self.assertEqual(atividade.status_code, 200)
+        self.assertTrue(atividade.context['is_visao_executiva'])
+        self.assertContains(atividade, 'O que está acontecendo agora')
+        self.assertContains(atividade, 'Criou um novo registro')
         self.assertEqual(mobile.status_code, 200)
         self.assertTrue(mobile.context['is_visao_executiva'])
         self.assertContains(mobile, 'Visão executiva')
@@ -673,7 +678,7 @@ class WorkflowIntegrityTests(TestCase):
 
     def test_rejeicao_de_manutencao_libera_ativo(self):
         solicitante = self._user('solicitante-manut', 'sesmet')
-        aprovador = self._user('diretor', 'gestor', 'Diretoria_Final')
+        aprovador = self._user('ceo_premium', 'gestor', 'Diretoria_Final')
         ativo = Ativo.objects.create(
             numero_patrimonio='PAT-001', nome='Empilhadeira', unidade_atual='Matriz',
             status='manutencao',
@@ -703,7 +708,7 @@ class WorkflowIntegrityTests(TestCase):
         self.assertEqual(ativo.status, 'ativo')
 
     def test_rejeicao_de_lancamento_reabre_documento(self):
-        aprovador = self._user('financeiro-aprovador', 'financeiro', 'Financeiro_Aprovador')
+        aprovador = self._user('ceo_premium', 'financeiro', 'Financeiro_Aprovador')
         documento = DocumentoFinanceiro.objects.create(
             tipo='nota_fiscal', numero_documento='NF-1', descricao='Teste', valor='10.00',
             centro_custo='ADM', unidade='Matriz', cnpj_emitente='00000000000100',
@@ -713,6 +718,7 @@ class WorkflowIntegrityTests(TestCase):
             documento=documento, descricao='Teste', tipo='debito', valor='10.00',
             centro_custo='ADM', competencia=date.today().replace(day=1), status='em_validacao',
         )
+        AprovacaoRegistro.criar_para(objeto=lancamento, titulo='Validação financeira', modulo='financeiro')
         self.client.force_login(aprovador)
         response = self.client.post(
             reverse('validar_lancamento', args=[lancamento.pk]),

@@ -421,12 +421,13 @@ def nova_solicitacao(request):
                     solicitado_por=request.user,
                 )
             except ValidationError as exc:
-                transaction.set_rollback(True)
                 messages.error(request, '; '.join(exc.messages))
-                return render_form(itens_form, manutencoes_form)
+                response = render_form(itens_form, manutencoes_form)
+                transaction.set_rollback(True)
+                return response
             messages.success(
                 request,
-                f'Requisição {requisicao.numero} criada e enviada para aprovação da Adriana.',
+                f'Requisição {requisicao.numero} criada e enviada para aprovação do CEO.',
             )
         else:
             messages.warning(
@@ -838,7 +839,7 @@ def atualizar_cnpj_pedido(request, pk):
 @access_required(permission='compras.change_requisicaocompra', profiles=('compras', 'gestor', 'estoque_compras'))
 @transaction.atomic
 def editar_requisicao(request, pk):
-    requisicao = get_object_or_404(RequisicaoCompra, pk=pk)
+    requisicao = get_object_or_404(RequisicaoCompra.objects.select_for_update(), pk=pk)
     
     if requisicao.status in {'aprovada', 'pedido'}:
         messages.error(request, 'Requisições aprovadas ou com pedido emitido não podem ser editadas.')
@@ -1008,7 +1009,7 @@ def editar_requisicao(request, pk):
             if requisicao.comprovante_pagamento:
                 requisicao.status = 'aprovada'
             else:
-                requisicao.status = 'aguardando_adriana'
+                requisicao.status = 'aguardando_ceo'
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc))
             return render_form(itens_form, manutencoes_form)
@@ -1094,7 +1095,7 @@ def editar_requisicao(request, pk):
                 return response
             messages.success(
                 request,
-                f'Requisição {requisicao.numero} atualizada e reenviada para aprovação.'
+                f'Requisição {requisicao.numero} atualizada e reenviada para aprovação do CEO.'
             )
         else:
             messages.warning(
@@ -1111,7 +1112,7 @@ def editar_requisicao(request, pk):
 @require_POST
 @transaction.atomic
 def excluir_requisicao(request, pk):
-    requisicao = get_object_or_404(RequisicaoCompra, pk=pk)
+    requisicao = get_object_or_404(RequisicaoCompra.objects.select_for_update(), pk=pk)
     if requisicao.status in {'aprovada', 'pedido'}:
         messages.error(request, 'Requisições aprovadas ou com pedido emitido não podem ser excluídas.')
         return redirect('detalhe_requisicao', pk=requisicao.pk)

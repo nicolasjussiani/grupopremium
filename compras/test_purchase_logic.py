@@ -1,8 +1,10 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models.query import QuerySet
 from django.test import TestCase
 from django.urls import reverse
 
@@ -66,7 +68,7 @@ class LogicaPedidoCompraTests(TestCase):
             objeto=pedido, titulo='Aprovar compra', descricao='',
             solicitado_por=self.aprovador,
         )
-
+        self.client.force_login(self.ceo)
         response = self.client.post(
             reverse('aprovar_pedido', args=[pedido.pk]), {'acao': 'aprovar'}
         )
@@ -75,17 +77,10 @@ class LogicaPedidoCompraTests(TestCase):
         pedido.refresh_from_db()
         self.solicitacao.refresh_from_db()
         aprovacao.refresh_from_db()
-        self.assertEqual(pedido.status, 'aguardando_aprovacao')
-        self.assertEqual(self.solicitacao.status, 'compra_externa')
         self.assertEqual(aprovacao.status, 'aprovado')
-        self.assertEqual(aprovacao.aprovado_por, self.aprovador)
-        nivel_ceo = AprovacaoRegistro.objects.get(object_id=pedido.pk, nivel=2)
-        self.assertEqual(nivel_ceo.destinatario, self.ceo)
-
-        self.client.force_login(self.ceo)
-        self.client.post(reverse('aprovar_registro', args=[nivel_ceo.pk]))
-        pedido.refresh_from_db()
-        self.solicitacao.refresh_from_db()
+        self.assertEqual(aprovacao.aprovado_por, self.ceo)
+        self.assertEqual(aprovacao.destinatario, self.ceo)
+        self.assertEqual(AprovacaoRegistro.objects.filter(object_id=pedido.pk).count(), 1)
         self.assertEqual(pedido.status, 'pedido_emitido')
         self.assertEqual(self.solicitacao.status, 'aguardando_entrega')
 
@@ -95,61 +90,59 @@ class LogicaPedidoCompraTests(TestCase):
             objeto=pedido, titulo='Aprovar compra', descricao='',
             solicitado_por=self.aprovador,
         )
-
+        self.client.force_login(self.ceo)
         response = self.client.post(reverse('aprovar_registro', args=[aprovacao.pk]))
 
         self.assertEqual(response.status_code, 302)
-        nivel_ceo = AprovacaoRegistro.objects.get(object_id=pedido.pk, nivel=2)
-        self.client.force_login(self.ceo)
-        self.client.post(reverse('aprovar_registro', args=[nivel_ceo.pk]))
         pedido.refresh_from_db()
         self.solicitacao.refresh_from_db()
         self.assertEqual(pedido.status, 'pedido_emitido')
         self.assertEqual(self.solicitacao.status, 'aguardando_entrega')
 
-    def test_cada_etapa_aparece_somente_para_o_responsavel(self):
+    def test_aprovacao_aparece_somente_para_ceo_e_bloqueia_adriana(self):
         pedido = self.criar_pedido()
-        nivel_adriana = criar_fluxo_compras(
+        nivel_ceo = criar_fluxo_compras(
             objeto=pedido, titulo='Aprovação nominal', descricao='',
             solicitado_por=self.aprovador,
         )
-        self.client.force_login(self.ceo)
-        self.assertEqual(
-            self.client.get(reverse('detalhe_aprovacao', args=[nivel_adriana.pk])).status_code,
-            404,
-        )
         self.client.force_login(self.aprovador)
-        self.assertEqual(
-            self.client.get(reverse('detalhe_aprovacao', args=[nivel_adriana.pk])).status_code,
-            200,
-        )
-        self.client.post(reverse('aprovar_registro', args=[nivel_adriana.pk]))
-        nivel_ceo = AprovacaoRegistro.objects.get(object_id=pedido.pk, nivel=2)
         self.assertEqual(
             self.client.get(reverse('detalhe_aprovacao', args=[nivel_ceo.pk])).status_code,
             404,
         )
+        for acao in ['aprovar_registro', 'rejeitar_registro']:
+            self.assertEqual(
+                self.client.post(reverse(acao, args=[nivel_ceo.pk])).status_code,
+                404,
+            )
+        self.client.post(reverse('aprovar_pedido', args=[pedido.pk]), {'acao': 'aprovar'})
+        pedido.refresh_from_db()
+        nivel_ceo.refresh_from_db()
+        self.assertEqual(pedido.status, 'aguardando_aprovacao')
+        self.assertEqual(nivel_ceo.status, 'pendente')
         self.client.force_login(self.ceo)
         self.assertEqual(
             self.client.get(reverse('detalhe_aprovacao', args=[nivel_ceo.pk])).status_code,
             200,
         )
 
-    def test_rejeicao_da_adriana_nao_encaminha_ao_ceo(self):
+    def test_rejeicao_do_ceo_encerra_a_unica_aprovacao(self):
         pedido = self.criar_pedido()
-        nivel_adriana = criar_fluxo_compras(
+        nivel_ceo = criar_fluxo_compras(
             objeto=pedido, titulo='Compra rejeitada', descricao='',
             solicitado_por=self.aprovador,
         )
+        self.client.force_login(self.ceo)
         self.client.post(
-            reverse('rejeitar_registro', args=[nivel_adriana.pk]),
+            reverse('rejeitar_registro', args=[nivel_ceo.pk]),
             {'motivo_rejeicao': 'Compra não autorizada'},
         )
         pedido.refresh_from_db()
+        nivel_ceo.refresh_from_db()
         self.assertEqual(pedido.status, 'reprovado')
-        self.assertFalse(AprovacaoRegistro.objects.filter(
-            object_id=pedido.pk, nivel=2
-        ).exists())
+        self.assertEqual(nivel_ceo.aprovado_por, self.ceo)
+        self.assertEqual(nivel_ceo.status, 'rejeitado')
+        self.assertEqual(AprovacaoRegistro.objects.filter(object_id=pedido.pk).count(), 1)
 
     def test_reprovacao_reabre_solicitacao(self):
         pedido = self.criar_pedido()
@@ -165,3 +158,32 @@ class LogicaPedidoCompraTests(TestCase):
         pedido.aprovar(self.aprovador)
         with self.assertRaises(ValidationError):
             pedido.aprovar(self.aprovador)
+
+    def test_rotas_central_e_legada_bloqueiam_pedido_antes_da_fila(self):
+        for rota in ('aprovar_registro', 'aprovar_pedido'):
+            with self.subTest(rota=rota):
+                pedido = self.criar_pedido()
+                aprovacao = criar_fluxo_compras(
+                    objeto=pedido, titulo='Pedido com bloqueio', descricao='',
+                    solicitado_por=self.aprovador,
+                )
+                self.client.force_login(self.ceo)
+                bloqueios = []
+                obter = QuerySet.get
+
+                def registrar(queryset, *args, **kwargs):
+                    if queryset.query.select_for_update:
+                        bloqueios.append(queryset.model)
+                    return obter(queryset, *args, **kwargs)
+
+                pk = aprovacao.pk if rota == 'aprovar_registro' else pedido.pk
+                with patch.object(QuerySet, 'get', registrar):
+                    response = self.client.post(reverse(rota, args=[pk]), {'acao': 'aprovar'})
+                self.assertEqual(response.status_code, 302)
+                self.assertLess(bloqueios.index(PedidoCompra), bloqueios.index(AprovacaoRegistro))
+                pedido.refresh_from_db()
+                aprovacao.refresh_from_db()
+                self.assertEqual(pedido.status, 'pedido_emitido')
+                self.assertEqual(aprovacao.status, 'aprovado')
+                # Libera a solicitação para testar a outra entrada do mesmo fluxo.
+                PedidoCompra.objects.filter(pk=pedido.pk).update(status='reprovado')

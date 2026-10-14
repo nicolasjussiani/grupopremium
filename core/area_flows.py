@@ -151,8 +151,7 @@ FLOWS = {
         'mod5',
         (
             ('Criar requisição', 'Agrupe os produtos da mesma unidade.'),
-            ('Aprovação inicial', 'Adriana analisa a necessidade.'),
-            ('Aprovação final', 'O CEO decide a liberação.'),
+            ('Aprovação direta', 'ceo_premium analisa a necessidade e decide a liberação.'),
             ('Verificar estoque', 'Cada item é analisado separadamente.'),
             ('Comprar ou separar', 'Atendimento interno ou pedido externo.'),
             ('Entregar', 'Recebimento e conclusão do pedido.'),
@@ -172,7 +171,7 @@ FLOWS = {
             ('Extrair dados', 'OCR pode preencher os campos iniciais.'),
             ('Auditar', 'O checklist confere dados e itens.'),
             ('Lançar', 'Crie o registro contábil no ERP.'),
-            ('Validar', 'O aprovador realiza a conferência final.'),
+            ('Validar', 'ceo_premium recebe o lançamento e decide a aprovação final.'),
             ('Arquivar', 'O lançamento finalizado encerra o processo.'),
         ),
         (
@@ -231,14 +230,14 @@ FLOWS = {
         'core',
         (
             ('Receber solicitação', 'O módulo cria uma aprovação pendente.'),
-            ('Notificar responsável', 'A decisão aparece na web e no celular.'),
-            ('Analisar detalhes', 'O aprovador consulta dados e anexos.'),
+            ('Notificar CEO', 'A solicitação vai diretamente para ceo_premium.'),
+            ('Analisar detalhes', 'ceo_premium consulta dados e anexos na web e no celular.'),
             ('Decidir', 'Aprovar ou rejeitar com motivo.'),
             ('Atualizar processo', 'O módulo de origem recebe o resultado.'),
             ('Registrar histórico', 'A decisão permanece na auditoria.'),
         ),
         (
-            ('Compras', 'Adriana primeiro e CEO depois'),
+            ('Todos os módulos', 'Aprovação direta de ceo_premium, inclusive pendências anteriores'),
             ('Rejeição', 'Motivo obrigatório e retorno ao solicitante'),
         ),
     ),

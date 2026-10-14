@@ -26,7 +26,7 @@ class ResponsavelReprovacaoTests(TestCase):
             requisicao=self.rc, material=Material.objects.create(nome='Produto de exemplo'),
             quantidade_solicitada=2,
         )
-        self.nivel1 = criar_fluxo_compras(
+        self.aprovacao = criar_fluxo_compras(
             objeto=self.rc, titulo='Requisição para análise', descricao='',
             solicitado_por=self.comprador,
         )
@@ -43,8 +43,18 @@ class ResponsavelReprovacaoTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.client.force_login(self.comprador)
 
-    def test_identifica_adriana_apos_rejeicao_real_no_painel_e_detalhes(self):
-        self.rejeitar(self.adriana, self.nivel1)
+    def rejeicao_historica_adriana(self):
+        self.aprovacao.status = 'rejeitado'
+        self.aprovacao.nivel = 1
+        self.aprovacao.destinatario = self.adriana
+        self.aprovacao.aprovado_por = self.adriana
+        self.aprovacao.motivo_rejeicao = 'Compra fora do orçamento'
+        self.aprovacao.decidido_em = timezone.now()
+        self.aprovacao.save()
+        self.rc.rejeitar()
+
+    def test_preserva_adriana_em_rejeicao_historica_no_painel_e_detalhes(self):
+        self.rejeicao_historica_adriana()
         for url in [
             reverse('painel_compras'),
             reverse('detalhe_requisicao', args=[self.rc.pk]),
@@ -56,16 +66,17 @@ class ResponsavelReprovacaoTests(TestCase):
                 self.assertContains(response, 'Adriana Silva')
         response = self.detalhe()
         self.assertContains(response, 'Compra fora do orçamento')
-        self.nivel1.refresh_from_db()
-        self.assertContains(response, timezone.localtime(self.nivel1.decidido_em).strftime('%d/%m/%Y %H:%M'))
+        self.aprovacao.refresh_from_db()
+        self.assertContains(response, timezone.localtime(self.aprovacao.decidido_em).strftime('%d/%m/%Y %H:%M'))
 
     def test_identifica_ceo_sem_confundir_com_aprovacao_da_adriana(self):
-        self.client.force_login(self.adriana)
-        self.client.post(reverse('aprovar_registro', args=[self.nivel1.pk]))
-        nivel2 = AprovacaoRegistro.objects.get(
-            content_type=self.nivel1.content_type, object_id=self.rc.pk, nivel=2,
+        AprovacaoRegistro.objects.create(
+            content_type=self.aprovacao.content_type, object_id=self.rc.pk,
+            titulo='Decisão anterior à centralização', modulo='compras', nivel=1,
+            status='aprovado', aprovado_por=self.adriana, destinatario=self.adriana,
+            decidido_em=timezone.now() - timedelta(days=1),
         )
-        self.rejeitar(self.ceo, nivel2)
+        self.rejeitar(self.ceo, self.aprovacao)
         response = self.detalhe()
         self.assertContains(response, 'Carlos Diretor')
         self.assertNotContains(response, 'Adriana Silva')
@@ -83,17 +94,17 @@ class ResponsavelReprovacaoTests(TestCase):
         aprovacao = criar_fluxo_compras(
             objeto=pedido, titulo='Pedido', descricao='', solicitado_por=self.comprador,
         )
-        self.rejeitar(self.adriana, aprovacao)
-        self.assertContains(self.client.get(reverse('detalhe_solicitacao', args=[self.item.pk])), 'Adriana Silva')
+        self.rejeitar(self.ceo, aprovacao)
+        self.assertContains(self.client.get(reverse('detalhe_solicitacao', args=[self.item.pk])), 'Carlos Diretor')
         self.assertNotContains(self.detalhe(), 'Reprovado por:')
         self.rc.status = 'rejeitada'
         self.rc.save()
         response = self.detalhe()
         self.assertContains(response, 'Responsável não registrado')
-        self.assertNotContains(response, 'Adriana Silva')
+        self.assertNotContains(response, 'Carlos Diretor')
 
     def test_requisicao_reenviada_nao_mostra_reprovacao_antiga_como_atual(self):
-        self.rejeitar(self.adriana, self.nivel1)
+        self.rejeitar(self.ceo, self.aprovacao)
         for status in ['aguardando_adriana', 'aguardando_ceo', 'aprovada', 'pedido']:
             self.rc.status = status
             self.rc.save()
@@ -103,7 +114,7 @@ class ResponsavelReprovacaoTests(TestCase):
         self.adriana.first_name = ''
         self.adriana.last_name = ''
         self.adriana.save()
-        self.rejeitar(self.adriana, self.nivel1)
+        self.rejeicao_historica_adriana()
         self.assertContains(self.detalhe(), '<strong>adriana</strong>', html=True)
         self.adriana.delete()
         self.assertContains(self.detalhe(), 'Responsável não registrado')
@@ -111,10 +122,10 @@ class ResponsavelReprovacaoTests(TestCase):
     def test_busca_ultima_rejeicao_em_lote_priorizando_data_da_decisao(self):
         self.rc.status = 'rejeitada'
         self.rc.save()
-        self.nivel1.status = 'rejeitado'
-        self.nivel1.aprovado_por = self.adriana
-        self.nivel1.decidido_em = timezone.now()
-        self.nivel1.save()
+        self.aprovacao.status = 'rejeitado'
+        self.aprovacao.aprovado_por = self.adriana
+        self.aprovacao.decidido_em = timezone.now()
+        self.aprovacao.save()
         antiga = AprovacaoRegistro.criar_para(objeto=self.rc, titulo='Registro antigo', modulo='compras')
         antiga.status = 'rejeitado'
         antiga.aprovado_por = self.ceo
@@ -125,5 +136,5 @@ class ResponsavelReprovacaoTests(TestCase):
         )
         with self.assertNumQueries(1):
             _carregar_reprovacoes([self.rc, outra])
-        self.assertEqual(self.rc.reprovacao, self.nivel1)
+        self.assertEqual(self.rc.reprovacao, self.aprovacao)
         self.assertIsNone(outra.reprovacao)

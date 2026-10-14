@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
+from django.urls import reverse
 from django.db.models import Q, Sum
 from django.db import transaction
 import logging
@@ -18,11 +19,12 @@ from django.views.decorators.http import require_POST, require_http_methods
 from .forms import PagamentoDocumentoForm, CancelamentoDocumentoForm, DetalhamentoDocumentoForm
 from core.validators import validate_document_upload, validate_pdf_upload
 from core.direct_uploads import verify_direct_upload
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.utils.text import get_valid_filename
 from admissional.models import Colaborador, PagamentoColaborador
 from admissional.periodos_pagamentos import pagamentos_atuais, pagamentos_atrasados
-from core.models import ArquivoImportado
+from core.models import AprovacaoRegistro, ArquivoImportado
+from core.approval_workflow import usuario_e_aprovador_central
 
 
 logger = logging.getLogger(__name__)
@@ -357,6 +359,13 @@ ACESSO_PAGAMENTO = dict(
 @require_http_methods(['GET', 'POST'])
 @transaction.atomic
 def cancelar_documento(request, pk):
+    aprovacoes = AprovacaoRegistro.objects.filter(
+        content_type__app_label='financeiro', content_type__model='lancamentoerp',
+        object_id__in=LancamentoERP.objects.filter(documento_id=pk).values('pk'),
+        status='pendente',
+    )
+    # A decisão central também bloqueia a aprovação antes do documento.
+    aprovacoes_bloqueadas = list(aprovacoes.select_for_update().values_list('pk', flat=True))
     doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=pk)
     if doc.status == 'cancelado':
         messages.info(request, 'Este documento já está cancelado.')
@@ -366,12 +375,19 @@ def cancelar_documento(request, pk):
         return redirect('detalhe_documento', pk=pk)
     form = CancelamentoDocumentoForm(request.POST if request.method == 'POST' else None)
     if request.method == 'POST' and form.is_valid():
+        if aprovacoes.exclude(pk__in=aprovacoes_bloqueadas).exists():
+            messages.error(request, 'O documento recebeu um novo lançamento. Atualize a página antes de cancelar.')
+            return redirect('detalhe_documento', pk=pk)
         doc.status = 'cancelado'
         doc.motivo_cancelamento = form.cleaned_data['motivo']
         doc.cancelado_por = request.user
         doc.cancelado_em = timezone.now()
         doc.save(update_fields=['status', 'motivo_cancelamento', 'cancelado_por', 'cancelado_em', 'atualizado_em'])
         doc.lancamentos.filter(status__in=('rascunho', 'em_validacao')).update(status='cancelado')
+        AprovacaoRegistro.objects.filter(pk__in=aprovacoes_bloqueadas, status='pendente').update(
+            status='cancelado',
+            comentario=f'Documento cancelado: {form.cleaned_data["motivo"]}',
+        )
         messages.success(request, 'Documento cancelado. O arquivo e o histórico foram preservados.')
         return redirect('detalhe_documento', pk=pk)
     return render(request, 'financeiro/cancelar_documento.html', {
@@ -473,8 +489,16 @@ def lancar_erp(request, doc_pk):
             lancado_por=request.user,
         )
         try:
-            lancamento.full_clean()
-            lancamento.save()
+            with transaction.atomic():
+                lancamento.full_clean()
+                lancamento.save()
+                AprovacaoRegistro.criar_para(
+                    objeto=lancamento,
+                    titulo=f'Lançamento financeiro: {doc.numero_documento}',
+                    descricao=f'{descricao} — R$ {lancamento.valor} — {centro_custo}',
+                    modulo='financeiro',
+                    solicitado_por=request.user,
+                )
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages))
             return render(request, 'financeiro/lancar_erp.html', {
@@ -486,8 +510,8 @@ def lancar_erp(request, doc_pk):
             doc.data_pagamento = pagamento_form.cleaned_data['data_pagamento']
         doc.status = 'lancado'
         doc.save()
-        messages.info(request, f'📊 Lançamento criado. Aguardando validação final.')
-        return redirect('validar_lancamento', pk=lancamento.pk)
+        messages.info(request, '📊 Lançamento enviado diretamente para aprovação de ceo_premium.')
+        return redirect('detalhe_documento', pk=doc.pk)
     return render(request, 'financeiro/lancar_erp.html', {
         'documento': doc,
         'tipos': LancamentoERP.TIPOS, 'pagamento_form': pagamento_form,
@@ -501,46 +525,40 @@ def lancar_erp(request, doc_pk):
 )
 @transaction.atomic
 def validar_lancamento(request, pk):
-    """Gateway 2: Lançamento validado → FINALIZADO NO ERP GRUPO PREMIUMBR"""
-    documento_id = get_object_or_404(LancamentoERP, pk=pk).documento_id
-    # Todas as operações bloqueiam o documento antes de seus lançamentos.
-    documento = DocumentoFinanceiro.objects.select_for_update().get(pk=documento_id)
-    lancamento = get_object_or_404(LancamentoERP.objects.select_for_update(), pk=pk)
+    """Compatibilidade: a decisão financeira passa pela fila central do CEO."""
+    lancamento = get_object_or_404(LancamentoERP.objects.select_related('documento'), pk=pk)
+    documento = lancamento.documento
     if documento.status == 'cancelado':
         messages.error(request, 'Documento cancelado. O lançamento não pode ser validado.')
         return redirect('detalhe_documento', pk=documento.pk)
     if request.method == 'POST':
+        if not usuario_e_aprovador_central(request.user):
+            raise PermissionDenied
         if lancamento.status != 'em_validacao':
             messages.error(request, 'Este lancamento nao esta aguardando validacao.')
             return redirect('painel_financeiro')
         acao = request.POST.get('acao')
-        if acao == 'validar':
-            lancamento.status = 'finalizado'
-            lancamento.validado_por = request.user
-            lancamento.finalizado_em = timezone.now()
-            lancamento.save()
-            documento.status = 'arquivado'
-            documento.save(update_fields=['status', 'atualizado_em'])
-            messages.success(request,
-                '🏆 GATEWAY FINAL: Lançamento VALIDADO e FINALIZADO NO ERP GRUPO PREMIUMBR! '
-                'Documento arquivado digitalmente. Prestação de contas concluída.')
-        elif acao == 'rejeitar':
-            motivo = request.POST.get('motivo_rejeicao', '').strip()
-            if not motivo:
-                messages.error(request, 'Informe o motivo da rejeicao.')
-                return redirect('validar_lancamento', pk=pk)
-            lancamento.status = 'rejeitado'
-            lancamento.motivo_rejeicao = motivo
-            lancamento.save()
-            documento.status = 'aprovado_lancamento'
-            documento.save(update_fields=['status', 'atualizado_em'])
-            messages.error(request,
-                '❌ GATEWAY: Lançamento rejeitado. Registro reaberto para correção.')
-        else:
+        if acao not in {'validar', 'rejeitar'}:
             messages.error(request, 'Acao de validacao invalida.')
             return redirect('validar_lancamento', pk=pk)
-        return redirect('painel_financeiro')
-    return render(request, 'financeiro/validar_lancamento.html', {'lancamento': lancamento})
+        aprovacao = get_object_or_404(
+            AprovacaoRegistro,
+            content_type__app_label='financeiro',
+            content_type__model='lancamentoerp',
+            object_id=lancamento.pk,
+            destinatario=request.user,
+            status='pendente',
+        )
+        from core.views_aprovacao import aprovar_registro, rejeitar_registro
+        dados = request.POST.copy()
+        dados['next'] = reverse('painel_financeiro')
+        request.POST = dados
+        decisao = aprovar_registro if acao == 'validar' else rejeitar_registro
+        return decisao(request, aprovacao.pk)
+    return render(request, 'financeiro/validar_lancamento.html', {
+        'lancamento': lancamento,
+        'pode_aprovar': usuario_e_aprovador_central(request.user),
+    })
 
 
 @login_required

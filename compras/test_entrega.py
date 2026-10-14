@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from compras.models import Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial
 from core.approval_workflow import criar_fluxo_compras
-from core.models import AprovacaoRegistro, LogAtividade, PerfilUsuario
+from core.models import LogAtividade, PerfilUsuario
 
 
 class EntregaComprasTests(TestCase):
@@ -63,24 +63,24 @@ class EntregaComprasTests(TestCase):
         self.assertNotContains(painel, self.url)
         self.assertEqual(len(painel.context['pedidos_abertos']), 0)
 
-    def test_aprovacao_da_adriana_nao_libera_entrega_antes_do_ceo(self):
+    def test_somente_aprovacao_do_ceo_libera_entrega(self):
         pedido = self.pedido(status='aguardando_aprovacao')
         self.item.status = 'compra_externa'
         self.item.save()
-        nivel_adriana = criar_fluxo_compras(
+        nivel_ceo = criar_fluxo_compras(
             objeto=pedido, titulo='Pedido de entrega', descricao='',
             solicitado_por=self.comprador,
         )
         self.client.force_login(self.adriana)
-        self.client.post(reverse('aprovar_registro', args=[nivel_adriana.pk]))
+        self.assertEqual(
+            self.client.post(reverse('aprovar_registro', args=[nivel_ceo.pk])).status_code,
+            404,
+        )
         self.client.force_login(self.comprador)
         self.client.post(self.url)
         self.item.refresh_from_db()
         self.assertEqual(self.item.status, 'compra_externa')
         self.assertNotContains(self.client.get(reverse('painel_compras')), self.url)
-        nivel_ceo = AprovacaoRegistro.objects.get(
-            content_type=nivel_adriana.content_type, object_id=pedido.pk, nivel=2,
-        )
         self.client.force_login(self.ceo)
         self.client.post(reverse('aprovar_registro', args=[nivel_ceo.pk]))
         self.client.force_login(self.comprador)
