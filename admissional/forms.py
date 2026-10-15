@@ -185,9 +185,8 @@ class PagamentoColaboradorForm(forms.ModelForm):
                 campo: getattr(self.instance, campo)
                 for campo in self.Meta.fields if campo not in ('observacao', 'recorrente')
             }
-        self.fields['colaborador'].queryset = Colaborador.objects.exclude(
-            status__in=['inativo', 'desligado']
-        )
+        self.fields['colaborador'].queryset = Colaborador.objects.all()
+        self.fields['colaborador'].help_text = 'Colaboradores inativos ou desligados podem receber apenas distrato.'
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-control'
         self.fields['recorrente'].widget.attrs['class'] = 'form-check-input'
@@ -217,6 +216,8 @@ class PagamentoColaboradorForm(forms.ModelForm):
                     self.add_error(name, 'Salário já pago: o cálculo salvo não pode ser alterado.')
         colaborador = cleaned_data.get('colaborador')
         tipo = cleaned_data.get('tipo')
+        if colaborador and colaborador.status in Colaborador.STATUS_SEM_PAGAMENTO and tipo != 'distrato':
+            self.add_error('colaborador', 'Colaboradores inativos ou desligados podem receber apenas distrato.')
         valor = cleaned_data.get('valor')
         dias_trabalhados = cleaned_data.get('dias_trabalhados')
         valor_diaria = cleaned_data.get('valor_diaria')

@@ -85,6 +85,7 @@ class PagamentoDocumentoTests(TestCase):
         doc = DocumentoFinanceiro.objects.get()
         doc.status = 'aprovado_lancamento'
         doc.save()
+        doc.auditoria.update(status='ok')
         dados = dict(descricao='Material', tipo='debito', competencia='2026-09-01', centro_custo='ADM', situacao_pagamento='pago')
         url = reverse('lancar_erp', args=[doc.pk])
         self.assertEqual(self.client.post(url, dados).status_code, 200)
@@ -100,6 +101,7 @@ class PagamentoDocumentoTests(TestCase):
         doc = DocumentoFinanceiro.objects.get()
         doc.status = 'aprovado_lancamento'
         doc.save()
+        doc.auditoria.update(status='ok')
         response = self.client.post(reverse('lancar_erp', args=[doc.pk]), {
             'descricao': 'Descricao manual especifica', 'tipo': 'provisao',
             'competencia': '2026-09-01', 'centro_custo': 'CENTRO MANUAL',
@@ -254,6 +256,8 @@ class EntradaDocumentoOpcionalTests(TestCase):
             descricao='Documento sem classificacao inicial', valor='50.00',
             status='aprovado_lancamento',
         )
+        for item, _ in AuditoriaItem.ITENS_CHECKLIST:
+            AuditoriaItem.objects.create(documento=documento, item=item, status='ok')
 
         response = self.client.post(reverse('lancar_erp', args=[documento.pk]), {
             'descricao': 'Lancamento classificado depois',

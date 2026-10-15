@@ -35,6 +35,20 @@ def _pode_gerenciar_vagas(user):
     )
 
 
+def _vaga_aceita_candidatos(vaga):
+    return (
+        vaga.status not in ('cancelada', 'preenchida')
+        and vaga.candidatos.filter(etapa_atual='aprovado').count()
+        < vaga.quantidade_colaboradores
+    )
+
+
+def _recusar_vaga_encerrada(request, vaga):
+    request._audit_no_change = True
+    messages.warning(request, 'Esta vaga está encerrada ou já teve todos os postos preenchidos.')
+    return redirect('detalhe_vaga', pk=vaga.pk)
+
+
 def _snapshot_vaga(vaga):
     """Retorna dados simples e permanentes para a trilha de auditoria."""
     campos = (
@@ -272,6 +286,7 @@ def detalhe_vaga(request, pk):
         'candidatos': candidatos,
         'candidatos_por_etapa': candidatos_por_etapa,
         'pode_gerenciar_vagas': _pode_gerenciar_vagas(request.user),
+        'vaga_aceita_candidatos': _vaga_aceita_candidatos(vaga),
     })
 
 
@@ -279,7 +294,9 @@ def detalhe_vaga(request, pk):
 @access_required(permission='recrutamento.add_candidato', profiles=('rh', 'gestor'))
 @transaction.atomic
 def adicionar_candidato(request, vaga_pk):
-    vaga = get_object_or_404(Vaga, pk=vaga_pk)
+    vaga = get_object_or_404(Vaga.objects.select_for_update(), pk=vaga_pk)
+    if not _vaga_aceita_candidatos(vaga):
+        return _recusar_vaga_encerrada(request, vaga)
     if request.method == 'POST':
         cpf_cnpj = request.POST.get('cpf_cnpj', '')
         email = request.POST.get('email', '')
@@ -357,13 +374,25 @@ def adicionar_candidato(request, vaga_pk):
 @transaction.atomic
 def avancar_etapa(request, candidato_pk):
     """Gateway: avan├ºa candidato para pr├│xima etapa ou reprova"""
-    candidato = get_object_or_404(Candidato.objects.select_for_update(), pk=candidato_pk)
+    candidato = get_object_or_404(Candidato, pk=candidato_pk)
+    # A vaga é o bloqueio compartilhado por todas as aprovações de seus postos.
+    # Mantém também a ordem de bloqueio usada na edição/exclusão da vaga.
+    vaga = get_object_or_404(Vaga.objects.select_for_update(), pk=candidato.vaga_id)
+    candidato = get_object_or_404(
+        Candidato.objects.select_for_update(), pk=candidato_pk, vaga_id=vaga.pk,
+    )
+    candidato.vaga = vaga
+    if not _vaga_aceita_candidatos(vaga):
+        return _recusar_vaga_encerrada(request, vaga)
+    if candidato.etapa_atual not in ('triagem', 'avaliacao_dp', 'entrevista_final'):
+        request._audit_no_change = True
+        messages.warning(request, 'A avaliação deste candidato já foi encerrada.')
+        return redirect('detalhe_vaga', pk=vaga.pk)
     if request.method == 'POST':
         acao = request.POST.get('acao')
         obs = request.POST.get('obs', '')
         etapas = ['triagem', 'avaliacao_dp', 'entrevista_final', 'aprovado']
 
-        vaga = candidato.vaga
         status_anterior = vaga.status
 
         if acao == 'reprovar':
@@ -375,7 +404,7 @@ def avancar_etapa(request, candidato_pk):
                 f'ÔØî GATEWAY: Candidato {candidato.nome} reprovado. Processo retorna para nova sele├º├úo.')
 
         elif acao == 'avancar':
-            idx = etapas.index(candidato.etapa_atual) if candidato.etapa_atual in etapas else 0
+            idx = etapas.index(candidato.etapa_atual)
             if idx < len(etapas) - 1:
                 candidato.etapa_atual = etapas[idx + 1]
                 if candidato.etapa_atual == 'avaliacao_dp':
@@ -419,8 +448,8 @@ def _atualizar_status_vaga(vaga):
 
     candidatos = vaga.candidatos.all()
 
-    # Regra 1: Se h├í algum candidato aprovado ÔåÆ Vaga Preenchida
-    if candidatos.filter(etapa_atual='aprovado').exists():
+    # A vaga só é preenchida quando todos os postos solicitados têm aprovação.
+    if candidatos.filter(etapa_atual='aprovado').count() >= vaga.quantidade_colaboradores:
         novo_status = 'preenchida'
     # Regra 2: Se h├í candidato na entrevista final ÔåÆ Aguardando Entrevista Final
     elif candidatos.filter(etapa_atual='entrevista_final').exists():
@@ -432,8 +461,8 @@ def _atualizar_status_vaga(vaga):
     elif candidatos.filter(etapa_atual='triagem').exists():
         novo_status = 'em_selecao'
     else:
-        # Sem candidatos ativos ÔÇö mant├®m o status atual
-        return
+        # Ainda há postos disponíveis, mesmo após a reprovação do último candidato.
+        novo_status = 'em_selecao'
 
     if vaga.status != novo_status:
         vaga.status = novo_status

@@ -108,6 +108,11 @@ def editar_ativo(request, pk):
         if status not in {value for value, _ in Ativo.STATUS}:
             messages.error(request, 'Status do ativo invalido.')
             return render(request, 'manutencao/form_ativo.html', {'ativo': ativo})
+        if status == 'ativo' and ativo.manutencoes.filter(
+            status__in=['aguardando_aprovacao', 'aberta', 'andamento'],
+        ).exists():
+            messages.error(request, 'Encerre os chamados de manutenção antes de disponibilizar o ativo para uso.')
+            return render(request, 'manutencao/form_ativo.html', {'ativo': ativo})
         ativo.numero_patrimonio = request.POST['numero_patrimonio']
         ativo.nome = request.POST['nome']
         ativo.marca = request.POST.get('marca', '')
@@ -176,6 +181,10 @@ def nova_manutencao(request):
             messages.error(request, 'Preencha ativo, unidade, motivo e data de inicio.')
             return redirect('nova_manutencao')
         ativo = get_object_or_404(Ativo.objects.select_for_update(), pk=request.POST['ativo'], status='ativo')
+        if ativo.manutencoes.filter(status__in=['aguardando_aprovacao', 'aberta', 'andamento']).exists():
+            request._audit_no_change = True
+            messages.error(request, 'Este ativo já possui um chamado de manutenção aberto.')
+            return redirect('nova_manutencao')
         foto = request.FILES.get('foto_equipamento')
         try:
             direct_key = verify_direct_upload(request, 'foto_equipamento')
@@ -242,12 +251,18 @@ def nova_manutencao(request):
 @access_required(permission='manutencao.change_registromanutencao', profiles=('sesmet', 'compras', 'gestor'))
 @transaction.atomic
 def concluir_manutencao(request, pk):
-    manut = get_object_or_404(RegistroManutencao.objects.select_for_update(), pk=pk)
+    candidata = get_object_or_404(RegistroManutencao.objects.only('ativo_id'), pk=pk)
+    ativo = get_object_or_404(Ativo.objects.select_for_update(), pk=candidata.ativo_id)
+    manut = get_object_or_404(RegistroManutencao.objects.select_for_update(), pk=pk, ativo=ativo)
     if manut.status == 'aguardando_aprovacao':
         messages.error(request, 'A manutenção aguarda a aprovação de ceo_premium antes do reparo ou conclusão.')
         return redirect('lista_manutencoes')
     if manut.status == 'cancelada':
         messages.error(request, 'Uma manutenção cancelada não pode ser iniciada ou concluída.')
+        return redirect('lista_manutencoes')
+    if manut.status == 'concluida':
+        request._audit_no_change = True
+        messages.info(request, 'Esta manutenção já foi concluída. Abra um novo chamado para outro reparo.')
         return redirect('lista_manutencoes')
     if request.method == 'POST':
         novo_status = request.POST.get('status', 'concluida')
@@ -259,7 +274,7 @@ def concluir_manutencao(request, pk):
             request.POST.get('data_conclusao') or timezone.now().date()
             if novo_status in {'concluida', 'cancelada'} else None
         )
-        manut.fornecedor_servico = request.POST.get('fornecedor_servico', '')
+        manut.fornecedor_servico = request.POST.get('fornecedor_servico', manut.fornecedor_servico).strip()
         manut.obs = request.POST.get('obs', '')
         
         custo = request.POST.get('custo_reparo')
@@ -300,11 +315,18 @@ def concluir_manutencao(request, pk):
             return render(request, 'manutencao/form_concluir_manutencao.html', {'manutencao': manut})
 
         if manut.status in {'concluida', 'cancelada'}:
-            ativo = Ativo.objects.select_for_update().get(pk=manut.ativo_id)
-            ativo.status = 'ativo'
-            ativo.unidade_atual = request.POST.get('unidade_retorno', manut.unidade_origem)
-            ativo.save()
-            messages.success(request, f'✅ Manutenção concluída. O ativo retornou para uso.')
+            outros_chamados_abertos = ativo.manutencoes.exclude(pk=manut.pk).filter(
+                status__in=['aguardando_aprovacao', 'aberta', 'andamento'],
+            ).exists()
+            if ativo.status == 'inativo':
+                messages.success(request, 'Manutenção encerrada. O ativo permanece baixado/inativo.')
+            elif outros_chamados_abertos:
+                messages.success(request, 'Manutenção encerrada. O ativo ainda possui outro chamado aberto.')
+            else:
+                ativo.status = 'ativo'
+                ativo.unidade_atual = request.POST.get('unidade_retorno', manut.unidade_origem)
+                ativo.save()
+                messages.success(request, '✅ Manutenção encerrada. O ativo retornou para uso.')
         else:
             messages.success(request, f'✅ Manutenção atualizada.')
             

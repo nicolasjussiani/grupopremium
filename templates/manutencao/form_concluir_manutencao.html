@@ -46,6 +46,11 @@
     </div>
 
     <div class="form-group">
+      <label class="form-label" for="fornecedor_servico">Técnico ou Fornecedor de Serviço (Opcional)</label>
+      <input id="fornecedor_servico" type="text" name="fornecedor_servico" class="form-control" maxlength="200" value="{{ manutencao.fornecedor_servico }}">
+    </div>
+
+    <div class="form-group">
       <label class="form-label">Foto do Equipamento / Problema</label>
       {% if manutencao.foto_equipamento %}
       <div style="margin-bottom: 10px;">

@@ -12,13 +12,14 @@ from admissional.models import (
     PagamentoColaborador,
 )
 from compras.models import (
-    EquipamentoManutencao, Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial,
+    EquipamentoManutencao, Material, PedidoCompra, RequisicaoCompra,
+    SolicitacaoManutencao, SolicitacaoMaterial,
 )
 from core.models import (
     AprovacaoRegistro, ArquivoImportado, Fornecedor, Notificacao,
     PerfilUsuario, Unidade,
 )
-from financeiro.models import DocumentoFinanceiro, LancamentoERP
+from financeiro.models import AuditoriaItem, DocumentoFinanceiro, LancamentoERP
 from fiscal.models import FolhaFiscal
 from manutencao.models import Ativo, RegistroManutencao
 from recrutamento.models import Candidato, Talento, Vaga
@@ -154,6 +155,10 @@ class FullSiteRouteTests(TestCase):
             nome='Lavadora Teste', tipo='maquina', codigo='LAV-FULL',
             localizacao='Matriz',
         )
+        cls.solicitacao_manutencao = SolicitacaoManutencao.objects.create(
+            requisicao=cls.requisicao_compra, equipamento=cls.equipamento_manutencao,
+            problema='Revisão da lavadora',
+        )
         cls.registro_epi = RegistroEPI.objects.create(
             colaborador=cls.colaborador,
             equipamento=cls.equipamento,
@@ -189,8 +194,18 @@ class FullSiteRouteTests(TestCase):
             recebido_por=cls.user,
             arquivo_pdf=b'%PDF-1.4 teste',
         )
+        AuditoriaItem.objects.bulk_create([
+            AuditoriaItem(documento=cls.documento_financeiro, item=item, status='ok')
+            for item, _ in AuditoriaItem.ITENS_CHECKLIST
+        ])
+        cls.documento_lancado = DocumentoFinanceiro.objects.create(
+            tipo='nota_fiscal', numero_documento='NF-LANCADA-FULL',
+            descricao='Documento já lançado para validação', valor='100.00',
+            centro_custo='TESTE', unidade='Matriz', status='lancado',
+            recebido_por=cls.user,
+        )
         cls.lancamento = LancamentoERP.objects.create(
-            documento=cls.documento_financeiro,
+            documento=cls.documento_lancado,
             descricao='Lancamento de teste',
             tipo='debito',
             valor='100.00',
@@ -378,6 +393,7 @@ class FullSiteRouteTests(TestCase):
             ('lista_equipamentos_manutencao', (), 200),
             ('novo_equipamento_manutencao', (), 200),
             ('editar_equipamento_manutencao', (self.equipamento_manutencao.pk,), 200),
+            ('atualizar_manutencao_requisicao', (self.solicitacao_manutencao.pk,), 405),
             ('nova_solicitacao', (), 200),
             ('detalhe_requisicao', (self.requisicao_compra.pk,), 200),
             ('editar_requisicao', (self.requisicao_compra.pk,), 200),
@@ -471,7 +487,7 @@ class FullSiteRouteTests(TestCase):
         response = self.client.get(reverse('painel_sla'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['total_processos'], 12)
+        self.assertEqual(response.context['total_processos'], 13)
         self.assertEqual(response.context['total_criticos'], 1)
         tipos = {processo['tipo'] for processo in response.context['processos']}
         self.assertSetEqual(tipos, {
@@ -485,7 +501,7 @@ class FullSiteRouteTests(TestCase):
 
         filtrado = self.client.get(reverse('painel_sla'), {'modulo': 'Recrutamento'})
         self.assertEqual(len(filtrado.context['processos']), 1)
-        self.assertEqual(filtrado.context['total_processos'], 12)
+        self.assertEqual(filtrado.context['total_processos'], 13)
         self.assertEqual(filtrado.context['modulo_filter'], 'Recrutamento')
 
     def test_formularios_rejeitam_dados_incompletos_sem_erro_interno(self):

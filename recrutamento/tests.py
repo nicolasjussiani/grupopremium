@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core.models import LogAtividade, Notificacao, PerfilUsuario
+from admissional.models import Admissao
 from recrutamento.models import Candidato, HistoricoVaga, Vaga
 
 
@@ -180,3 +181,106 @@ class PermissaoGestaoVagaTests(TestCase):
         self.assertRedirects(
             self.client.get(reverse('excluir_vaga', args=[vaga.pk])), reverse('dashboard')
         )
+
+
+class CapacidadeVagaTests(TestCase):
+    def setUp(self):
+        self.usuario = User.objects.create_user('rh-capacidade', password='senha-forte-123')
+        PerfilUsuario.objects.create(usuario=self.usuario, perfil='rh')
+        self.client.force_login(self.usuario)
+        self.vaga = Vaga.objects.create(
+            nome_vaga='Operadores', quantidade_colaboradores=3,
+            cidade='Santos', unidade='Matriz', perfil_desejado='Perfil',
+            atividades='Operar', horario_trabalho='08h às 17h',
+            tipo_contratacao='clt', valor_salario='2000.00',
+            previsao_inicio=date(2026, 10, 1), motivo_solicitacao='Expansão',
+            gestor_responsavel='Gestor', status='aguardando_entrevista',
+        )
+
+    def candidato(self, nome='Pessoa', etapa='entrevista_final'):
+        return Candidato.objects.create(
+            vaga=self.vaga, nome=nome, email=f'{nome.lower()}@example.com',
+            telefone='11999999999', cidade='Santos', cpf_cnpj='123.456.789-00',
+            etapa_atual=etapa,
+        )
+
+    def avaliar(self, candidato, acao='avancar'):
+        return self.client.post(reverse('avancar_etapa', args=[candidato.pk]), {'acao': acao})
+
+    def test_tres_postos_so_encerram_apos_tres_aprovacoes(self):
+        candidatos = [self.candidato(f'Pessoa{n}') for n in range(3)]
+        excedente = self.candidato('Excedente')
+        for numero, candidato in enumerate(candidatos, start=1):
+            self.assertRedirects(self.avaliar(candidato), reverse('detalhe_vaga', args=[self.vaga.pk]))
+            self.vaga.refresh_from_db()
+            self.assertEqual(
+                self.vaga.status, 'preenchida' if numero == 3 else 'aguardando_entrevista',
+            )
+            self.assertEqual(Admissao.objects.count(), numero)
+
+        self.avaliar(excedente)
+        excedente.refresh_from_db()
+        self.assertEqual(excedente.etapa_atual, 'entrevista_final')
+        self.assertFalse(excedente.encaminhado_admissao)
+        self.assertEqual(Admissao.objects.count(), 3)
+
+    def test_aprovacao_parcial_sem_outros_candidatos_continua_selecao(self):
+        self.avaliar(self.candidato())
+        self.vaga.refresh_from_db()
+        self.assertEqual(self.vaga.status, 'em_selecao')
+        response = self.client.get(reverse('detalhe_vaga', args=[self.vaga.pk]))
+        self.assertContains(response, reverse('adicionar_candidato', args=[self.vaga.pk]))
+
+    def test_vagas_encerradas_bloqueiam_avaliacao_cadastro_e_botoes(self):
+        candidato = self.candidato()
+        for status in ('cancelada', 'preenchida'):
+            with self.subTest(status=status):
+                self.vaga.status = status
+                self.vaga.save(update_fields=['status'])
+                for acao in ('avancar', 'reprovar'):
+                    self.assertRedirects(self.avaliar(candidato, acao), reverse('detalhe_vaga', args=[self.vaga.pk]))
+                candidato.refresh_from_db()
+                self.assertEqual(candidato.etapa_atual, 'entrevista_final')
+                self.assertFalse(candidato.encaminhado_admissao)
+                self.assertFalse(Admissao.objects.exists())
+                url_cadastro = reverse('adicionar_candidato', args=[self.vaga.pk])
+                url_avaliacao = reverse('avancar_etapa', args=[candidato.pk])
+                self.assertRedirects(self.client.get(url_cadastro), reverse('detalhe_vaga', args=[self.vaga.pk]))
+                self.assertRedirects(self.client.post(url_cadastro, {
+                    'nome': 'Outra pessoa', 'email': 'outra@example.com', 'telefone': '11911111111',
+                    'cidade': 'Santos', 'cpf_cnpj': '123.456.789-00',
+                }), reverse('detalhe_vaga', args=[self.vaga.pk]))
+                self.assertEqual(self.vaga.candidatos.count(), 1)
+                self.assertRedirects(self.client.get(url_avaliacao), reverse('detalhe_vaga', args=[self.vaga.pk]))
+                response = self.client.get(reverse('detalhe_vaga', args=[self.vaga.pk]))
+                self.assertNotContains(response, url_cadastro)
+                self.assertNotContains(response, url_avaliacao)
+        self.assertFalse(LogAtividade.objects.exists())
+
+    def test_capacidade_real_bloqueia_aprovacao_mesmo_com_status_reaberto(self):
+        self.vaga.quantidade_colaboradores = 1
+        self.vaga.save(update_fields=['quantidade_colaboradores'])
+        self.candidato('Aprovada', etapa='aprovado')
+        excedente = self.candidato('Excedente')
+        self.avaliar(excedente)
+        excedente.refresh_from_db()
+        self.assertEqual(excedente.etapa_atual, 'entrevista_final')
+        self.assertFalse(Admissao.objects.exists())
+
+    def test_reprovar_ultimo_candidato_retorna_para_selecao(self):
+        self.avaliar(self.candidato(), acao='reprovar')
+        self.vaga.refresh_from_db()
+        self.assertEqual(self.vaga.status, 'em_selecao')
+
+    def test_candidato_com_avaliacao_encerrada_nao_muda_nem_duplica_admissao(self):
+        aprovado = self.candidato('Aprovado')
+        self.avaliar(aprovado)
+        self.avaliar(aprovado, acao='reprovar')
+        self.avaliar(aprovado)
+        aprovado.refresh_from_db()
+        self.assertEqual(aprovado.etapa_atual, 'aprovado')
+        self.assertEqual(Admissao.objects.count(), 1)
+        reprovado = self.candidato('Reprovado', etapa='reprovado')
+        self.avaliar(reprovado)
+        reprovado.refresh_from_db()
+        self.assertEqual(reprovado.etapa_atual, 'reprovado')

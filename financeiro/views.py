@@ -70,7 +70,7 @@ def painel_financeiro(request):
         proximo_mes = mes_atual.replace(month=mes_atual.month + 1)
     fim_mes = proximo_mes - timedelta(days=1)
     folha_base = PagamentoColaborador.objects.exclude(
-        colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO
+        Q(colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO) & ~Q(tipo='distrato')
     )
     folha_mes = pagamentos_atuais(folha_base, timezone.localdate())
     folha_atrasada = pagamentos_atrasados(folha_base, timezone.localdate())
@@ -304,6 +304,13 @@ def auditoria_documento(request, pk):
     if doc.status == 'cancelado':
         messages.error(request, 'Documento cancelado. A auditoria não pode ser alterada.')
         return redirect('detalhe_documento', pk=pk)
+    if not doc.pode_auditar:
+        messages.error(request, 'Documento já lançado. A auditoria que fundamentou o lançamento não pode ser alterada.')
+        return redirect('detalhe_documento', pk=pk)
+    # Documentos antigos ou importados podem não ter o checklist completo.
+    # Reabrir a auditoria disponibiliza os itens ausentes sem aprová-los.
+    for item_key, _ in AuditoriaItem.ITENS_CHECKLIST:
+        AuditoriaItem.objects.get_or_create(documento=doc, item=item_key)
     itens = doc.auditoria.all()
 
     if request.method == 'POST':
@@ -321,7 +328,7 @@ def auditoria_documento(request, pk):
             item.save()
 
         # Gateway 1: Todos os itens OK?
-        todos_ok = all(i.status == 'ok' for i in itens)
+        todos_ok = doc.auditoria_aprovada
         tem_divergente = any(i.status == 'divergente' for i in itens)
 
         if tem_divergente:
@@ -336,6 +343,8 @@ def auditoria_documento(request, pk):
             messages.success(request,
                 '✅ GATEWAY: Auditoria aprovada! Documento liberado para lançamento no ERP.')
         else:
+            doc.status = 'em_auditoria'
+            doc.save(update_fields=['status', 'atualizado_em'])
             messages.warning(request, '⚠️ Auditoria parcialmente concluída. Verifique todos os itens.')
 
         return redirect('detalhe_documento', pk=pk)
@@ -371,7 +380,7 @@ def cancelar_documento(request, pk):
         messages.info(request, 'Este documento já está cancelado.')
         return redirect('detalhe_documento', pk=pk)
     if not doc.pode_cancelar:
-        messages.error(request, 'Documento pago ou finalizado. É necessário tratar o estorno antes de cancelar.')
+        messages.error(request, 'Documento pago, recebido ou finalizado. É necessário tratar o estorno antes de cancelar.')
         return redirect('detalhe_documento', pk=pk)
     form = CancelamentoDocumentoForm(request.POST if request.method == 'POST' else None)
     if request.method == 'POST' and form.is_valid():
@@ -462,6 +471,11 @@ def lancar_erp(request, doc_pk):
     if request.method == 'POST':
         if doc.status != 'aprovado_lancamento' or doc.lancamentos.exclude(status='rejeitado').exists():
             messages.error(request, 'O documento nao esta disponivel para um novo lancamento.')
+            return redirect('detalhe_documento', pk=doc.pk)
+        if not doc.auditoria_aprovada:
+            doc.status = 'em_auditoria'
+            doc.save(update_fields=['status', 'atualizado_em'])
+            messages.error(request, 'Conclua a aprovação de todos os itens da auditoria antes de lançar o documento.')
             return redirect('detalhe_documento', pk=doc.pk)
         descricao = request.POST.get('descricao', '').strip()
         tipo = request.POST.get('tipo', '')

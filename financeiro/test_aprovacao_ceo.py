@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core.models import AprovacaoRegistro, Notificacao, PerfilUsuario
-from financeiro.models import DocumentoFinanceiro, LancamentoERP
+from financeiro.models import AuditoriaItem, DocumentoFinanceiro, LancamentoERP
 
 
 class AprovacaoFinanceiraCEOTests(TestCase):
@@ -23,6 +23,8 @@ class AprovacaoFinanceiraCEOTests(TestCase):
             tipo='boleto', numero_documento='CEO-1', descricao='Material',
             valor=150, status='aprovado_lancamento', centro_custo='ADM',
         )
+        for item, _ in AuditoriaItem.ITENS_CHECKLIST:
+            AuditoriaItem.objects.create(documento=self.doc, item=item, status='ok')
 
     def enviar(self):
         return self.client.post(reverse('lancar_erp', args=[self.doc.pk]), {

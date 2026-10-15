@@ -294,7 +294,7 @@ def aprovacoes_pendentes(request):
 
 
 def _pendencia_para_decisao(user, pk):
-    """Compras bloqueia a origem antes da fila, como edição e exclusão."""
+    """Bloqueia a origem antes da fila na mesma ordem das ações operacionais."""
     autorizadas = _aprovacoes_do_usuario(user)
     candidata = get_object_or_404(
         autorizadas.select_related('content_type'), pk=pk, status='pendente',
@@ -307,6 +307,15 @@ def _pendencia_para_decisao(user, pk):
         }.get(candidata.content_type.model)
         if modelo is not None:
             get_object_or_404(modelo.objects.select_for_update(), pk=candidata.object_id)
+    elif (
+        candidata.modulo == 'manutencao'
+        and candidata.content_type.app_label == 'manutencao'
+        and candidata.content_type.model == 'registromanutencao'
+    ):
+        from manutencao.models import Ativo, RegistroManutencao
+        registro = get_object_or_404(RegistroManutencao, pk=candidata.object_id)
+        get_object_or_404(Ativo.objects.select_for_update(), pk=registro.ativo_id)
+        get_object_or_404(RegistroManutencao.objects.select_for_update(), pk=registro.pk)
     # O bloqueio da origem pode ter aguardado uma edição, exclusão ou decisão.
     # Revalida a fila e seu vínculo depois da espera, sem reutilizar o estado lido.
     return get_object_or_404(
@@ -501,12 +510,25 @@ def _callback_admissional(obj, decisao, usuario):
 
 
 def _callback_manutencao(obj, decisao, usuario):
-    from manutencao.models import RegistroManutencao
+    from manutencao.models import Ativo, RegistroManutencao
     if isinstance(obj, RegistroManutencao):
+        ativo = Ativo.objects.select_for_update().get(pk=obj.ativo_id)
+        obj = RegistroManutencao.objects.select_for_update().get(pk=obj.pk)
+        if obj.status != 'aguardando_aprovacao':
+            raise ValidationError('Esta manutenção não está aguardando aprovação.')
         if decisao == 'aprovado':
+            if ativo.status == 'inativo':
+                raise ValidationError('Não é possível aprovar a manutenção de um ativo inativo.')
             obj.status = 'aberta'
+            ativo.status = 'manutencao'
+            ativo.save(update_fields=['status', 'atualizado_em'])
         elif decisao == 'rejeitado':
             obj.status = 'cancelada'
-            obj.ativo.status = 'ativo'
-            obj.ativo.save(update_fields=['status', 'atualizado_em'])
+            outras_abertas = RegistroManutencao.objects.filter(
+                ativo=ativo,
+                status__in=('aguardando_aprovacao', 'aberta', 'andamento'),
+            ).exclude(pk=obj.pk).exists()
+            if ativo.status == 'manutencao' and not outras_abertas:
+                ativo.status = 'ativo'
+                ativo.save(update_fields=['status', 'atualizado_em'])
         obj.save(update_fields=['status'])

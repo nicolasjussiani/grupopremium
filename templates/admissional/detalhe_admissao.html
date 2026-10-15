@@ -118,13 +118,15 @@
       </div>
       {% if doc.observacao %}<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px;">{{ doc.observacao }}</div>{% endif %}
       
-      {% if doc.arquivo %}
+      {% if doc.arquivo or doc.arquivo_nuvem %}
         <div style="margin-bottom: 10px;">
           <a href="{% url 'baixar_documento' admissao.pk doc.pk %}" target="_blank" class="btn btn-sm" style="width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text-secondary);">📄 Ver/Baixar Anexo</a>
         </div>
       {% endif %}
       
+      {% if admissao.status != 'concluido' %}
       <a href="{% url 'atualizar_documento' admissao.pk doc.pk %}" class="btn btn-sm btn-outline" style="width:100%;">Atualizar Status / Anexar</a>
+      {% endif %}
     </div>
     {% endfor %}
   </div>

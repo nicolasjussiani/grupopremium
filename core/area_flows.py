@@ -80,7 +80,7 @@ FLOWS = {
         ),
         (
             ('Reprovado', 'Retorna a vaga para nova seleção'),
-            ('Aprovado', 'Vaga preenchida e admissão criada'),
+            ('Aprovado', 'Admissão criada; a vaga encerra ao preencher todos os postos'),
         ),
     ),
     'talentos': _flow(

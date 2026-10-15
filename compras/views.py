@@ -477,11 +477,52 @@ def detalhe_requisicao(request, pk):
         'tem_itens_selecionaveis': any(item.pode_selecionar_compra for item in itens),
         'pedidos_agrupados': requisicao.pedidos.all(),
         'pode_confirmar_entrega': _pode_confirmar_entrega(request.user),
+        'pode_atualizar_manutencao': requisicao.status in {'aprovada', 'pedido'} and user_has_access(
+            request.user, permission='compras.change_solicitacaomanutencao',
+            profiles=('compras', 'gestor', 'estoque_compras'),
+        ),
         'pode_remover_anexo': user_has_access(
             request.user, permission='compras.change_requisicaocompra',
             profiles=('compras', 'gestor', 'estoque_compras'),
         ),
     })
+
+
+@login_required
+@require_POST
+@access_required(
+    permission='compras.change_solicitacaomanutencao',
+    profiles=('compras', 'gestor', 'estoque_compras'),
+)
+@transaction.atomic
+def atualizar_manutencao_requisicao(request, pk):
+    candidata = get_object_or_404(SolicitacaoManutencao, pk=pk)
+    # A aprovação, edição e exclusão também bloqueiam a requisição primeiro.
+    requisicao = get_object_or_404(
+        RequisicaoCompra.objects.select_for_update(), pk=candidata.requisicao_id,
+    )
+    manutencao = get_object_or_404(
+        SolicitacaoManutencao.objects.select_for_update(), pk=pk, requisicao=requisicao,
+    )
+    transicoes = {
+        'iniciar': ('aguardando_manutencao', 'em_manutencao'),
+        'concluir': ('em_manutencao', 'concluida'),
+    }
+    transicao = transicoes.get(request.POST.get('acao'))
+    if requisicao.status not in {'aprovada', 'pedido'}:
+        request._audit_no_change = True
+        messages.error(request, 'A manutenção só pode ser realizada após a aprovação da requisição.')
+    elif transicao is None or manutencao.status != transicao[0]:
+        request._audit_no_change = True
+        messages.error(request, 'Esta ação não está disponível para o status atual da manutenção.')
+    else:
+        manutencao.status = transicao[1]
+        manutencao.save(update_fields=['status', 'atualizado_em'])
+        messages.success(
+            request,
+            'Manutenção iniciada.' if transicao[1] == 'em_manutencao' else 'Manutenção concluída.',
+        )
+    return redirect('detalhe_requisicao', pk=requisicao.pk)
 
 
 @login_required

@@ -98,3 +98,90 @@ class CicloEPI90DiasTest(TestCase):
 
         self.assertContains(response, 'Capacete')
         self.assertContains(response, 'seguranca_teste')
+
+
+class EdicaoEstoqueEPITest(TestCase):
+    def setUp(self):
+        usuario = User.objects.create_superuser('estoque_teste', 'estoque@example.com', 'senha-forte')
+        self.client.force_login(usuario)
+        self.colaborador = Colaborador.objects.create(nome='Pessoa Operadora')
+        self.equipamento = EquipamentoProtecao.objects.create(nome='Capacete', estoque_atual=5)
+        self.url = reverse('editar_equipamento', args=[self.equipamento.pk])
+
+    def formulario(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, 'name="versao_equipamento"')
+        return {
+            'nome': 'Capacete revisado', 'estoque_atual': '5',
+            'versao_equipamento': response.context['versao_equipamento'],
+        }
+
+    def retirar(self, quantidade=1):
+        RegistroEPI.objects.create(
+            colaborador=self.colaborador, equipamento=self.equipamento,
+            data_movimentacao=timezone.localdate(), quantidade=quantidade,
+        )
+
+    def test_aba_antiga_nao_desfaz_retirada_e_reenvio_revisado_preserva_saldo(self):
+        dados = self.formulario()
+        self.retirar()
+        response = self.client.post(self.url, dados)
+        self.assertEqual(response.status_code, 409)
+        self.equipamento.refresh_from_db()
+        self.assertEqual(self.equipamento.estoque_atual, 4)
+        self.assertEqual(self.equipamento.nome, 'Capacete')
+        self.assertEqual(RegistroEPI.objects.count(), 1)
+        self.assertContains(response, 'Saldo atualizado: 4', status_code=409)
+        self.assertContains(response, 'value="Capacete revisado"', status_code=409)
+        dados.update(estoque_atual='4', versao_equipamento=response.context['versao_equipamento'])
+        self.assertRedirects(self.client.post(self.url, dados), reverse('catalogo_equipamentos'))
+        self.equipamento.refresh_from_db()
+        self.assertEqual(self.equipamento.nome, 'Capacete revisado')
+        self.assertEqual(self.equipamento.estoque_atual, 4)
+
+    def test_conflito_mostra_saldo_zero_sem_reaproveitar_valor_antigo(self):
+        dados = self.formulario()
+        self.retirar(quantidade=5)
+        response = self.client.post(self.url, dados)
+        self.assertContains(
+            response, 'name="estoque_atual" class="form-control" min="0" value="0"', status_code=409,
+        )
+
+    def test_formulario_atual_permite_correcao_legitima_do_estoque(self):
+        dados = self.formulario()
+        dados['estoque_atual'] = '8'
+        self.assertRedirects(self.client.post(self.url, dados), reverse('catalogo_equipamentos'))
+        self.equipamento.refresh_from_db()
+        self.assertEqual(self.equipamento.estoque_atual, 8)
+
+    def test_versao_ausente_adulterada_ou_de_outro_produto_nao_salva(self):
+        dados = self.formulario()
+        outro = EquipamentoProtecao.objects.create(nome='Luva', estoque_atual=5)
+        outra_versao = self.client.get(
+            reverse('editar_equipamento', args=[outro.pk]),
+        ).context['versao_equipamento']
+        for versao in ('', dados['versao_equipamento'] + 'adulterada', outra_versao):
+            with self.subTest(versao=versao):
+                response = self.client.post(self.url, {**dados, 'versao_equipamento': versao})
+                self.assertEqual(response.status_code, 409)
+                self.equipamento.refresh_from_db()
+                self.assertEqual(self.equipamento.nome, 'Capacete')
+                self.assertEqual(self.equipamento.estoque_atual, 5)
+
+    def test_duas_edicoes_nao_sobrescrevem_dados_da_primeira(self):
+        primeira_aba = self.formulario()
+        segunda_aba = self.formulario()
+        self.client.post(self.url, {**primeira_aba, 'fabricante': 'Fabricante novo'})
+        self.assertEqual(self.client.post(self.url, segunda_aba).status_code, 409)
+        self.equipamento.refresh_from_db()
+        self.assertEqual(self.equipamento.fabricante, 'Fabricante novo')
+
+    def test_correcao_apos_erro_de_validacao_usa_versao_original(self):
+        dados = self.formulario()
+        response = self.client.post(self.url, {**dados, 'estoque_atual': '-1'})
+        self.assertEqual(response.status_code, 200)
+        dados['versao_equipamento'] = response.context['versao_equipamento']
+        dados['estoque_atual'] = '6'
+        self.assertRedirects(self.client.post(self.url, dados), reverse('catalogo_equipamentos'))
+        self.equipamento.refresh_from_db()
+        self.assertEqual(self.equipamento.estoque_atual, 6)

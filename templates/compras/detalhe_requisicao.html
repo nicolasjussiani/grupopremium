@@ -58,10 +58,23 @@
   <div class="card-header"><div class="card-title">🛠 Manutenções solicitadas</div><span class="badge badge-primary">{{ manutencoes|length }}</span></div>
   <div class="table-wrap" style="border:none;">
     <table>
-      <thead><tr><th>Equipamento</th><th>Tipo</th><th>Código</th><th>Manutenção necessária</th><th>Status</th></tr></thead>
+      <thead><tr><th>Equipamento</th><th>Tipo</th><th>Código</th><th>Manutenção necessária</th><th>Status</th><th>Ações</th></tr></thead>
       <tbody>{% for item in manutencoes %}<tr>
         <td><strong>{{ item.equipamento.nome }}</strong></td><td>{{ item.equipamento.get_tipo_display }}</td><td>{{ item.equipamento.codigo|default:'—' }}</td>
         <td>{{ item.problema }}</td><td><span class="badge {% if item.status == 'concluida' %}badge-success{% elif item.status == 'cancelada' %}badge-danger{% else %}badge-warning{% endif %}">{{ item.get_status_display }}</span></td>
+        <td>
+          {% if pode_atualizar_manutencao and item.status == 'aguardando_manutencao' %}
+          <form method="post" action="{% url 'atualizar_manutencao_requisicao' item.pk %}">
+            {% csrf_token %}
+            <button type="submit" name="acao" value="iniciar" class="btn btn-sm btn-mod5">Iniciar manutenção</button>
+          </form>
+          {% elif pode_atualizar_manutencao and item.status == 'em_manutencao' %}
+          <form method="post" action="{% url 'atualizar_manutencao_requisicao' item.pk %}">
+            {% csrf_token %}
+            <button type="submit" name="acao" value="concluir" class="btn btn-sm btn-success">Concluir manutenção</button>
+          </form>
+          {% else %}—{% endif %}
+        </td>
       </tr>{% endfor %}</tbody>
     </table>
   </div>

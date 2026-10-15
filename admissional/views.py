@@ -76,6 +76,9 @@ def atualizar_documento(request, admissao_pk, doc_pk):
     """Gateway de documentação: SIM (aprovado) ou NÃO (pendente/rejeitado)"""
     admissao = get_object_or_404(Admissao.objects.select_for_update(), pk=admissao_pk)
     doc = get_object_or_404(DocumentoAdmissional.objects.select_for_update(), pk=doc_pk, admissao=admissao)
+    if admissao.status == 'concluido':
+        messages.error(request, 'Processo concluído. A documentação da admissão não pode ser alterada.')
+        return redirect('detalhe_admissao', pk=admissao_pk)
     if request.method == 'POST':
         novo_status = request.POST.get('status')
         obs = request.POST.get('observacao', '')
@@ -124,13 +127,16 @@ def atualizar_documento(request, admissao_pk, doc_pk):
         else:
             # Verificar se todos aprovados
             todos = admissao.documentos.all()
-            if all(d.status == 'aprovado' for d in todos):
+            if (
+                admissao.status in ('aguardando_documentos', 'documentos_em_analise', 'documentos_pendentes')
+                and all(d.status == 'aprovado' for d in todos)
+            ):
                 admissao.status = 'cadastro_sistema'
                 admissao.save()
                 messages.success(request,
                     '✅ GATEWAY: Todos os documentos aprovados! Processo avança para cadastro no sistema.')
             else:
-                messages.success(request, f'✅ Documento "{doc.get_tipo_display()}" aprovado.')
+                messages.success(request, f'Documento "{doc.get_tipo_display()}" atualizado: {doc.get_status_display()}.')
 
         return redirect('detalhe_admissao', pk=admissao_pk)
 
@@ -168,6 +174,11 @@ def avancar_admissao(request, pk):
         }
 
         if novo_status in transicoes.get(admissao.status, set()):
+            if novo_status not in ('documentos_em_analise', 'documentos_pendentes'):
+                documentos = admissao.documentos.all()
+                if not documentos.exists() or documentos.exclude(status='aprovado').exists():
+                    messages.error(request, 'Aprove todos os documentos da admissão antes de avançar o processo.')
+                    return redirect('detalhe_admissao', pk=pk)
             admissao.status = novo_status
             if novo_status == 'concluido':
                 admissao.concluido_em = timezone.now()
@@ -459,7 +470,7 @@ def _dados_folha(request, *, incluir_resumo=True):
         'colaborador', 'criado_por', 'item_fiscal', 'parcela_fiscal__beneficio'
     ).prefetch_related('arquivos_importados')
     pagamentos_base = pagamentos_base.exclude(
-        colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO
+        Q(colaborador__status__in=Colaborador.STATUS_SEM_PAGAMENTO) & ~Q(tipo='distrato')
     )
     data_inicio, data_fim = _periodo_pagamentos(request)
     hoje = timezone.localdate()
@@ -633,7 +644,9 @@ def relatorio_folha_pagamento(request):
             resumo['total'] = resumo['pago'] + resumo['pendente']
         if pagamento.status == 'cancelado':
             total_cancelado += pagamento.valor
-    equipe = Colaborador.objects.exclude(status__in=Colaborador.STATUS_SEM_PAGAMENTO)
+    equipe = Colaborador.objects.filter(
+        ~Q(status__in=Colaborador.STATUS_SEM_PAGAMENTO) | Q(pagamentos__tipo='distrato')
+    ).distinct()
     contexto.update({
         'pessoas': sorted(pessoas.values(), key=lambda p: (p['colaborador'].nome.casefold(), p['colaborador'].pk)),
         'totais_tipo': sorted(tipos.values(), key=lambda t: t['nome']),

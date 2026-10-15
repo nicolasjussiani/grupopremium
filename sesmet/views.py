@@ -11,6 +11,7 @@ from core.models import LogAtividade
 from core.access import access_required
 from core.direct_uploads import assign_direct_upload
 from core.validators import validate_image_upload
+from django.core import signing
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Prefetch
@@ -22,6 +23,19 @@ from .services import sincronizar_alertas_epi
 
 
 logger = logging.getLogger(__name__)
+
+
+def _versao_equipamento(equipamento):
+    return {
+        'id': equipamento.pk,
+        'estoque': equipamento.estoque_atual,
+        'atualizado_em': equipamento.atualizado_em.isoformat(),
+    }
+
+
+def _assinar_versao_equipamento(equipamento):
+    return signing.dumps(_versao_equipamento(equipamento), salt='sesmet.edicao_equipamento')
+
 
 def registrar_log(usuario, acao, detalhes):
     if usuario.is_authenticated:
@@ -235,16 +249,32 @@ def novo_equipamento(request):
 
 @login_required
 @access_required(permission='sesmet.change_equipamentoprotecao', profiles=('sesmet', 'gestor', 'estoque_compras'))
+@transaction.atomic
 def editar_equipamento(request, pk):
-    equip = get_object_or_404(EquipamentoProtecao, pk=pk)
+    equip = get_object_or_404(EquipamentoProtecao.objects.select_for_update(), pk=pk)
+    contexto = {'equip': equip, 'versao_equipamento': _assinar_versao_equipamento(equip)}
     if request.method == 'POST':
+        try:
+            versao_enviada = signing.loads(
+                request.POST.get('versao_equipamento', ''), salt='sesmet.edicao_equipamento',
+            )
+        except signing.BadSignature:
+            versao_enviada = None
+        if versao_enviada != _versao_equipamento(equip):
+            messages.error(
+                request,
+                'O equipamento ou estoque foi alterado, ou o formulário expirou. '
+                'O saldo atual está abaixo; confira os dados antes de salvar novamente.',
+            )
+            contexto['estoque_conflito'] = True
+            return render(request, 'sesmet/form_equipamento.html', contexto, status=409)
         try:
             estoque_atual = int(request.POST.get('estoque_atual', 0))
         except (TypeError, ValueError):
             estoque_atual = -1
         if estoque_atual < 0 or not request.POST.get('nome', '').strip():
             messages.error(request, 'Nome ou estoque inválido.')
-            return render(request, 'sesmet/form_equipamento.html', {'equip': equip})
+            return render(request, 'sesmet/form_equipamento.html', contexto)
         equip.nome = request.POST['nome']
         equip.numero_ca = request.POST.get('numero_ca', '')
         equip.fabricante = request.POST.get('fabricante', '')
@@ -258,8 +288,8 @@ def editar_equipamento(request, pk):
         except (ValidationError, OSError) as exc:
             mensagem = '; '.join(exc.messages) if isinstance(exc, ValidationError) else str(exc)
             messages.error(request, mensagem or 'Não foi possível salvar a foto.')
-            return render(request, 'sesmet/form_equipamento.html', {'equip': equip})
+            return render(request, 'sesmet/form_equipamento.html', contexto)
         registrar_log(request.user, "EDICAO_EPI", f"EPI {equip.nome} editado.")
         messages.success(request, f'✅ Equipamento {equip.nome} atualizado.')
         return redirect('catalogo_equipamentos')
-    return render(request, 'sesmet/form_equipamento.html', {'equip': equip})
+    return render(request, 'sesmet/form_equipamento.html', contexto)

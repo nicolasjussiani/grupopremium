@@ -20,7 +20,9 @@
     <a href="{% url 'editar_vaga' vaga.pk %}" class="btn btn-outline">Editar Vaga</a>
     <a href="{% url 'excluir_vaga' vaga.pk %}" class="btn btn-danger">Excluir Vaga</a>
     {% endif %}
+    {% if vaga_aceita_candidatos %}
     <a href="{% url 'adicionar_candidato' vaga.pk %}" class="btn btn-mod1">+ Adicionar Candidato</a>
+    {% endif %}
   </div>
 </div>
 
@@ -68,7 +70,7 @@
               </div>
               <div class="card-meta">{{ c.email }} · {{ c.telefone }}</div>
             </div>
-            <a href="{% url 'avancar_etapa' c.pk %}" class="btn btn-sm btn-mod1">Avaliar →</a>
+            {% if vaga_aceita_candidatos %}<a href="{% url 'avancar_etapa' c.pk %}" class="btn btn-sm btn-mod1">Avaliar →</a>{% endif %}
           </div>
         </div>
         {% empty %}
@@ -94,7 +96,7 @@
               </div>
               <div class="card-meta">{{ c.email }}</div>
             </div>
-            <a href="{% url 'avancar_etapa' c.pk %}" class="btn btn-sm btn-mod4">Avaliar →</a>
+            {% if vaga_aceita_candidatos %}<a href="{% url 'avancar_etapa' c.pk %}" class="btn btn-sm btn-mod4">Avaliar →</a>{% endif %}
           </div>
         </div>
         {% empty %}
@@ -120,7 +122,7 @@
               </div>
               <div class="card-meta">{{ c.email }}</div>
             </div>
-            <a href="{% url 'avancar_etapa' c.pk %}" class="btn btn-sm btn-success">Decidir ★</a>
+            {% if vaga_aceita_candidatos %}<a href="{% url 'avancar_etapa' c.pk %}" class="btn btn-sm btn-success">Decidir ★</a>{% endif %}
           </div>
         </div>
         {% empty %}

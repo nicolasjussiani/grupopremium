@@ -78,8 +78,23 @@ class DocumentoFinanceiro(models.Model):
     def pode_cancelar(self):
         return (
             self.status not in ('cancelado', 'arquivado')
-            and self.situacao_pagamento != 'pago'
+            and self.situacao_pagamento not in ('pago', 'recebido')
             and not self.lancamentos.filter(status__in=('validado', 'finalizado')).exists()
+        )
+
+    @property
+    def auditoria_aprovada(self):
+        itens = dict(self.auditoria.values_list('item', 'status'))
+        return (
+            set(itens) == {item for item, _ in AuditoriaItem.ITENS_CHECKLIST}
+            and all(status == 'ok' for status in itens.values())
+        )
+
+    @property
+    def pode_auditar(self):
+        return (
+            self.status not in ('cancelado', 'lancado', 'arquivado')
+            and not self.lancamentos.exclude(status__in=('rejeitado', 'cancelado')).exists()
         )
 
 
