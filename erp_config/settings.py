@@ -27,9 +27,14 @@ if not RUNNING_TESTS:
     load_dotenv(dotenv_path=env_path)
     load_dotenv(dotenv_path=env_local_path, override=False)
 
-# Logins exatos e distintos. Ausência de configuração nunca delega a terceiros.
-APROVADOR_PAGAMENTOS_USERNAME = os.environ.get('APROVADOR_PAGAMENTOS_USERNAME', '').strip()
-APROVADOR_OPERACIONAL_USERNAME = os.environ.get('APROVADOR_OPERACIONAL_USERNAME', '').strip()
+# Logins exatos confirmados para Luiz e Thiago. Contas ausentes/inativas ou
+# configuração explicitamente vazia bloqueiam a decisão, sem delegar a terceiros.
+APROVADOR_PAGAMENTOS_USERNAME = os.environ.get(
+    'APROVADOR_PAGAMENTOS_USERNAME', 'admin@construipem.com.br',
+).strip()
+APROVADOR_OPERACIONAL_USERNAME = os.environ.get(
+    'APROVADOR_OPERACIONAL_USERNAME', 'thiago001',
+).strip()
 
 # ── Segurança ─────────────────────────────────────────────────────────────────
 DEBUG = os.environ.get('DEBUG', 'False').lower() in {'1', 'true', 'yes'}

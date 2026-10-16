@@ -6,16 +6,18 @@ Autorizar um pagamento não registra sua quitação. A baixa exige autorização
 
 ## Configuração necessária antes da ativação
 
-Defina no ambiente de execução os logins exatos, distintos e ativos das contas existentes:
+Os logins confirmados já são os padrões da aplicação e constam no `.env.example`:
 
-- `APROVADOR_PAGAMENTOS_USERNAME`: login de Luiz.
-- `APROVADOR_OPERACIONAL_USERNAME`: login de Thiago.
+- `APROVADOR_PAGAMENTOS_USERNAME=admin@construipem.com.br`: Luiz.
+- `APROVADOR_OPERACIONAL_USERNAME=thiago001`: Thiago.
+
+As variáveis do ambiente podem substituir esses padrões. Caso tenham sido definidas com valor vazio durante a preparação, preencha-as com os logins acima; um valor explicitamente vazio continua bloqueando a finalidade correspondente. A aplicação não cria usuários automaticamente: as duas contas precisam existir e estar ativas no banco do ERP.
 
 Os nomes visíveis não são usados para identificar usuários. Não existe substituição automática por CEO, administrador ou superusuário. Sem conta ativa configurada, a criação/decisão correspondente é bloqueada.
 
 ## Ativação e conferência
 
-1. Confirme os logins e configure as duas variáveis antes de disponibilizar a atualização.
+1. Confira se as contas acima existem e estão ativas; corrija variáveis antigas ou vazias que substituam os padrões.
 2. Execute `python manage.py migrate` no ambiente correto.
 3. Execute `python manage.py redistribuir_aprovacoes` para conferir os responsáveis e as quantidades sem gravar.
 4. Execute `python manage.py redistribuir_aprovacoes --apply` para redistribuir pendências operacionais e criar as autorizações de pagamentos ainda pendentes.
