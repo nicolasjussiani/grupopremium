@@ -19,9 +19,19 @@ class AprovacaoRegistroAdmin(admin.ModelAdmin):
     readonly_fields = [
         'criado_em', 'decidido_em', 'content_type', 'object_id',
         'status', 'aprovado_por', 'destinatario', 'nivel', 'comentario', 'motivo_rejeicao',
+        'finalidade', 'dados_aprovacao',
     ]
     date_hierarchy = 'criado_em'
     ordering = ['-criado_em']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Fornecedor)

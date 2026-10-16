@@ -8,6 +8,8 @@
   <p style="margin:16px 0;"><strong>{{ pagamento.colaborador.nome }}</strong><br>{{ pagamento.get_tipo_display }} · R$ {{ pagamento.valor|floatformat:2 }}<br>Competência: {{ pagamento.competencia|date:"d/m/Y" }} a {{ pagamento.fim_competencia|date:"d/m/Y" }}</p>
   <p>Ao confirmar, este lançamento será marcado como pago hoje ({{ hoje|date:"d/m/Y" }}). Para VT e ajuda de custo, será registrada a segunda-feira desta semana.</p>
   {% if erro %}<div class="alert alert-error" data-persistent-alert>{{ erro }}</div>{% endif %}
+  {% include 'financeiro/_situacao_aprovacao_pagamento.html' with situacao=situacao_aprovacao %}
+  {% if situacao_aprovacao == 'aprovado' %}
   <form method="post" enctype="multipart/form-data" style="margin-top:20px;">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ retorno }}">
@@ -29,5 +31,11 @@
       <button type="submit" class="btn btn-success" style="white-space:normal;max-width:100%;">Confirmar pagamento com comprovante</button>
     </div>
   </form>
+  {% else %}
+  <p>A confirmação do pagamento depende da autorização de Luiz. Você pode <a href="{% url 'editar_pagamento_colaborador' pagamento.pk %}">revisar os dados e anexar comprovantes</a> enquanto aguarda.</p>
+  {% if situacao_aprovacao == 'rejeitado' or situacao_aprovacao == 'nao_solicitado' %}
+  <form method="post" action="{% url 'solicitar_aprovacao_pagamento_colaborador' pagamento.pk %}">{% csrf_token %}<button type="submit" class="btn btn-outline">{% if situacao_aprovacao == 'rejeitado' %}Reenviar para Luiz{% else %}Solicitar aprovação de Luiz{% endif %}</button></form>
+  {% endif %}
+  {% endif %}
 </div>
 {% endblock %}

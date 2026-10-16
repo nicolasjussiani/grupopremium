@@ -17,15 +17,16 @@ def registrar_ip_login(sender, request, user, **kwargs):
 @receiver(post_save, sender=AprovacaoRegistro)
 def notificar_nova_aprovacao_telegram(sender, instance, created, **kwargs):
     """
-    Se uma nova aprovação for criada com status 'pendente', envia um aviso para o CEO.
+    Avisa somente o responsável nominal da finalidade desta aprovação.
     """
     if created and instance.status == 'pendente' and not kwargs.get('raw'):
+        responsavel = instance.destinatario.get_full_name() or instance.destinatario.username
         Notificacao.objects.using(kwargs.get('using', 'default')).create(
             destinatario_id=instance.destinatario_id,
             tipo='gateway',
             modulo=instance.modulo,
             titulo=instance.titulo[:200],
-            mensagem='Uma nova solicitação aguarda a decisão do ceo_premium.',
+            mensagem=f'Uma nova solicitação aguarda a decisão de {responsavel}.',
             url_acao=reverse('detalhe_aprovacao_mobile', args=[instance.pk]),
         )
         if instance.solicitado_por:
@@ -36,13 +37,15 @@ def notificar_nova_aprovacao_telegram(sender, instance, created, **kwargs):
         mensagem = (
             f"🚨 <b>Novo Pedido de Aprovação!</b>\n\n"
             f"<b>Módulo:</b> {instance.get_modulo_display()}\n"
+            f"<b>Responsável:</b> {escape(responsavel)}\n"
             f"<b>Solicitante:</b> {escape(solicitante_nome)}\n"
             f"<b>Título:</b> {escape(instance.titulo)}\n"
             f"<b>Descrição:</b> {escape(instance.descricao)}\n\n"
             f"👉 <a href='https://erp.grupopremiumbr.com.br/aprovacoes/'>Acessar ERP para Aprovar</a>"
         )
         
+        canal = 'aprovacoes_pagamento' if instance.finalidade == 'pagamento' else 'aprovacoes_operacionais'
         transaction.on_commit(
-            lambda: enviar_mensagem_telegram('default', mensagem),
+            lambda: enviar_mensagem_telegram(canal, mensagem),
             using=kwargs.get('using', 'default'),
         )

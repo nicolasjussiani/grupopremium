@@ -1,3 +1,4 @@
+{% if pagamento_form.non_field_errors %}<div class="alert alert-error" data-persistent-alert>{{ pagamento_form.non_field_errors }}</div>{% endif %}
 <div class="form-group">
   <label class="form-label" for="id_situacao_pagamento">Fluxo e situação</label>
   {{ pagamento_form.situacao_pagamento }}
@@ -8,7 +9,7 @@
   {{ pagamento_form.data_pagamento }}
   {{ pagamento_form.data_pagamento.errors }}
 </div>
-<p class="form-help form-full">Saídas: A pagar ou Pago. Entradas e notas emitidas: A receber ou Recebido. Informe a data efetiva ao dar baixa; para contas em aberto, utilize o vencimento.</p>
+<p class="form-help form-full">Cadastre saídas como A pagar para aprovação de Luiz. A baixa como Pago exige autorização vigente. Entradas e notas emitidas: A receber ou Recebido. Informe a data efetiva ao dar baixa; para contas em aberto, utilize o vencimento.</p>
 <script>
   (() => {
     const situacao = document.getElementById('id_situacao_pagamento');

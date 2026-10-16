@@ -17,6 +17,7 @@
   <h2>{{ linha.pessoa.nome }}</h2><p>{{ linha.pessoa.unidade }} · {{ linha.pessoa.get_tipo_contrato_display }}</p>
   <p>{{ linha.presentes }} presença(s) registrada(s). Faltas registradas: {% for dia in linha.faltas %}<strong>{{ dia|date:'d/m/Y' }}</strong>{% if not forloop.last %}, {% endif %}{% empty %}nenhuma{% endfor %}.</p>
   {% if linha.pagamento %}<p>Salário salvo: <strong>R$ {{ linha.pagamento.valor|floatformat:2 }}</strong> · {{ linha.pagamento.get_status_display }}</p>{% endif %}
+  {% if linha.pagamento.status == 'pendente' %}<p>{% include 'financeiro/_situacao_aprovacao_pagamento.html' with situacao=linha.pagamento.situacao_aprovacao %} <a href="{% url 'editar_pagamento_colaborador' linha.pagamento.pk %}">Abrir pagamento</a></p>{% endif %}
   {% if pode_editar and linha.pagamento.status != 'pago' %}
   <form method="post" data-salario-form>{% csrf_token %}
     <input type="hidden" name="mes" value="{{ mes }}"><input type="hidden" name="pessoa_id" value="{{ linha.pessoa.pk }}">

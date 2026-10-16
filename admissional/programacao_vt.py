@@ -8,6 +8,7 @@ from django.db.models import Q
 
 from .calculo_folha import calcular_vt_antecipado
 from .models import Colaborador, PagamentoColaborador, PresencaDiaria, ProgramacaoVT
+from core.payment_approvals import sincronizar_aprovacao_pagamento, situacao_aprovacao_pagamento
 
 
 def segundas_no_periodo(inicio, fim):
@@ -92,6 +93,8 @@ def linhas_semana(segunda, *, busca='', unidade='', categoria='', colaborador_id
     for pessoa in equipe:
         beneficio = tipo_beneficio(pessoa)
         pagamento = pagamentos.get((pessoa.pk, beneficio))
+        if pagamento and pagamento.status == 'pendente':
+            pagamento.situacao_aprovacao = situacao_aprovacao_pagamento(pagamento)
         decisao = decisoes.get(pessoa.pk)
         situacao = 'revisar'
         if pagamento:
@@ -200,10 +203,12 @@ def salvar_decisao(*, pessoa_id, segunda, pagar, valor, usuario, antecipado=Fals
         pagamento.valor = total
         pagamento.full_clean()
         pagamento.save()
+        sincronizar_aprovacao_pagamento(pagamento, usuario)
     else:
         for pagamento in pagamentos:
             pagamento.status = 'cancelado'
             pagamento.save(update_fields=['status', 'atualizado_em'])
+            sincronizar_aprovacao_pagamento(pagamento, usuario)
     ProgramacaoVT.objects.update_or_create(
         colaborador=pessoa, segunda=segunda,
         defaults={

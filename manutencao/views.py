@@ -241,7 +241,7 @@ def nova_manutencao(request):
             messages.error(request, '; '.join(exc.messages))
             return redirect('nova_manutencao')
         
-        messages.success(request, f'🔧 Solicitação de manutenção aberta para {ativo.nome} e enviada para aprovação do CEO.')
+        messages.success(request, f'🔧 Solicitação de manutenção aberta para {ativo.nome} e enviada para aprovação de Thiago.')
         return redirect('lista_manutencoes')
     
     ativos = Ativo.objects.filter(status='ativo')
@@ -255,7 +255,7 @@ def concluir_manutencao(request, pk):
     ativo = get_object_or_404(Ativo.objects.select_for_update(), pk=candidata.ativo_id)
     manut = get_object_or_404(RegistroManutencao.objects.select_for_update(), pk=pk, ativo=ativo)
     if manut.status == 'aguardando_aprovacao':
-        messages.error(request, 'A manutenção aguarda a aprovação de ceo_premium antes do reparo ou conclusão.')
+        messages.error(request, 'A manutenção aguarda a aprovação de Thiago antes do reparo ou conclusão.')
         return redirect('lista_manutencoes')
     if manut.status == 'cancelada':
         messages.error(request, 'Uma manutenção cancelada não pode ser iniciada ou concluída.')

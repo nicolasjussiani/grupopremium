@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
@@ -10,6 +12,7 @@ from .models import Colaborador, PagamentoColaborador, PresencaDiaria, Programac
 from .programacao_vt import linhas_semana, segundas_no_periodo, resumo_semana
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class ProgramacaoVTTest(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -17,6 +20,7 @@ class ProgramacaoVTTest(TestCase):
         cls.pessoa = Colaborador.objects.create(nome='Ana VT', vale_transporte_semanal=80)
 
     def setUp(self):
+        configurar_aprovadores(self)
         self.client.force_login(self.usuario)
         self.url = reverse('programacao_vt')
 

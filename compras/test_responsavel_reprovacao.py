@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from datetime import timedelta
 
 from django.contrib.auth.models import User
@@ -11,8 +13,10 @@ from core.approval_workflow import criar_fluxo_compras
 from core.models import AprovacaoRegistro, PerfilUsuario
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class ResponsavelReprovacaoTests(TestCase):
     def setUp(self):
+        configurar_aprovadores(self)
         self.comprador = User.objects.create_user('comprador-reprovacao')
         PerfilUsuario.objects.create(usuario=self.comprador, perfil='compras')
         self.adriana = User.objects.create_user('adriana', first_name='Adriana', last_name='Silva')

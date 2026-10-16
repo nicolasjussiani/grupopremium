@@ -2,7 +2,7 @@
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db import models
+from django.db import models, transaction
 from django.db.models import BooleanField, Case, Exists, OuterRef, Q, Value, When
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
@@ -29,17 +29,26 @@ def periodo_semanal(data_referencia):
     return segunda, segunda + timedelta(days=6)
 
 
+@transaction.atomic
 def cancelar_pagamentos_futuros(colaborador_ids):
     """Retira da folha os pagamentos futuros gerados para pessoas desativadas."""
     hoje = timezone.localdate()
-    return PagamentoColaborador.objects.filter(
+    pagamentos = PagamentoColaborador.objects.select_for_update().filter(
         colaborador_id__in=colaborador_ids,
         status='pendente',
         tipo__in=TIPOS_PAGAMENTO_CANCELAVEIS_NA_DESATIVACAO,
     ).filter(
         Q(data_vencimento__gte=hoje)
         | Q(tipo__in=TIPOS_PAGAMENTO_SEMANAIS, competencia_fim__gte=hoje)
-    ).update(status='cancelado', recorrente=False)
+    )
+    cancelados = list(pagamentos)
+    quantidade = pagamentos.update(status='cancelado', recorrente=False)
+    from core.payment_approvals import sincronizar_aprovacao_pagamento
+    for pagamento in cancelados:
+        pagamento.status = 'cancelado'
+        pagamento.recorrente = False
+        sincronizar_aprovacao_pagamento(pagamento)
+    return quantidade
 
 
 class ColaboradorQuerySet(models.QuerySet):
@@ -525,6 +534,7 @@ class PagamentoColaborador(models.Model):
     def fim_competencia(self):
         return self.competencia_fim or self.competencia
 
+    @transaction.atomic
     def criar_proxima_recorrencia(self, usuario=None):
         """Gera uma única parcela da semana seguinte, sem duplicar registros."""
         if (
@@ -569,6 +579,8 @@ class PagamentoColaborador(models.Model):
         )
         proximo.full_clean()
         proximo.save()
+        from core.payment_approvals import sincronizar_aprovacao_pagamento
+        sincronizar_aprovacao_pagamento(proximo, usuario or self.criado_por)
         return proximo, True
 
 

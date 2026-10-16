@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from admissional.models import Colaborador, PagamentoColaborador
@@ -102,9 +102,15 @@ def build_test_workbook(salary=2000, execute=2100):
     return output.getvalue()
 
 
+@override_settings(
+    APROVADOR_PAGAMENTOS_USERNAME='luiz_teste',
+    APROVADOR_OPERACIONAL_USERNAME='thiago_teste',
+)
 class FiscalIntegrationTests(TestCase):
     @classmethod
     def setUpTestData(cls):
+        User.objects.create_user('luiz_teste')
+        User.objects.create_user('thiago_teste')
         cls.user = User.objects.create_user('fiscal', password='senha-forte-123')
         PerfilUsuario.objects.create(usuario=cls.user, perfil='financeiro')
         cls.collaborator = Colaborador.objects.create(

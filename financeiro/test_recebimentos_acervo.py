@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -15,8 +17,10 @@ from core.services.processamento_storage import _data_documento
 from financeiro.models import DocumentoFinanceiro
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class RecebimentosAcervoTests(TestCase):
     def setUp(self):
+        configurar_aprovadores(self)
         self.user = User.objects.create_superuser('diretoria', password='teste')
         self.client.force_login(self.user)
 
@@ -43,9 +47,10 @@ class RecebimentosAcervoTests(TestCase):
         self.assertEqual(doc.data_pagamento, date(2024, 6, 9))
         self.assertEqual(doc.data_emissao, date(2024, 5, 10))
         self.assertEqual(doc.data_vencimento, date(2024, 6, 10))
-        self.client.post(url, {'situacao_pagamento': 'a_receber'})
+        self.assertEqual(self.client.post(url, {'situacao_pagamento': 'a_receber'}).status_code, 400)
         doc.refresh_from_db()
-        self.assertIsNone(doc.data_pagamento)
+        self.assertEqual(doc.situacao_pagamento, 'recebido')
+        self.assertEqual(doc.data_pagamento, date(2024, 6, 9))
 
     def test_detalhamento_nao_altera_valores_situacao_ou_datas(self):
         doc = self.documento()
@@ -64,7 +69,7 @@ class RecebimentosAcervoTests(TestCase):
         photo = SimpleUploadedFile('pix.jpg', b'\xff\xd8\xff' + b'x' * 20, content_type='image/jpeg')
         response = self.client.post(reverse('entrada_documento'), {
             'tipo': 'recibo', 'numero_documento': 'PIX-1', 'descricao': 'Reembolso',
-            'valor': '40.00', 'situacao_pagamento': 'pago', 'data_pagamento': '2024-08-02', 'arquivo_pdf': photo,
+            'valor': '40.00', 'situacao_pagamento': 'a_pagar', 'arquivo_pdf': photo,
         })
         self.assertEqual(response.status_code, 302)
         self.assertTrue(DocumentoFinanceiro.objects.get().arquivo.name.endswith('.jpg'))

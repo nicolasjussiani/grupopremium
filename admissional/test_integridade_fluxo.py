@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores, autorizar_pagamento
 from datetime import timedelta
 from decimal import Decimal
 
@@ -102,12 +104,14 @@ class AprovacaoDocumentosAdmissaoTests(TestCase):
         self.assertContains(detalhe, reverse('baixar_documento', args=[self.admissao.pk, documento.pk]))
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class DistratoColaboradorDesligadoTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.usuario = User.objects.create_superuser('rh-distrato')
 
     def setUp(self):
+        configurar_aprovadores(self)
         self.client.force_login(self.usuario)
         self.hoje = timezone.localdate()
         self.pessoa = Colaborador.objects.create(
@@ -135,6 +139,7 @@ class DistratoColaboradorDesligadoTests(TestCase):
             self.assertEqual(resposta.context['total_pendente'], Decimal('1200'))
         painel = self.client.get(reverse('painel_financeiro'))
         self.assertEqual(painel.context['folha_mes_pendente'], Decimal('1200'))
+        autorizar_pagamento(self, pagamento)
         comprovante = SimpleUploadedFile('distrato.pdf', b'%PDF-1.4 comprovante distrato', content_type='application/pdf')
         self.assertEqual(self.client.post(reverse('marcar_pagamento_como_pago', args=[pagamento.pk]), {
             'comprovante_folha': comprovante,

@@ -39,7 +39,7 @@ class Ativo(models.Model):
 
 class RegistroManutencao(models.Model):
     STATUS = [
-        ('aguardando_aprovacao', 'Aguardando Aprovação (CEO)'),
+        ('aguardando_aprovacao', 'Aguardando Aprovação de Thiago'),
         ('aberta', 'Aberta / Em Análise'),
         ('andamento', 'Em Andamento (Conserto)'),
         ('concluida', 'Concluída'),

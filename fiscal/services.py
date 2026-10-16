@@ -12,9 +12,11 @@ from xml.etree import ElementTree as ET
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.db.models import Q
 
 from admissional.models import Colaborador, PagamentoColaborador
 from core.models import ArquivoImportado
+from core.payment_approvals import sincronizar_aprovacao_pagamento
 
 from .models import BeneficioFiscal, FolhaFiscal, ItemFolhaFiscal, ParcelaBeneficioFiscal
 
@@ -550,6 +552,8 @@ def _month_end(day):
 
 @transaction.atomic
 def gerar_pagamentos_fiscais(folha, usuario=None):
+    # Uma mesma importação não pode gerar ou vincular pagamentos em paralelo.
+    folha = FolhaFiscal.objects.select_for_update().get(pk=folha.pk)
     skipped = 0
     type_by_regime = {
         'clt': 'salario',
@@ -810,6 +814,16 @@ def gerar_pagamentos_fiscais(folha, usuario=None):
             ['problemas', 'status_conciliacao'],
             batch_size=200,
         )
+
+    # Inclui pendências reaproveitadas de importações anteriores. Os pagamentos
+    # históricos já quitados mantêm seu estado, sem criar autorização retroativa.
+    pagamentos_pendentes = PagamentoColaborador.objects.select_for_update().filter(
+        Q(pk__in=folha.itens.values('pagamento_id'))
+        | Q(pk__in=folha.parcelas_beneficio.values('pagamento_id')),
+        status='pendente',
+    ).order_by('pk')
+    for pagamento in pagamentos_pendentes:
+        sincronizar_aprovacao_pagamento(pagamento, usuario=usuario)
 
     has_review = (
         folha.itens.filter(status_conciliacao='revisar').exists()

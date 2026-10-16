@@ -23,6 +23,7 @@ urlpatterns = [
     path('colaboradores/pagamentos/novo/', views.novo_pagamento_colaborador, name='novo_pagamento_colaborador'),
     path('colaboradores/pagamentos/<int:pk>/editar/', views.editar_pagamento_colaborador, name='editar_pagamento_colaborador'),
     path('colaboradores/pagamentos/<int:pk>/marcar-pago/', views.marcar_pagamento_como_pago, name='marcar_pagamento_como_pago'),
+    path('colaboradores/pagamentos/<int:pk>/aprovacao/', views.solicitar_aprovacao_pagamento_colaborador, name='solicitar_aprovacao_pagamento_colaborador'),
     path('colaboradores/pagamentos/<int:pk>/retirar/', views.retirar_pagamento_folha, name='retirar_pagamento_folha'),
     path('colaboradores/<int:pk>/pagamentos/vale-transporte/', views_vt.historico_vt_colaborador, name='historico_vt_colaborador'),
     path('colaboradores/<int:pk>/editar/', views.editar_colaborador, name='editar_colaborador'),

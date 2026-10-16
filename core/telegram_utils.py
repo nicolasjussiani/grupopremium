@@ -4,6 +4,16 @@ import threading
 
 # Mapeamento dos módulos para as respectivas variáveis de ambiente
 CONFIG_BOTS = {
+    'aprovacoes_pagamento': {
+        'token_env': 'TELEGRAM_TOKEN_APROVACOES_PAGAMENTO',
+        'chat_env': 'TELEGRAM_CHAT_ID_APROVACOES_PAGAMENTO',
+        'exclusivo': True,
+    },
+    'aprovacoes_operacionais': {
+        'token_env': 'TELEGRAM_TOKEN_APROVACOES_OPERACIONAIS',
+        'chat_env': 'TELEGRAM_CHAT_ID_APROVACOES_OPERACIONAIS',
+        'exclusivo': True,
+    },
     'recrutamento': {
         'token_env': 'TELEGRAM_TOKEN_RECRUTAMENTO',
         'chat_env': 'TELEGRAM_CHAT_ID_RECRUTAMENTO'
@@ -41,12 +51,12 @@ def enviar_mensagem_telegram(modulo, mensagem):
     chat_id = os.environ.get(config['chat_env'])
     
     # Fallback: se não achar o token ou chat_id do módulo específico, tenta o geral
-    if not token or not chat_id or chat_id == 'DIGITE_SEU_CHAT_ID_AQUI':
+    if (not token or not chat_id or chat_id == 'DIGITE_SEU_CHAT_ID_AQUI') and not config.get('exclusivo'):
         token = os.environ.get(CONFIG_BOTS['default']['token_env'])
         chat_id = os.environ.get(CONFIG_BOTS['default']['chat_env'])
 
     if not token or not chat_id or chat_id == 'DIGITE_SEU_CHAT_ID_AQUI':
-        print(f"[Telegram] Nenhum Token ou Chat ID configurado para o módulo '{modulo}' nem o default.")
+        print(f"[Telegram] Canal '{modulo}' sem Token ou Chat ID configurado.")
         return
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"

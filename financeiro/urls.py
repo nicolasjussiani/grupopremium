@@ -4,6 +4,7 @@ urlpatterns = [
     path('documento/<int:pk>/cancelar/', views.cancelar_documento, name='cancelar_documento'),
     path('documento/<int:pk>/detalhamento/', views.editar_detalhamento_documento, name='editar_detalhamento_documento'),
     path('documento/<int:pk>/pagamento/', views.atualizar_pagamento_documento, name='atualizar_pagamento_documento'),
+    path('documento/<int:pk>/aprovacao-pagamento/', views.solicitar_aprovacao_pagamento_documento, name='solicitar_aprovacao_pagamento_documento'),
     path('', views.painel_financeiro, name='painel_financeiro'),
     path('documento/novo/', views.entrada_documento, name='entrada_documento'),
     path('documento/<int:pk>/', views.detalhe_documento, name='detalhe_documento'),

@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from datetime import date
 from decimal import Decimal
 from django.contrib.auth.models import User
@@ -9,6 +11,7 @@ from .calculo_folha import calcular_salario
 from .programacao_vt import linhas_semana
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class FolhaAntecipadaTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -16,6 +19,7 @@ class FolhaAntecipadaTests(TestCase):
         cls.pessoa = Colaborador.objects.create(nome='Pessoa folha', salario=3000, vale_transporte_semanal=100)
 
     def setUp(self):
+        configurar_aprovadores(self)
         self.client.force_login(self.user)
 
     def salario(self, **kwargs):

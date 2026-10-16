@@ -173,7 +173,7 @@
         <td style="max-width:190px;overflow-wrap:anywhere;">{{ pagamento.chave_pix_exibicao|default:"Não informado" }}</td>
         <td>{{ pagamento.data_vencimento|date:"d/m/Y" }}</td>
         <td><strong>R$ {{ pagamento.valor|floatformat:2 }}</strong></td>
-        <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% elif pagamento.status == 'cancelado' %}badge-danger{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span></td>
+        <td><span class="badge {% if pagamento.status == 'pago' %}badge-success{% elif pagamento.status == 'cancelado' %}badge-danger{% else %}badge-warning{% endif %}">{{ pagamento.get_status_display }}</span>{% if pagamento.status == 'pendente' %}<br>{% include 'financeiro/_situacao_aprovacao_pagamento.html' with situacao=pagamento.situacao_aprovacao %}{% endif %}</td>
         <td>{{ pagamento.data_pagamento|date:"d/m/Y"|default:"—" }}</td>
         <td>
           {% for comprovante in pagamento.arquivos_importados.all %}
@@ -184,7 +184,13 @@
           <a href="{% url 'relatorio_folha_pagamento' %}?{{ filtros_query }}&amp;colaborador={{ pagamento.colaborador_id }}" class="btn btn-sm btn-outline">Relatório individual</a>
           {% if can_edit_pagamento %}
             {% if pagamento.status == 'pendente' %}
+            {% if pagamento.situacao_aprovacao == 'aprovado' %}
             <a href="{% url 'marcar_pagamento_como_pago' pagamento.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-success">Marcar como pago</a>
+            {% elif pagamento.situacao_aprovacao == 'rejeitado' or pagamento.situacao_aprovacao == 'nao_solicitado' %}
+            <form method="post" action="{% url 'solicitar_aprovacao_pagamento_colaborador' pagamento.pk %}" style="display:inline;">
+              {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline">{% if pagamento.situacao_aprovacao == 'rejeitado' %}Reenviar para Luiz{% else %}Solicitar aprovação de Luiz{% endif %}</button>
+            </form>
+            {% endif %}
             <form method="post" action="{% url 'retirar_pagamento_folha' pagamento.pk %}" style="display:inline;" onsubmit="return confirm('Retirar este lançamento da folha? O histórico será preservado.');">
               {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline">Retirar da folha</button>
             </form>

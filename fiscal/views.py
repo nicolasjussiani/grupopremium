@@ -77,7 +77,12 @@ def detalhe_folha(request, pk):
 @require_POST
 def processar_folha(request, pk):
     folha = get_object_or_404(FolhaFiscal, pk=pk)
-    created, skipped = gerar_pagamentos_fiscais(folha, usuario=request.user)
+    try:
+        created, skipped = gerar_pagamentos_fiscais(folha, usuario=request.user)
+    except ValidationError as exc:
+        request._audit_no_change = True
+        messages.error(request, '; '.join(exc.messages))
+        return redirect('detalhe_folha_fiscal', pk=folha.pk)
     if created:
         messages.success(request, f'{created} pagamento(s) gerado(s) e integrado(s) ao Financeiro.')
     else:

@@ -51,3 +51,17 @@ class DetalhamentoDocumentoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-control'
+        if self.instance.pk and self.instance.situacao_pagamento in {'pago', 'recebido'}:
+            for campo in ('descricao', 'centro_custo', 'unidade'):
+                self.fields[campo].widget.attrs['readonly'] = True
+
+    def clean(self):
+        dados = super().clean()
+        if self.instance.pk and self.instance.situacao_pagamento in {'pago', 'recebido'}:
+            if any(dados.get(campo) != getattr(self.instance, campo)
+                   for campo in ('descricao', 'centro_custo', 'unidade')):
+                raise forms.ValidationError(
+                    'Documento já pago ou recebido. Acrescente apenas observações; '
+                    'a descrição e a classificação da baixa devem ser preservadas.'
+                )
+        return dados
