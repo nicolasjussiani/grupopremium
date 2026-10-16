@@ -12,12 +12,12 @@ class Migration(migrations.Migration):
             name='finalidade',
             field=models.CharField(
                 choices=[('operacional', 'Aprovação operacional'), ('pagamento', 'Autorização de pagamento')],
-                db_index=True, default='operacional', max_length=20,
+                db_index=True, default='operacional', max_length=20, null=True,
             ),
         ),
         migrations.AddField(
             model_name='aprovacaoregistro',
             name='dados_aprovacao',
-            field=models.JSONField(blank=True, default=dict),
+            field=models.JSONField(blank=True, default=dict, null=True),
         ),
     ]

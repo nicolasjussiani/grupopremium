@@ -295,8 +295,10 @@ class AprovacaoRegistro(models.Model):
     modulo = models.CharField(max_length=20, choices=MODULOS, default='sistema', verbose_name='Módulo')
     nivel = models.IntegerField(choices=NIVEL, default=1, verbose_name='Nível de Aprovação')
     status = models.CharField(max_length=20, choices=STATUS, default='pendente')
-    finalidade = models.CharField(max_length=20, choices=FINALIDADES, default='operacional', db_index=True)
-    dados_aprovacao = models.JSONField(default=dict, blank=True)
+    # Aceita INSERTs da versão anterior durante a expansão do schema. Escritas
+    # novas continuam classificadas em save; legados são tratados na redistribuição.
+    finalidade = models.CharField(max_length=20, choices=FINALIDADES, default='operacional', db_index=True, null=True)
+    dados_aprovacao = models.JSONField(default=dict, blank=True, null=True)
 
     titulo = models.CharField(max_length=255, verbose_name='Título da Solicitação')
     descricao = models.TextField(blank=True, verbose_name='Descrição / Contexto')

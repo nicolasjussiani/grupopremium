@@ -182,8 +182,8 @@ dados e, na folha, comprovante. Alterações financeiras e reativação de obrig
 cancelada exigem nova autorização. Administradores não decidem em nome dos
 responsáveis, e a tela Django admin mantém as aprovações somente para consulta.
 
-Antes de disponibilizar a atualização, aplique `python manage.py migrate`,
-confira `python manage.py redistribuir_aprovacoes` e execute a transferência com
-`python manage.py redistribuir_aprovacoes --apply`. Somente pendências são
+Antes de disponibilizar a atualização, aplique `python manage.py migrate`.
+Depois de publicar a nova versão, confira `python manage.py redistribuir_aprovacoes`
+e execute a transferência com `python manage.py redistribuir_aprovacoes --apply`. Somente pendências são
 redistribuídas; decisões anteriores e seus autores permanecem no histórico.
 Veja o [procedimento completo de ativação](docs/aprovacoes-luiz-thiago.md).
