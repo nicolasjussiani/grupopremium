@@ -267,6 +267,10 @@ class AprovacaoRegistro(models.Model):
         (1, 'Nível 1 — Gestor / Área'),
         (2, 'Nível 2 — Diretoria'),
     ]
+    FINALIDADES = [
+        ('operacional', 'Aprovação operacional'),
+        ('pagamento', 'Autorização de pagamento'),
+    ]
     MODULOS = [
         ('recrutamento', 'Recrutamento'),
         ('admissional', 'Admissional'),
@@ -291,6 +295,10 @@ class AprovacaoRegistro(models.Model):
     modulo = models.CharField(max_length=20, choices=MODULOS, default='sistema', verbose_name='Módulo')
     nivel = models.IntegerField(choices=NIVEL, default=1, verbose_name='Nível de Aprovação')
     status = models.CharField(max_length=20, choices=STATUS, default='pendente')
+    # Aceita INSERTs da versão anterior durante a expansão do schema. Escritas
+    # novas continuam classificadas em save; legados são tratados na redistribuição.
+    finalidade = models.CharField(max_length=20, choices=FINALIDADES, default='operacional', db_index=True, null=True)
+    dados_aprovacao = models.JSONField(default=dict, blank=True, null=True)
 
     titulo = models.CharField(max_length=255, verbose_name='Título da Solicitação')
     descricao = models.TextField(blank=True, verbose_name='Descrição / Contexto')
@@ -335,16 +343,18 @@ class AprovacaoRegistro(models.Model):
         # Inclui criações diretas, como Manutenção. Preserva decisões antigas.
         using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
         if self.status == 'pendente':
-            from core.approval_workflow import aprovador_central
-            self.destinatario = aprovador_central(using=using)
+            from core.approval_workflow import aprovador_para, finalidade_para_content_type
+            self.finalidade = finalidade_para_content_type(self.content_type)
+            self.destinatario = aprovador_para(self.finalidade, using=using)
             self.nivel = 2
             if kwargs.get('update_fields') is not None:
-                kwargs['update_fields'] = set(kwargs['update_fields']) | {'destinatario', 'nivel'}
+                kwargs['update_fields'] = set(kwargs['update_fields']) | {'destinatario', 'nivel', 'finalidade'}
         with transaction.atomic(using=using):
             super().save(*args, **kwargs)
 
     @classmethod
-    def criar_para(cls, objeto, titulo, descricao='', modulo='sistema', nivel=1, solicitado_por=None):
+    def criar_para(cls, objeto, titulo, descricao='', modulo='sistema', nivel=1, solicitado_por=None,
+                   dados_aprovacao=None):
         """Helper para criar uma aprovação para qualquer objeto."""
         ct = ContentType.objects.get_for_model(objeto)
         return cls.objects.create(
@@ -355,6 +365,7 @@ class AprovacaoRegistro(models.Model):
             modulo=modulo,
             nivel=nivel,
             solicitado_por=solicitado_por,
+            dados_aprovacao=dados_aprovacao if dados_aprovacao is not None else {},
         )
 
 

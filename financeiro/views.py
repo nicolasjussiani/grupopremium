@@ -19,12 +19,15 @@ from django.views.decorators.http import require_POST, require_http_methods
 from .forms import PagamentoDocumentoForm, CancelamentoDocumentoForm, DetalhamentoDocumentoForm
 from core.validators import validate_document_upload, validate_pdf_upload
 from core.direct_uploads import verify_direct_upload
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ValidationError
 from django.utils.text import get_valid_filename
 from admissional.models import Colaborador, PagamentoColaborador
 from admissional.periodos_pagamentos import pagamentos_atuais, pagamentos_atrasados
 from core.models import AprovacaoRegistro, ArquivoImportado
-from core.approval_workflow import usuario_e_aprovador_central
+from core.payment_approvals import (
+    sincronizar_aprovacao_pagamento, exigir_aprovacao_pagamento,
+    situacao_aprovacao_pagamento,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -55,6 +58,9 @@ def painel_financeiro(request):
     else:
         filtro_pagamento = ''
     pagina_pagamentos = Paginator(pagamentos, 20).get_page(request.GET.get('pagina'))
+    for documento in pagina_pagamentos:
+        if documento.situacao_pagamento == 'a_pagar':
+            documento.situacao_aprovacao = situacao_aprovacao_pagamento(documento)
     docs_pendentes = DocumentoFinanceiro.objects.filter(status__in=['recebido', 'em_auditoria'])
     lancamentos_pendentes = LancamentoERP.objects.filter(status__in=['rascunho', 'em_validacao'])
     finalizados_mes = LancamentoERP.objects.filter(
@@ -172,6 +178,11 @@ def entrada_documento(request):
             return render(request, 'financeiro/entrada_documento.html', {
                 'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
             })
+        if pagamento_form.cleaned_data['situacao_pagamento'] == 'pago':
+            pagamento_form.add_error('situacao_pagamento', 'Cadastre como A pagar para aprovação de Luiz antes de confirmar a baixa.')
+            return render(request, 'financeiro/entrada_documento.html', {
+                'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
+            })
 
         doc = DocumentoFinanceiro(
             **pagamento_form.cleaned_data,
@@ -253,6 +264,15 @@ def entrada_documento(request):
         # Criar checklist de auditoria automaticamente
         for item_key, _ in AuditoriaItem.ITENS_CHECKLIST:
             AuditoriaItem.objects.create(documento=doc, item=item_key, status='pendente')
+        try:
+            with transaction.atomic():
+                sincronizar_aprovacao_pagamento(doc, request.user)
+        except ValidationError as exc:
+            transaction.set_rollback(True)
+            messages.error(request, '; '.join(exc.messages))
+            return render(request, 'financeiro/entrada_documento.html', {
+                'tipos': DocumentoFinanceiro.TIPOS, 'pagamento_form': pagamento_form,
+            })
 
         messages.info(request,
             f'📋 Documento {doc.numero_documento} recebido. Iniciando auditoria interna...')
@@ -368,14 +388,14 @@ ACESSO_PAGAMENTO = dict(
 @require_http_methods(['GET', 'POST'])
 @transaction.atomic
 def cancelar_documento(request, pk):
+    doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=pk)
     aprovacoes = AprovacaoRegistro.objects.filter(
         content_type__app_label='financeiro', content_type__model='lancamentoerp',
         object_id__in=LancamentoERP.objects.filter(documento_id=pk).values('pk'),
         status='pendente',
     )
-    # A decisão central também bloqueia a aprovação antes do documento.
+    # Bloqueia a origem antes da fila, como a decisão central.
     aprovacoes_bloqueadas = list(aprovacoes.select_for_update().values_list('pk', flat=True))
-    doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=pk)
     if doc.status == 'cancelado':
         messages.info(request, 'Este documento já está cancelado.')
         return redirect('detalhe_documento', pk=pk)
@@ -392,6 +412,7 @@ def cancelar_documento(request, pk):
         doc.cancelado_por = request.user
         doc.cancelado_em = timezone.now()
         doc.save(update_fields=['status', 'motivo_cancelamento', 'cancelado_por', 'cancelado_em', 'atualizado_em'])
+        sincronizar_aprovacao_pagamento(doc, request.user)
         doc.lancamentos.filter(status__in=('rascunho', 'em_validacao')).update(status='cancelado')
         AprovacaoRegistro.objects.filter(pk__in=aprovacoes_bloqueadas, status='pendente').update(
             status='cancelado',
@@ -402,6 +423,23 @@ def cancelar_documento(request, pk):
     return render(request, 'financeiro/cancelar_documento.html', {
         'documento': doc, 'form': form,
     }, status=400 if request.method == 'POST' else 200)
+
+
+def _aplicar_situacao_pagamento(doc, dados, usuario):
+    """Atualiza a baixa sob o bloqueio do documento e a autorização vigente."""
+    situacao = dados['situacao_pagamento']
+    data = dados['data_pagamento']
+    if doc.situacao_pagamento in {'pago', 'recebido'}:
+        if situacao != doc.situacao_pagamento or data != doc.data_pagamento:
+            raise ValidationError('Pagamento ou recebimento já realizado. Utilize uma correção ou estorno auditável para alterar a baixa.')
+        return
+    if situacao == 'pago':
+        exigir_aprovacao_pagamento(doc)
+    doc.situacao_pagamento = situacao
+    doc.data_pagamento = data
+    doc.save(update_fields=['situacao_pagamento', 'data_pagamento', 'atualizado_em'])
+    if situacao != 'pago':
+        sincronizar_aprovacao_pagamento(doc, usuario)
 
 
 @login_required
@@ -415,15 +453,20 @@ def atualizar_pagamento_documento(request, pk):
         return redirect('detalhe_documento', pk=pk)
     form = PagamentoDocumentoForm(request.POST)
     if form.is_valid():
-        doc.situacao_pagamento = form.cleaned_data['situacao_pagamento']
-        doc.data_pagamento = form.cleaned_data['data_pagamento']
-        doc.save(update_fields=['situacao_pagamento', 'data_pagamento', 'atualizado_em'])
-        messages.success(request, 'Situação do pagamento atualizada.')
-        return redirect('detalhe_documento', pk=pk)
+        try:
+            with transaction.atomic():
+                _aplicar_situacao_pagamento(doc, form.cleaned_data, request.user)
+        except ValidationError as exc:
+            doc.refresh_from_db()
+            form.add_error(None, exc)
+        else:
+            messages.success(request, 'Situação do pagamento atualizada.')
+            return redirect('detalhe_documento', pk=pk)
     return render(request, 'financeiro/detalhe_documento.html', {
         'documento': doc, 'lancamentos': doc.lancamentos.all(),
         'pagamento_form': form, 'pode_alterar_pagamento': True,
         'pode_cancelar': doc.pode_cancelar,
+        'situacao_aprovacao': situacao_aprovacao_pagamento(doc),
     }, status=400)
 
 
@@ -436,7 +479,27 @@ def detalhe_documento(request, pk):
         'pagamento_form': PagamentoDocumentoForm.para_documento(doc),
         'pode_alterar_pagamento': doc.status != 'cancelado' and user_has_access(request.user, **ACESSO_PAGAMENTO),
         'pode_cancelar': user_has_access(request.user, **ACESSO_PAGAMENTO) and doc.pode_cancelar,
+        'situacao_aprovacao': situacao_aprovacao_pagamento(doc),
     })
+
+
+@login_required
+@access_required(**ACESSO_PAGAMENTO)
+@require_POST
+@transaction.atomic
+def solicitar_aprovacao_pagamento_documento(request, pk):
+    doc = get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=pk)
+    if doc.status == 'cancelado' or doc.situacao_pagamento != 'a_pagar':
+        messages.error(request, 'Somente documentos a pagar podem ser enviados para aprovação de pagamento.')
+    else:
+        try:
+            with transaction.atomic():
+                sincronizar_aprovacao_pagamento(doc, request.user, reenviar=True)
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages))
+        else:
+            messages.success(request, 'Pagamento encaminhado para aprovação de Luiz.')
+    return redirect('detalhe_documento', pk=pk)
 
 
 @login_required
@@ -447,9 +510,16 @@ def editar_detalhamento_documento(request, pk):
     form = DetalhamentoDocumentoForm(request.POST if request.method == 'POST' else None, instance=doc)
     if request.method == 'POST' and form.is_valid():
         # Apenas metadados: não altera valores, baixas, datas ou o arquivo original.
-        form.save()
-        messages.success(request, 'Descrição e observações atualizadas.')
-        return redirect('detalhe_documento', pk=pk)
+        try:
+            with transaction.atomic():
+                form.save()
+                if doc.situacao_pagamento != 'pago':
+                    sincronizar_aprovacao_pagamento(doc, request.user)
+        except ValidationError as exc:
+            form.add_error(None, exc)
+        else:
+            messages.success(request, 'Descrição e observações atualizadas.')
+            return redirect('detalhe_documento', pk=pk)
     return render(request, 'financeiro/editar_detalhamento.html', {'form': form, 'documento': doc})
 
 
@@ -504,6 +574,10 @@ def lancar_erp(request, doc_pk):
         )
         try:
             with transaction.atomic():
+                if pagamento_form.is_bound:
+                    _aplicar_situacao_pagamento(doc, pagamento_form.cleaned_data, request.user)
+                elif doc.situacao_pagamento != 'pago':
+                    sincronizar_aprovacao_pagamento(doc, request.user)
                 lancamento.full_clean()
                 lancamento.save()
                 AprovacaoRegistro.criar_para(
@@ -514,17 +588,15 @@ def lancar_erp(request, doc_pk):
                     solicitado_por=request.user,
                 )
         except ValidationError as exc:
+            doc.refresh_from_db()
             messages.error(request, '; '.join(exc.messages))
             return render(request, 'financeiro/lancar_erp.html', {
                 'documento': doc,
                 'tipos': LancamentoERP.TIPOS, 'pagamento_form': pagamento_form,
             })
-        if pagamento_form.is_bound:
-            doc.situacao_pagamento = pagamento_form.cleaned_data['situacao_pagamento']
-            doc.data_pagamento = pagamento_form.cleaned_data['data_pagamento']
         doc.status = 'lancado'
         doc.save()
-        messages.info(request, '📊 Lançamento enviado diretamente para aprovação de ceo_premium.')
+        messages.info(request, 'Lançamento contábil encaminhado para aprovação de Thiago. A aprovação do pagamento é separada, com Luiz.')
         return redirect('detalhe_documento', pk=doc.pk)
     return render(request, 'financeiro/lancar_erp.html', {
         'documento': doc,
@@ -539,15 +611,13 @@ def lancar_erp(request, doc_pk):
 )
 @transaction.atomic
 def validar_lancamento(request, pk):
-    """Compatibilidade: a decisão financeira passa pela fila central do CEO."""
+    """Compatibilidade: a decisão contábil passa pela fila do responsável operacional."""
     lancamento = get_object_or_404(LancamentoERP.objects.select_related('documento'), pk=pk)
     documento = lancamento.documento
     if documento.status == 'cancelado':
         messages.error(request, 'Documento cancelado. O lançamento não pode ser validado.')
         return redirect('detalhe_documento', pk=documento.pk)
     if request.method == 'POST':
-        if not usuario_e_aprovador_central(request.user):
-            raise PermissionDenied
         if lancamento.status != 'em_validacao':
             messages.error(request, 'Este lancamento nao esta aguardando validacao.')
             return redirect('painel_financeiro')
@@ -571,7 +641,10 @@ def validar_lancamento(request, pk):
         return decisao(request, aprovacao.pk)
     return render(request, 'financeiro/validar_lancamento.html', {
         'lancamento': lancamento,
-        'pode_aprovar': usuario_e_aprovador_central(request.user),
+        'pode_aprovar': AprovacaoRegistro.objects.filter(
+            content_type__app_label='financeiro', content_type__model='lancamentoerp',
+            object_id=lancamento.pk, destinatario=request.user, status='pendente',
+        ).exists(),
     })
 
 

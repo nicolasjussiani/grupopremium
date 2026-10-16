@@ -105,8 +105,8 @@ class RequisicaoCompra(models.Model):
     """Agrupa vários materiais destinados à mesma unidade."""
 
     STATUS = [
-        ('aguardando_adriana', 'Aguardando aprovação da Adriana'),
-        ('aguardando_ceo', 'Aguardando aprovação do CEO'),
+        ('aguardando_adriana', 'Aguardando aprovação operacional (legado)'),
+        ('aguardando_ceo', 'Aguardando aprovação de Thiago'),
         ('aprovada', 'Aprovada'),
         ('pedido', 'Pedido'),
         ('rejeitada', 'Rejeitada'),

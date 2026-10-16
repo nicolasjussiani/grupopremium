@@ -262,6 +262,8 @@ class PagamentoColaboradorForm(forms.ModelForm):
                 'Ajuda de custo deve ser cadastrada somente para colaboradores PJ.',
             )
         status = cleaned_data.get('status')
+        if not self.instance.pk and status == 'pago':
+            self.add_error('status', 'Cadastre o pagamento como pendente para aprovação de Luiz antes de confirmar a baixa.')
         data_pagamento = cleaned_data.get('data_pagamento')
         if status == 'pago' and not data_pagamento:
             self.add_error(

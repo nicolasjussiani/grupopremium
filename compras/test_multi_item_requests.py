@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -8,8 +10,10 @@ from core.models import AprovacaoRegistro, Notificacao, PerfilUsuario
 from compras.models import Material, RequisicaoCompra, SolicitacaoMaterial
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class RequisicaoComVariosProdutosTests(TestCase):
     def setUp(self):
+        configurar_aprovadores(self)
         self.user = User.objects.create_user(
             username='comprador-multiplo',
             password='senha-forte-123',
@@ -123,7 +127,7 @@ class RequisicaoComVariosProdutosTests(TestCase):
         })
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'ceo_premium')
+        self.assertContains(response, 'não existe ou não está ativo')
         self.assertFalse(RequisicaoCompra.objects.exists())
         self.assertFalse(SolicitacaoMaterial.objects.exists())
         self.assertFalse(AprovacaoRegistro.objects.exists())

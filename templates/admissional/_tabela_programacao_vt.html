@@ -72,7 +72,13 @@
         </form>
       {% else %}<div class="vt-section-label">{% if linha.situacao == 'pago' %}PAGAMENTO REALIZADO{% else %}DECISÃO DA SEMANA{% endif %}</div><p class="vt-readonly">{% if linha.pagamento and linha.situacao != 'nao' %}R$ {{ linha.pagamento.valor|floatformat:2 }}{% else %}Somente consulta{% endif %}</p>{% endif %}
       {% if linha.situacao == 'pago' and linha.calculo_salvo %}<p class="vt-saved-value">{% if linha.calculo_salvo.antecipado %}Antecipação salva: {{ linha.calculo_salvo.dias_previstos }} dias previstos; {{ linha.calculo_salvo.faltas_descontar }} faltas descontadas.{% else %}Cálculo anterior salvo: R$ {{ linha.calculo_salvo.valor_semana_completa|floatformat:2 }} ÷ 7 × {{ linha.calculo_salvo.dias_presentes }} dia(s) presente(s).{% endif %}</p>{% endif %}
-      {% if linha.situacao == 'pagar' and pode_editar %}<a class="vt-payment-link" href="{% url 'marcar_pagamento_como_pago' linha.pagamento.pk %}?next={{ request.get_full_path|urlencode }}">Confirmar pagamento com comprovante →</a>{% endif %}
+      {% if linha.situacao == 'pagar' %}
+      {% include 'financeiro/_situacao_aprovacao_pagamento.html' with situacao=linha.pagamento.situacao_aprovacao %}
+      {% if pode_editar %}
+      {% if linha.pagamento.situacao_aprovacao == 'aprovado' %}<a class="vt-payment-link" href="{% url 'marcar_pagamento_como_pago' linha.pagamento.pk %}?next={{ request.get_full_path|urlencode }}">Confirmar pagamento com comprovante →</a>
+      {% elif linha.pagamento.situacao_aprovacao == 'rejeitado' or linha.pagamento.situacao_aprovacao == 'nao_solicitado' %}<form method="post" action="{% url 'solicitar_aprovacao_pagamento_colaborador' linha.pagamento.pk %}">{% csrf_token %}<button type="submit" class="btn btn-outline">{% if linha.pagamento.situacao_aprovacao == 'rejeitado' %}Reenviar para Luiz{% else %}Solicitar aprovação de Luiz{% endif %}</button></form>{% endif %}
+      {% endif %}
+      {% endif %}
       {% if linha.tipo_beneficio == 'vale_transporte' %}<a class="vt-payment-link" href="{% url 'historico_vt_colaborador' linha.pessoa.pk %}">Ver histórico de VT e comprovantes →</a>{% endif %}
       </div>
     </article>

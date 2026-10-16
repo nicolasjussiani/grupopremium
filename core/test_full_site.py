@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from datetime import date, timedelta
 
 from django.contrib.auth.models import User
@@ -28,6 +30,7 @@ from sesmet.models import (
 )
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class FullSiteRouteTests(TestCase):
     """Render every application route with representative persisted data."""
 
@@ -268,6 +271,7 @@ class FullSiteRouteTests(TestCase):
         )
 
     def setUp(self):
+        configurar_aprovadores(self)
         self.client.force_login(self.user)
 
     def _application_route_names(self, patterns=None):
@@ -422,6 +426,8 @@ class FullSiteRouteTests(TestCase):
             ('editar_detalhamento_documento', (self.documento_financeiro.pk,), 200),
             ('cancelar_documento', (self.documento_financeiro.pk,), 200),
             ('atualizar_pagamento_documento', (self.documento_financeiro.pk,), 405),
+            ('solicitar_aprovacao_pagamento_documento', (self.documento_financeiro.pk,), 405),
+            ('solicitar_aprovacao_pagamento_colaborador', (self.pagamento_colaborador.pk,), 405),
             ('auditoria_documento', (self.documento_financeiro.pk,), 200),
             ('lancar_erp', (self.documento_financeiro.pk,), 200),
             ('validar_lancamento', (self.lancamento.pk,), 200),

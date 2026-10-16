@@ -6,10 +6,16 @@
 {% block content %}
 <div class="module-banner mod-banner-6" style="margin-bottom:20px;">
   <h1 class="mod-title">💵 {{ acao }}</h1>
-  <div class="mod-desc">Registre a obrigação ou confirme um pagamento já realizado.</div>
+  <div class="mod-desc">Cadastre a obrigação para aprovação de Luiz. Confirme a baixa depois da autorização e com comprovante.</div>
 </div>
 
 <div class="card" style="max-width:900px;margin:0 auto;">
+  {% if pagamento.status == 'pendente' %}
+  {% include 'financeiro/_situacao_aprovacao_pagamento.html' with situacao=situacao_aprovacao %}
+  {% if situacao_aprovacao == 'rejeitado' or situacao_aprovacao == 'nao_solicitado' %}
+  <form method="post" action="{% url 'solicitar_aprovacao_pagamento_colaborador' pagamento.pk %}" style="margin:12px 0;">{% csrf_token %}<button class="btn btn-outline" type="submit">{% if situacao_aprovacao == 'rejeitado' %}Reenviar para Luiz{% else %}Solicitar aprovação de Luiz{% endif %}</button></form>
+  {% endif %}
+  {% endif %}
   {% if pagamento.status == 'pago' %}<p class="alert alert-info" data-persistent-alert>Pagamento já realizado: os dados financeiros devem ser preservados. Você pode acrescentar observações e comprovantes.</p>{% endif %}
   <div id="resumo-colaborador" class="alert alert-info" data-persistent-alert style="display:none;margin-bottom:18px;">
     <strong id="resumo-nome"></strong>

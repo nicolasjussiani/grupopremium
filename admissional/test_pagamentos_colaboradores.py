@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores, autorizar_pagamento
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -16,8 +18,10 @@ from admissional.models import Colaborador, PagamentoColaborador, PresencaDiaria
 from core.models import PerfilUsuario
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class PagamentosColaboradoresTest(TestCase):
     def setUp(self):
+        configurar_aprovadores(self)
         self.user = User.objects.create_superuser(
             username='admin_folha',
             email='admin@example.com',
@@ -177,7 +181,7 @@ class PagamentosColaboradoresTest(TestCase):
         self.assertEqual(pagamento.data_vencimento, date(2026, 9, 7))
         self.assertTrue(pagamento.recorrente)
 
-    def test_pagamento_realizado_de_vt_registra_segunda_da_semana(self):
+    def test_formulario_impede_novo_vt_pago_sem_autorizacao(self):
         form = PagamentoColaboradorForm(data=self.dados_pagamento(
             tipo='vale_transporte',
             competencia='2026-09-10',
@@ -186,9 +190,9 @@ class PagamentosColaboradoresTest(TestCase):
             data_pagamento='2026-09-12',
         ))
 
-        self.assertTrue(form.is_valid(), form.errors)
-        pagamento = form.save()
-        self.assertEqual(pagamento.data_pagamento, date(2026, 9, 7))
+        self.assertFalse(form.is_valid())
+        self.assertIn('status', form.errors)
+        self.assertFalse(PagamentoColaborador.objects.exists())
 
     def test_modelo_rejeita_vale_transporte_para_pj_fora_do_formulario(self):
         self.colaborador.tipo_contrato = 'pj'
@@ -302,6 +306,8 @@ class PagamentosColaboradoresTest(TestCase):
             data_vencimento=date(2026, 9, 14),
         )
 
+        autorizar_pagamento(self, pagamento)
+
         response = self.client.post(
             reverse('marcar_pagamento_como_pago', args=[pagamento.pk]),
             {'comprovante_folha': SimpleUploadedFile('vt.pdf', b'%PDF-vt', content_type='application/pdf')},
@@ -323,6 +329,8 @@ class PagamentosColaboradoresTest(TestCase):
             data_vencimento=date(2026, 9, 14),
             recorrente=True,
         )
+
+        autorizar_pagamento(self, pagamento)
 
         self.client.post(reverse('marcar_pagamento_como_pago', args=[pagamento.pk]), {
             'comprovante_folha': SimpleUploadedFile('vt.pdf', b'%PDF-recorrencia', content_type='application/pdf'),

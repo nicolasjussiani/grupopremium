@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 import base64
 import json
 from datetime import date, timedelta
@@ -36,10 +38,12 @@ def image_upload(name='foto.png'):
     return SimpleUploadedFile(name, PNG_BYTES, content_type='image/png')
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class OperationalEndToEndTests(TestCase):
     """Executa jornadas completas pelas mesmas views usadas na interface."""
 
     def setUp(self):
+        configurar_aprovadores(self)
         self.user = User.objects.create_superuser(
             username='qa-admin',
             email='qa-admin@example.com',

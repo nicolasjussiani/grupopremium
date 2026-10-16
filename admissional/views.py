@@ -34,6 +34,10 @@ from urllib.parse import urlencode, urlsplit
 from .programacao_vt import segundas_no_periodo, presencas_por_pessoa, linhas_semana, resumo_semana
 from .calendario_presenca import montar_calendario_presenca
 from .periodos_pagamentos import limites_periodo_atual, no_periodo, pagamentos_atuais, pagamentos_atrasados
+from core.payment_approvals import (
+    sincronizar_aprovacao_pagamento, exigir_aprovacao_pagamento,
+    situacao_aprovacao_pagamento,
+)
 
 
 @login_required
@@ -462,6 +466,8 @@ def _anexar_dias_trabalhados(pagamentos, inicio, fim):
             dias -= pagamento.faltas
         pagamento.dias_trabalhados_exibicao = dias
         pagamento.chave_pix_exibicao = pix
+        if pagamento.status == 'pendente':
+            pagamento.situacao_aprovacao = situacao_aprovacao_pagamento(pagamento)
     return pagamentos
 
 
@@ -766,6 +772,7 @@ def novo_pagamento_colaborador(request):
                 with transaction.atomic():
                     pagamento.save()
                     vincular_comprovante(comprovante, pagamento, request.user)
+                    sincronizar_aprovacao_pagamento(pagamento, request.user)
                     _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
             except ValidationError as exc:
                 pagamento.pk = None
@@ -840,12 +847,16 @@ def editar_pagamento_colaborador(request, pk):
         form = PagamentoColaboradorForm(request.POST, instance=pagamento)
         if form.is_valid():
             try:
+                if pagamento.status == 'pago' and status_anterior != 'pago':
+                    exigir_aprovacao_pagamento(pagamento)
                 comprovante = preparar_comprovante(request, pagamento)
                 if pagamento.status == 'pago' and status_anterior != 'pago':
                     exigir_comprovante(comprovante, pagamento)
                 with transaction.atomic():
                     pagamento = form.save()
                     vincular_comprovante(comprovante, pagamento, request.user)
+                    if pagamento.status != 'pago':
+                        sincronizar_aprovacao_pagamento(pagamento, request.user)
                     recorrencia_criada = False
                     if status_anterior != 'pago':
                         _, recorrencia_criada = pagamento.criar_proxima_recorrencia(request.user)
@@ -865,6 +876,7 @@ def editar_pagamento_colaborador(request, pk):
         'form': form,
         'acao': 'Editar pagamento',
         'pagamento': pagamento,
+        'situacao_aprovacao': situacao_aprovacao_pagamento(pagamento),
     })
 
 
@@ -895,12 +907,13 @@ def marcar_pagamento_como_pago(request, pk):
         erro = ''
         if request.method == 'POST':
             try:
-                comprovante = preparar_comprovante(request, pagamento)
-                exigir_comprovante(comprovante, pagamento)
                 with transaction.atomic():
                     pagamento = PagamentoColaborador.objects.select_for_update().get(pk=pk)
                     if pagamento.status != 'pendente':
                         raise ValidationError('A situação deste pagamento mudou. Volte à folha e confira o lançamento.')
+                    exigir_aprovacao_pagamento(pagamento)
+                    comprovante = preparar_comprovante(request, pagamento)
+                    exigir_comprovante(comprovante, pagamento)
                     pagamento.status = 'pago'
                     pagamento.data_pagamento = timezone.localdate()
                     pagamento.normalizar_datas_semanais()
@@ -926,8 +939,31 @@ def marcar_pagamento_como_pago(request, pk):
                 return redirect(retorno)
         return render(request, 'admissional/confirmar_pagamento.html', {
             'pagamento': pagamento, 'erro': erro, 'hoje': timezone.localdate(), 'retorno': retorno,
+            'situacao_aprovacao': situacao_aprovacao_pagamento(pagamento),
         })
     return redirect(retorno)
+
+
+@login_required
+@require_POST
+@access_required(
+    permission='admissional.change_pagamentocolaborador',
+    profiles=('rh', 'financeiro', 'gestor'),
+)
+@transaction.atomic
+def solicitar_aprovacao_pagamento_colaborador(request, pk):
+    pagamento = get_object_or_404(PagamentoColaborador.objects.select_for_update(), pk=pk)
+    if pagamento.status != 'pendente':
+        messages.error(request, 'Somente pagamentos pendentes podem ser enviados para aprovação.')
+    else:
+        try:
+            with transaction.atomic():
+                sincronizar_aprovacao_pagamento(pagamento, request.user, reenviar=True)
+        except ValidationError as exc:
+            messages.error(request, ' '.join(exc.messages))
+        else:
+            messages.success(request, 'Pagamento encaminhado para aprovação de Luiz.')
+    return redirect('editar_pagamento_colaborador', pk=pk)
 
 
 @login_required
@@ -952,6 +988,7 @@ def retirar_pagamento_folha(request, pk):
         pagamento.status = 'cancelado'
         pagamento.recorrente = False
         pagamento.save(update_fields=['status', 'recorrente', 'atualizado_em'])
+        sincronizar_aprovacao_pagamento(pagamento, request.user)
         messages.success(request, 'Lançamento retirado da folha sem apagar o histórico.')
     return redirect('lista_pagamentos_colaboradores')
 

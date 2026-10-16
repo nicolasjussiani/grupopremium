@@ -7,15 +7,17 @@ from django.core import signing
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from admissional.models import Colaborador, PagamentoColaborador
 from core.direct_uploads import TOKEN_SALT
 from core.models import ArquivoImportado
+from core.payment_approvals import sincronizar_aprovacao_pagamento
 from core.views_upload import _can_upload
 
 
+@override_settings(APROVADOR_PAGAMENTOS_USERNAME='luiz_teste', APROVADOR_OPERACIONAL_USERNAME='thiago_teste')
 class ComprovantesPagamentoTest(TestCase):
     def test_confirmacao_retorna_para_a_semana_de_origem(self):
         self.client.post(reverse('novo_pagamento_colaborador'), self.dados)
@@ -24,6 +26,7 @@ class ComprovantesPagamentoTest(TestCase):
         url = reverse('marcar_pagamento_como_pago', args=[pagamento.pk])
         response = self.client.get(url, {'next': retorno})
         self.assertEqual(response.context['retorno'], retorno)
+        self.aprovar(pagamento)
         response = self.client.post(url, {
             'next': retorno, 'direct_upload_comprovante_folha': self.token(),
         })
@@ -48,6 +51,7 @@ class ComprovantesPagamentoTest(TestCase):
             colaborador=self.colaborador, tipo='vale_transporte', valor=90,
             competencia=date(2026, 9, 28), data_vencimento=date(2026, 9, 28),
         )
+        self.aprovar(pendente)
         with patch('admissional.views.timezone.localdate', return_value=date(2026, 9, 28)):
             response = self.client.post(reverse('marcar_pagamento_como_pago', args=[pendente.pk]), {
                 'direct_upload_comprovante_folha': self.token(),
@@ -61,6 +65,7 @@ class ComprovantesPagamentoTest(TestCase):
     def test_confirmar_exige_comprovante_e_vincula_ao_pagamento(self):
         self.client.post(reverse('novo_pagamento_colaborador'), self.dados)
         pagamento = PagamentoColaborador.objects.get()
+        self.aprovar(pagamento)
         url = reverse('marcar_pagamento_como_pago', args=[pagamento.pk])
         self.assertContains(self.client.get(url), 'Confirmar pagamento com comprovante')
         response = self.client.post(url)
@@ -79,17 +84,19 @@ class ComprovantesPagamentoTest(TestCase):
     def test_comprovante_ja_anexado_pode_ser_usado_na_confirmacao(self):
         self.client.post(reverse('novo_pagamento_colaborador'), {**self.dados, 'direct_upload_comprovante_folha': self.token()})
         pagamento = PagamentoColaborador.objects.get()
+        self.aprovar(pagamento)
         response = self.client.post(reverse('marcar_pagamento_como_pago', args=[pagamento.pk]))
         self.assertEqual(response.status_code, 302)
         pagamento.refresh_from_db()
         self.assertEqual(pagamento.status, 'pago')
 
-    def test_novo_e_edicao_nao_permitam_confirmar_sem_comprovante(self):
+    def test_novo_exige_aprovacao_previa_e_edicao_autorizada_exige_comprovante(self):
         dados = {**self.dados, 'status': 'pago', 'data_pagamento': '2026-09-05'}
-        self.assertContains(self.client.post(reverse('novo_pagamento_colaborador'), dados), 'Anexe um comprovante')
+        self.assertContains(self.client.post(reverse('novo_pagamento_colaborador'), dados), 'Cadastre o pagamento como pendente')
         self.assertFalse(PagamentoColaborador.objects.exists())
         self.client.post(reverse('novo_pagamento_colaborador'), self.dados)
         pagamento = PagamentoColaborador.objects.get()
+        self.aprovar(pagamento)
         response = self.client.post(reverse('editar_pagamento_colaborador', args=[pagamento.pk]), dados)
         self.assertContains(response, 'Anexe um comprovante')
         pagamento.refresh_from_db()
@@ -97,6 +104,8 @@ class ComprovantesPagamentoTest(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_superuser('admin_comprovante')
+        self.luiz = User.objects.create_user('luiz_teste')
+        User.objects.create_user('thiago_teste')
         self.client.force_login(self.user)
         self.colaborador = Colaborador.objects.create(nome='Pessoa comprovante')
         self.dados = {
@@ -104,6 +113,12 @@ class ComprovantesPagamentoTest(TestCase):
             'competencia': '2026-09-01', 'competencia_fim': '2026-09-30',
             'valor': '2000,00', 'data_vencimento': '2026-09-05', 'status': 'pendente',
         }
+
+    def aprovar(self, pagamento):
+        aprovacao = sincronizar_aprovacao_pagamento(pagamento, self.user)
+        cliente = Client()
+        cliente.force_login(self.luiz)
+        self.assertEqual(cliente.post(reverse('aprovar_registro', args=[aprovacao.pk])).status_code, 302)
 
     def token(self, content=b'%PDF-1.4 comprovante', uid=None):
         key = default_storage.save('_temporarios/admissional/pagamentos/comprovantes/test.pdf', ContentFile(content))

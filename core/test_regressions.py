@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from datetime import date
 from io import StringIO
 from pathlib import Path
@@ -668,6 +670,7 @@ class DocumentacaoColaboradorTests(TestCase):
                 self.assertContains(mobile, 'com documentação incompleta')
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class WorkflowIntegrityTests(TestCase):
     def _user(self, username, perfil, group=None):
         user = User.objects.create_user(username=username, password='senha-forte-123')
@@ -762,3 +765,6 @@ class WorkflowIntegrityTests(TestCase):
         self.assertEqual(response.status_code, 302)
         demanda.refresh_from_db()
         self.assertEqual(demanda.status, 'em_triagem')
+
+    def setUp(self):
+        configurar_aprovadores(self)

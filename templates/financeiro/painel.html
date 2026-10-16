@@ -81,7 +81,7 @@
         <td>{{ doc.numero_documento }}<br>{{ doc.descricao }}</td>
         <td>R$ {{ doc.valor|floatformat:2 }}</td>
         <td>{{ doc.data_vencimento|date:"d/m/Y"|default:"—" }}</td>
-        <td>{% if doc.status == 'cancelado' %}<span class="badge badge-danger">Cancelado</span>{% else %}<span class="badge {% if doc.situacao_pagamento == 'pago' %}badge-success{% elif doc.situacao_pagamento == 'a_pagar' %}badge-warning{% else %}badge-info{% endif %}">{{ doc.get_situacao_pagamento_display }}</span>{% endif %}</td>
+        <td>{% if doc.status == 'cancelado' %}<span class="badge badge-danger">Cancelado</span>{% else %}<span class="badge {% if doc.situacao_pagamento == 'pago' %}badge-success{% elif doc.situacao_pagamento == 'a_pagar' %}badge-warning{% else %}badge-info{% endif %}">{{ doc.get_situacao_pagamento_display }}</span>{% if doc.situacao_pagamento == 'a_pagar' %}<br>{% include 'financeiro/_situacao_aprovacao_pagamento.html' with situacao=doc.situacao_aprovacao %}{% endif %}{% endif %}</td>
         <td>{{ doc.data_pagamento|date:"d/m/Y"|default:"—" }}</td>
         <td><a href="{% url 'detalhe_documento' doc.pk %}" class="btn btn-sm btn-outline">Abrir</a></td>
       </tr>

@@ -353,8 +353,6 @@ def nova_solicitacao(request):
             else:
                 assign_direct_upload(requisicao, request, 'comprovante_pagamento')
 
-            if requisicao.comprovante_pagamento:
-                requisicao.status = 'aprovada'
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc))
             return render_form(itens_form, manutencoes_form)
@@ -366,8 +364,6 @@ def nova_solicitacao(request):
             messages.error(request, '; '.join(exc.messages))
             return render_form(itens_form, manutencoes_form)
 
-        medida_provisoria = bool(requisicao.comprovante_pagamento)
-
         for material_id, quantidade, valor_dec in itens_validados:
             material = materiais[material_id]
             solicitacao = SolicitacaoMaterial(
@@ -378,65 +374,42 @@ def nova_solicitacao(request):
                 solicitante_usuario=request.user,
                 unidade_destino=unidade_destino,
                 justificativa=justificativa,
-                status='entregue' if medida_provisoria else 'pendente',
+                status='pendente',
             )
-            if medida_provisoria:
-                solicitacao.atendida_por = request.user
             solicitacao.full_clean()
             solicitacao.save()
-
-            if medida_provisoria:
-                v_unit = valor_dec if valor_dec and valor_dec > 0 else Decimal('0.01')
-                PedidoCompra.objects.create(
-                    solicitacao=solicitacao,
-                    fornecedor='Fornecedor Não Informado (Provisório)',
-                    valor_unitario=v_unit,
-                    valor_total=(v_unit * quantidade).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
-                    status='concluido',
-                    aprovado_por=request.user,
-                    obs='Criado automaticamente via anexo de comprovante de pagamento na requisição (Medida Provisória).'
-                )
 
         for equipamento_id, problema in manutencoes_validadas:
             SolicitacaoManutencao.objects.create(
                 requisicao=requisicao,
                 equipamento=equipamentos[equipamento_id],
                 problema=problema,
-                status='aguardando_manutencao' if medida_provisoria else 'pendente',
+                status='pendente',
             )
 
-        if not medida_provisoria:
-            from core.approval_workflow import criar_fluxo_compras
-            descricao = (
-                f'Unidade: {requisicao.unidade_destino}\n'
-                f'Quantidade de produtos: {len(itens_validados)}\n'
-                f'Solicitações de manutenção: {len(manutencoes_validadas)}\n'
-                f'Justificativa: {requisicao.justificativa}'
+        from core.approval_workflow import criar_fluxo_compras
+        descricao = (
+            f'Unidade: {requisicao.unidade_destino}\n'
+            f'Quantidade de produtos: {len(itens_validados)}\n'
+            f'Solicitações de manutenção: {len(manutencoes_validadas)}\n'
+            f'Justificativa: {requisicao.justificativa}'
+        )
+        try:
+            criar_fluxo_compras(
+                objeto=requisicao,
+                titulo=f'RC {requisicao.numero} — {requisicao.unidade_destino}',
+                descricao=descricao,
+                solicitado_por=request.user,
             )
-            try:
-                criar_fluxo_compras(
-                    objeto=requisicao,
-                    titulo=f'RC {requisicao.numero} — {requisicao.unidade_destino}',
-                    descricao=descricao,
-                    solicitado_por=request.user,
-                )
-            except ValidationError as exc:
-                messages.error(request, '; '.join(exc.messages))
-                response = render_form(itens_form, manutencoes_form)
-                transaction.set_rollback(True)
-                return response
-            messages.success(
-                request,
-                f'Requisição {requisicao.numero} criada e enviada para aprovação do CEO.',
-            )
-        else:
-            messages.warning(
-                request,
-                f'Aviso: A requisição {requisicao.numero} foi processada como Medida Provisória e os pedidos foram gerados como concluídos.'
-            )
-        if medida_provisoria and itens_validados:
-            requisicao.status = 'pedido'
-            requisicao.save(update_fields=['status', 'atualizado_em'])
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages))
+            response = render_form(itens_form, manutencoes_form)
+            transaction.set_rollback(True)
+            return response
+        messages.success(
+            request,
+            f'Requisição {requisicao.numero} criada e enviada para aprovação de Thiago.',
+        )
         return redirect('detalhe_requisicao', pk=requisicao.pk)
 
     return render_form()
@@ -1047,10 +1020,7 @@ def editar_requisicao(request, pk):
             else:
                 assign_direct_upload(requisicao, request, 'comprovante_pagamento')
 
-            if requisicao.comprovante_pagamento:
-                requisicao.status = 'aprovada'
-            else:
-                requisicao.status = 'aguardando_ceo'
+            requisicao.status = 'aguardando_ceo'
         except ValidationError as exc:
             messages.error(request, '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc))
             return render_form(itens_form, manutencoes_form)
@@ -1066,8 +1036,6 @@ def editar_requisicao(request, pk):
         requisicao.itens.all().delete()
         requisicao.manutencoes.all().delete()
 
-        medida_provisoria = bool(requisicao.comprovante_pagamento)
-
         for material_id, quantidade, valor_dec in itens_validados:
             material = materiais[material_id]
             solicitacao = SolicitacaoMaterial(
@@ -1078,31 +1046,17 @@ def editar_requisicao(request, pk):
                 solicitante_usuario=request.user,
                 unidade_destino=unidade_destino,
                 justificativa=justificativa,
-                status='entregue' if medida_provisoria else 'pendente',
+                status='pendente',
             )
-            if medida_provisoria:
-                solicitacao.atendida_por = request.user
             solicitacao.full_clean()
             solicitacao.save()
-
-            if medida_provisoria:
-                v_unit = valor_dec if valor_dec and valor_dec > 0 else Decimal('0.01')
-                PedidoCompra.objects.create(
-                    solicitacao=solicitacao,
-                    fornecedor='Fornecedor Não Informado (Provisório)',
-                    valor_unitario=v_unit,
-                    valor_total=(v_unit * quantidade).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
-                    status='concluido',
-                    aprovado_por=request.user,
-                    obs='Criado automaticamente via anexo de comprovante de pagamento na requisição (Medida Provisória).'
-                )
 
         for equipamento_id, problema in manutencoes_validadas:
             SolicitacaoManutencao.objects.create(
                 requisicao=requisicao,
                 equipamento=equipamentos[equipamento_id],
                 problema=problema,
-                status='aguardando_manutencao' if medida_provisoria else 'pendente',
+                status='pendente',
             )
 
         from core.models import AprovacaoRegistro
@@ -1113,36 +1067,30 @@ def editar_requisicao(request, pk):
             object_id=requisicao.pk, status='pendente',
         ).update(status='cancelado')
 
-        if not medida_provisoria:
-            from core.approval_workflow import criar_fluxo_compras
-            
-            descricao = (
-                f'Unidade: {requisicao.unidade_destino}\n'
-                f'Quantidade de produtos: {len(itens_validados)}\n'
-                f'Solicitações de manutenção: {len(manutencoes_validadas)}\n'
-                f'Justificativa: {requisicao.justificativa}'
+        from core.approval_workflow import criar_fluxo_compras
+
+        descricao = (
+            f'Unidade: {requisicao.unidade_destino}\n'
+            f'Quantidade de produtos: {len(itens_validados)}\n'
+            f'Solicitações de manutenção: {len(manutencoes_validadas)}\n'
+            f'Justificativa: {requisicao.justificativa}'
+        )
+        try:
+            criar_fluxo_compras(
+                objeto=requisicao,
+                titulo=f'RC {requisicao.numero} — {requisicao.unidade_destino}',
+                descricao=descricao,
+                solicitado_por=request.user,
             )
-            try:
-                criar_fluxo_compras(
-                    objeto=requisicao,
-                    titulo=f'RC {requisicao.numero} — {requisicao.unidade_destino}',
-                    descricao=descricao,
-                    solicitado_por=request.user,
-                )
-            except ValidationError as exc:
-                messages.error(request, '; '.join(exc.messages))
-                response = render_form(itens_form, manutencoes_form)
-                transaction.set_rollback(True)
-                return response
-            messages.success(
-                request,
-                f'Requisição {requisicao.numero} atualizada e reenviada para aprovação do CEO.'
-            )
-        else:
-            messages.warning(
-                request,
-                f'Aviso: A requisição {requisicao.numero} foi processada como Medida Provisória e os pedidos foram gerados como concluídos.'
-            )
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages))
+            response = render_form(itens_form, manutencoes_form)
+            transaction.set_rollback(True)
+            return response
+        messages.success(
+            request,
+            f'Requisição {requisicao.numero} atualizada e reenviada para aprovação de Thiago.'
+        )
         return redirect('detalhe_requisicao', pk=requisicao.pk)
 
     return render_form()

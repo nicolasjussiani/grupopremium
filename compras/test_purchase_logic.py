@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -13,8 +15,10 @@ from core.approval_workflow import criar_fluxo_compras
 from core.models import AprovacaoRegistro, PerfilUsuario
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class LogicaPedidoCompraTests(TestCase):
     def setUp(self):
+        configurar_aprovadores(self)
         self.aprovador = User.objects.create_user(
             username='adriana', password='senha-forte-123'
         )

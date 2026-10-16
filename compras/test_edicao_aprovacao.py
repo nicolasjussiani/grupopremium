@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -5,13 +7,15 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from compras.models import Material, RequisicaoCompra, SolicitacaoMaterial
+from compras.models import Material, PedidoCompra, RequisicaoCompra, SolicitacaoMaterial
 from core.approval_workflow import criar_fluxo_compras
 from core.models import AprovacaoRegistro, PerfilUsuario
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class EdicaoAprovacaoTests(TestCase):
     def setUp(self):
+        configurar_aprovadores(self)
         self.comprador = User.objects.create_user('comprador')
         PerfilUsuario.objects.create(usuario=self.comprador, perfil='compras')
         self.adriana = User.objects.create_user('adriana')
@@ -82,27 +86,32 @@ class EdicaoAprovacaoTests(TestCase):
         self.assertEqual(self.primeira.motivo_rejeicao, 'Revisar materiais')
         self.assertEqual(self.rc.itens.get().status, 'pendente')
 
-    def verificar_conclusao_por_comprovante(self, antiga):
+    def verificar_aprovacao_obrigatoria_com_comprovante(self, antiga):
         def anexar(objeto, request, campo):
             if campo == 'comprovante_pagamento':
                 objeto.comprovante_pagamento = 'compras/comprovante.pdf'
 
         with patch('core.direct_uploads.assign_direct_upload', side_effect=anexar):
             self.assertEqual(self.editar().status_code, 302)
-        self.assertFalse(AprovacaoRegistro.objects.filter(
-            object_id=self.rc.pk, status='pendente',
-        ).exists())
+        nova = AprovacaoRegistro.objects.get(object_id=self.rc.pk, status='pendente')
+        self.assertEqual(nova.destinatario, self.ceo)
         self.assertEqual(self.decidir(antiga.destinatario, antiga).status_code, 404)
         self.rc.refresh_from_db()
+        self.assertEqual(self.rc.status, 'aguardando_ceo')
+        self.assertEqual(self.rc.itens.get().status, 'pendente')
+        self.assertFalse(PedidoCompra.objects.exists())
+        self.assertEqual(self.rc.comprovante_pagamento.name, 'compras/comprovante.pdf')
+        self.assertEqual(self.decidir(self.ceo, nova).status_code, 302)
+        self.rc.refresh_from_db()
         self.assertEqual(self.rc.status, 'aprovada')
-        self.assertEqual(self.rc.itens.get().status, 'entregue')
+        self.assertEqual(self.rc.itens.get().status, 'atendido_interno')
 
-    def test_comprovante_cancela_fila_ceo_sem_reabrir_requisicao(self):
-        self.verificar_conclusao_por_comprovante(self.primeira)
+    def test_comprovante_mantem_decisao_nominal_obrigatoria(self):
+        self.verificar_aprovacao_obrigatoria_com_comprovante(self.primeira)
 
     def test_comprovante_preserva_decisao_historica_da_adriana(self):
         historico = self.historico_adriana()
-        self.verificar_conclusao_por_comprovante(self.primeira)
+        self.verificar_aprovacao_obrigatoria_com_comprovante(self.primeira)
         historico.refresh_from_db()
         self.assertEqual(historico.status, 'aprovado')
         self.assertEqual(historico.aprovado_por, self.adriana)

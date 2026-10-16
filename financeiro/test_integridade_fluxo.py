@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -8,12 +10,14 @@ from core.models import AprovacaoRegistro
 from .models import AuditoriaItem, DocumentoFinanceiro, LancamentoERP
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class IntegridadeFluxoFinanceiroTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.ceo = User.objects.create_superuser('ceo_premium')
 
     def setUp(self):
+        configurar_aprovadores(self)
         self.client.force_login(self.ceo)
         self.doc = DocumentoFinanceiro.objects.create(
             tipo='boleto', numero_documento='FLUXO-1', descricao='Documento de teste',
@@ -96,7 +100,7 @@ class IntegridadeFluxoFinanceiroTests(TestCase):
         self.auditar(dados)
         self.lancar()
         lancamento = self.doc.lancamentos.get()
-        aprovacao = AprovacaoRegistro.objects.get(object_id=lancamento.pk, modulo='financeiro')
+        aprovacao = AprovacaoRegistro.objects.get(object_id=lancamento.pk, content_type__model='lancamentoerp', modulo='financeiro')
         for status in ('lancado', 'arquivado'):
             with self.subTest(status=status):
                 if status == 'arquivado':
@@ -123,7 +127,7 @@ class IntegridadeFluxoFinanceiroTests(TestCase):
         self.auditar(self.checklist())
         self.lancar()
         lancamento = self.doc.lancamentos.get()
-        aprovacao = AprovacaoRegistro.objects.get(object_id=lancamento.pk, modulo='financeiro')
+        aprovacao = AprovacaoRegistro.objects.get(object_id=lancamento.pk, content_type__model='lancamentoerp', modulo='financeiro')
         self.client.post(reverse('rejeitar_registro', args=[aprovacao.pk]), {
             'motivo_rejeicao': 'Conferir dados novamente',
         })

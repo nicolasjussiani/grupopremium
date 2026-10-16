@@ -12,7 +12,10 @@ from django.views.decorators.http import require_POST
 from django.core.exceptions import ValidationError
 
 from core.access import user_has_access, user_is_executive
-from core.approval_workflow import usuario_e_aprovador_central
+from core.approval_workflow import (
+    FINALIDADE_OPERACIONAL, FINALIDADE_PAGAMENTO, MODELOS_PAGAMENTO,
+    usuario_e_aprovador, usuario_tem_papel_aprovador,
+)
 from core.models import AprovacaoRegistro, LogAtividade, Notificacao
 from admissional.models import Colaborador
 
@@ -72,14 +75,21 @@ def _modulos_do_usuario(user):
 
 
 def _aprovacoes_do_usuario(user):
-    """A fila pendente é exclusiva do CEO; o histórico mantém seu acesso legado."""
+    """Cada responsável acessa sua finalidade; decisões mantêm o acesso histórico."""
     historico = ~Q(status='pendente') & (
         Q(destinatario=user)
         | Q(destinatario__isnull=True, modulo__in=_modulos_do_usuario(user))
     )
-    if usuario_e_aprovador_central(user):
-        return AprovacaoRegistro.objects.filter(Q(status='pendente') | historico)
-    return AprovacaoRegistro.objects.filter(historico)
+    modelos_pagamento = Q(pk__in=[])
+    for app_label, model in MODELOS_PAGAMENTO:
+        modelos_pagamento |= Q(content_type__app_label=app_label, content_type__model=model)
+    finalidades_autorizadas = Q(pk__in=[])
+    if usuario_e_aprovador(user, FINALIDADE_PAGAMENTO):
+        finalidades_autorizadas |= Q(finalidade=FINALIDADE_PAGAMENTO) & modelos_pagamento
+    if usuario_e_aprovador(user, FINALIDADE_OPERACIONAL):
+        finalidades_autorizadas |= Q(finalidade=FINALIDADE_OPERACIONAL) & ~modelos_pagamento
+    pendentes = Q(status='pendente', destinatario=user) & finalidades_autorizadas
+    return AprovacaoRegistro.objects.filter(pendentes | historico)
 
 
 @login_required
@@ -133,7 +143,7 @@ def painel_mobile(request):
         'total_nao_lidas': Notificacao.objects.filter(
             destinatario=request.user, lida=False
         ).count(),
-        'pode_aprovar': usuario_e_aprovador_central(request.user),
+        'pode_aprovar': usuario_tem_papel_aprovador(request.user),
         'is_visao_executiva': is_visao_executiva,
         'atividades_recentes': atividades_recentes,
         'areas_movimentadas': areas_movimentadas,
@@ -299,7 +309,18 @@ def _pendencia_para_decisao(user, pk):
     candidata = get_object_or_404(
         autorizadas.select_related('content_type'), pk=pk, status='pendente',
     )
-    if candidata.modulo == 'compras' and candidata.content_type.app_label == 'compras':
+    if candidata.finalidade == FINALIDADE_PAGAMENTO:
+        modelo = candidata.content_type.model_class()
+        get_object_or_404(modelo.objects.select_for_update(), pk=candidata.object_id)
+    elif (
+        candidata.content_type.app_label == 'financeiro'
+        and candidata.content_type.model == 'lancamentoerp'
+    ):
+        from financeiro.models import DocumentoFinanceiro, LancamentoERP
+        lancamento = get_object_or_404(LancamentoERP, pk=candidata.object_id)
+        get_object_or_404(DocumentoFinanceiro.objects.select_for_update(), pk=lancamento.documento_id)
+        get_object_or_404(LancamentoERP.objects.select_for_update(), pk=lancamento.pk)
+    elif candidata.modulo == 'compras' and candidata.content_type.app_label == 'compras':
         from compras.models import PedidoCompra, RequisicaoCompra
         modelo = {
             'pedidocompra': PedidoCompra,
@@ -319,9 +340,9 @@ def _pendencia_para_decisao(user, pk):
     # O bloqueio da origem pode ter aguardado uma edição, exclusão ou decisão.
     # Revalida a fila e seu vínculo depois da espera, sem reutilizar o estado lido.
     return get_object_or_404(
-        autorizadas.select_for_update(), pk=pk, status='pendente',
+        _aprovacoes_do_usuario(user).select_for_update(), pk=pk, status='pendente',
         content_type_id=candidata.content_type_id, object_id=candidata.object_id,
-        modulo=candidata.modulo,
+        modulo=candidata.modulo, finalidade=candidata.finalidade, destinatario=user,
     )
 
 
@@ -412,6 +433,10 @@ def _executar_callback_aprovacao(aprovacao, decisao, usuario):
     Cada m├│dulo define o que acontece quando um item ├® aprovado/rejeitado.
     """
     obj = aprovacao.objeto
+    if aprovacao.finalidade == FINALIDADE_PAGAMENTO:
+        from core.payment_approvals import validar_snapshot_pagamento
+        validar_snapshot_pagamento(obj, aprovacao)
+        return
     if obj is None:
         return
 

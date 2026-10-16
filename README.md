@@ -144,8 +144,9 @@ Execute `python manage.py migrate` antes de publicar para aplicar
 
 ## PWA de aprovacoes no iPhone
 
-- Acesse `/mobile/` com sua conta para consultar notificações. As decisões de
-  aprovação ficam disponíveis exclusivamente para a conta ativa `ceo_premium`.
+- Acesse `/mobile/` com sua conta para consultar notificações. Luiz
+  (`admin@construipem.com.br`) recebe pagamentos; Thiago (`thiago001`) recebe
+  as demais aprovações.
 - No Safari do iPhone, use **Compartilhar > Adicionar a Tela de Inicio**.
 - O aplicativo instalado abre somente a central de notificacoes, aprovacoes,
   detalhes dos processos e historico de decisoes.
@@ -156,8 +157,8 @@ Execute `python manage.py migrate` antes de publicar para aplicar
 - Na Vercel, cada salvamento aceita no maximo 4 MB somando os novos anexos;
   documentos adicionais devem ser enviados em etapas.
 - Migrações devem ser executadas pelo processo de deploy, nunca por uma rota HTTP.
-- Deve existir uma única conta ativa `ceo_premium` para receber as aprovações.
-- Os grupos e perfis mantêm os demais acessos por área, sem delegar a decisão do CEO.
+- As contas configuradas de Luiz e Thiago precisam existir e estar ativas.
+- Os grupos e perfis mantêm os demais acessos por área, sem delegar essas decisões.
 - O seed exige `DEBUG=True`, `ALLOW_DEMO_SEED=True` e uma senha em
   `SEED_DEFAULT_PASSWORD`.
 
@@ -168,26 +169,21 @@ S3, Gemini e Telegram. Remover valores do arquivo atual nao invalida segredos qu
 ja foram publicados no historico Git.
 
 
-## Aprovações centralizadas no CEO
+## Aprovações de Luiz e Thiago
 
-Todas as solicitações da central de aprovações são atribuídas diretamente à conta
-ativa `ceo_premium`, em uma única etapa final. Compras não depende mais da análise
-da Adriana; requisições novas e reenviadas ficam em `aguardando_ceo`. A validação
-final de lançamentos financeiros também passa pela central. A manutenção só pode
-ser iniciada ou concluída depois da aprovação. Conferências operacionais e recibos
-continuam nos respectivos módulos.
+Luiz (`admin@construipem.com.br`) autoriza todos os pagamentos, incluindo folha,
+VT e fornecedores. Thiago (`thiago001`) decide as demais solicitações da central,
+incluindo compras, manutenção e validação contábil. Esses são os logins padrão;
+`APROVADOR_PAGAMENTOS_USERNAME` e `APROVADOR_OPERACIONAL_USERNAME` permitem
+configurá-los explicitamente no ambiente.
 
-Na publicação, aplique `core.0022_centralizar_aprovacoes_ceo`,
-`compras.0013_requisicao_aprovacao_ceo` e
-`financeiro.0012_lancamentos_pendentes_ceo` com `python manage.py migrate`.
-As pendências existentes passam ao CEO; decisões concluídas mantêm seus autores
-originais. A transferência registra os responsáveis anteriores na auditoria e
-atualiza apenas os avisos vinculados às aprovações. Requisições e lançamentos que
-aguardavam decisão sem registro na central também são recuperados. Se houver
-pendências e a conta do CEO estiver ausente, inativa ou ambígua, a migração para
-sem transferir parcialmente os registros.
+A autorização não registra a quitação. A baixa exige aprovação para os mesmos
+dados e, na folha, comprovante. Alterações financeiras e reativação de obrigação
+cancelada exigem nova autorização. Administradores não decidem em nome dos
+responsáveis, e a tela Django admin mantém as aprovações somente para consulta.
 
-As telas web, mobile, contadores e endpoints de decisão reservam a fila pendente
-ao CEO. Outros administradores conservam suas funções operacionais e acesso ao
-histórico autorizado, mas não aprovam ou rejeitam em nome do CEO. A tela Django
-admin mantém os campos de decisão somente para consulta.
+Antes de disponibilizar a atualização, aplique `python manage.py migrate`.
+Depois de publicar a nova versão, confira `python manage.py redistribuir_aprovacoes`
+e execute a transferência com `python manage.py redistribuir_aprovacoes --apply`. Somente pendências são
+redistribuídas; decisões anteriores e seus autores permanecem no histórico.
+Veja o [procedimento completo de ativação](docs/aprovacoes-luiz-thiago.md).

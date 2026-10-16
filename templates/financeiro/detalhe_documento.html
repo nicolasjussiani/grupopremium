@@ -80,6 +80,12 @@
     <div class="card">
       <div class="card-title">{% if documento.status == 'cancelado' %}Pagamento suspenso — documento cancelado{% else %}Situação: {{ documento.get_situacao_pagamento_display }}{% endif %}</div>
       {% if documento.data_pagamento %}<p>Baixa em {{ documento.data_pagamento|date:"d/m/Y" }}</p>{% endif %}
+      {% if documento.situacao_pagamento == 'a_pagar' and documento.status != 'cancelado' %}
+      {% include 'financeiro/_situacao_aprovacao_pagamento.html' with situacao=situacao_aprovacao %}
+      {% if pode_alterar_pagamento %}
+      {% if situacao_aprovacao == 'rejeitado' or situacao_aprovacao == 'nao_solicitado' %}<form method="post" action="{% url 'solicitar_aprovacao_pagamento_documento' documento.pk %}" style="margin-top:12px;">{% csrf_token %}<button type="submit" class="btn btn-outline">{% if situacao_aprovacao == 'rejeitado' %}Reenviar para Luiz{% else %}Solicitar aprovação de Luiz{% endif %}</button></form>{% endif %}
+      {% endif %}
+      {% endif %}
       {% if pode_alterar_pagamento %}
       <form method="post" action="{% url 'atualizar_pagamento_documento' documento.pk %}" style="margin-top:16px;">
         {% csrf_token %}

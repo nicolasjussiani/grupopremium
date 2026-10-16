@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.db.models.query import QuerySet
 from django.http import Http404
 from django.shortcuts import get_object_or_404
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from compras.models import Material, RequisicaoCompra
@@ -25,11 +25,12 @@ class ApprovalButtonsParser(HTMLParser):
             self.urls[attrs['id']] = attrs.get('data-url')
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='thiago_teste', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class ApprovalActionsTests(TestCase):
     def setUp(self):
         self.adriana = User.objects.create_user('adriana')
         PerfilUsuario.objects.create(usuario=self.adriana, perfil='gestor')
-        self.ceo = User.objects.create_user('ceo_premium')
+        self.aprovador = User.objects.create_user('thiago_teste')
         self.rc = RequisicaoCompra.objects.create(
             solicitante='Comprador', unidade_destino='Matriz', justificativa='Reposição',
         )
@@ -48,7 +49,7 @@ class ApprovalActionsTests(TestCase):
         self.assertEqual(url, reverse(f'{action}_registro', args=[approval.pk]))
         return url
 
-    def test_botao_da_lista_aprova_diretamente_com_ceo(self):
+    def test_botao_da_lista_aprova_diretamente_com_aprovador_operacional(self):
         self.client.force_login(self.adriana)
         response = self.client.get(reverse('aprovacoes_pendentes'))
         self.assertNotContains(response, f'btn-aprovar-{self.aprovacao.pk}')
@@ -56,32 +57,32 @@ class ApprovalActionsTests(TestCase):
             self.client.post(reverse('aprovar_registro', args=[self.aprovacao.pk])).status_code,
             404,
         )
-        url = self.button_url(self.ceo, 'aprovar', self.aprovacao)
+        url = self.button_url(self.aprovador, 'aprovar', self.aprovacao)
         self.assertRedirects(self.client.post(url), reverse('aprovacoes_pendentes'))
         self.aprovacao.refresh_from_db()
         self.rc.refresh_from_db()
-        self.assertEqual(self.aprovacao.aprovado_por, self.ceo)
+        self.assertEqual(self.aprovacao.aprovado_por, self.aprovador)
         self.assertEqual(self.rc.status, 'aprovada')
         self.assertEqual(AprovacaoRegistro.objects.filter(
             content_type=self.aprovacao.content_type, object_id=self.rc.pk,
         ).count(), 1)
 
-    def test_botao_da_lista_rejeita_diretamente_com_ceo(self):
-        url = self.button_url(self.ceo, 'rejeitar', self.aprovacao)
+    def test_botao_da_lista_rejeita_diretamente_com_aprovador_operacional(self):
+        url = self.button_url(self.aprovador, 'rejeitar', self.aprovacao)
         self.assertRedirects(
             self.client.post(url, {'motivo_rejeicao': 'Revisar solicitação'}),
             reverse('aprovacoes_pendentes'),
         )
         self.aprovacao.refresh_from_db()
         self.rc.refresh_from_db()
-        self.assertEqual(self.aprovacao.aprovado_por, self.ceo)
+        self.assertEqual(self.aprovacao.aprovado_por, self.aprovador)
         self.assertEqual(self.rc.status, 'rejeitada')
         self.assertEqual(AprovacaoRegistro.objects.filter(
             content_type=self.aprovacao.content_type, object_id=self.rc.pk,
         ).count(), 1)
 
     def verificar_ordem_dos_bloqueios(self, acao):
-        self.client.force_login(self.ceo)
+        self.client.force_login(self.aprovador)
         bloqueios = []
         obter = QuerySet.get
 
@@ -98,7 +99,7 @@ class ApprovalActionsTests(TestCase):
         self.assertEqual(bloqueios[:2], [RequisicaoCompra, AprovacaoRegistro])
         self.aprovacao.refresh_from_db()
         self.rc.refresh_from_db()
-        self.assertEqual(self.aprovacao.aprovado_por, self.ceo)
+        self.assertEqual(self.aprovacao.aprovado_por, self.aprovador)
         self.assertEqual(self.rc.status, 'aprovada' if acao == 'aprovar_registro' else 'rejeitada')
 
     def test_aprovacao_bloqueia_origem_antes_da_fila_e_conclui_callback(self):
@@ -127,7 +128,7 @@ class ApprovalActionsTests(TestCase):
         # para que o 404 não reverta a operação concorrente simulada na conexão.
         with patch('core.views_aprovacao.get_object_or_404', side_effect=obter):
             with self.assertRaises(Http404):
-                _pendencia_para_decisao(self.ceo, self.aprovacao.pk)
+                _pendencia_para_decisao(self.aprovador, self.aprovacao.pk)
         self.assertTrue(alterou)
 
     def test_edicao_entre_leitura_e_bloqueio_impede_decidir_aprovacao_cancelada(self):
@@ -165,3 +166,11 @@ class ApprovalActionsTests(TestCase):
         self.decidir_com_alteracao_antes_do_bloqueio(excluir)
         self.assertFalse(RequisicaoCompra.objects.filter(pk=self.rc.pk).exists())
         self.assertFalse(AprovacaoRegistro.objects.filter(pk=self.aprovacao.pk).exists())
+
+    def test_desativacao_entre_leitura_e_bloqueio_revoga_poder_de_decisao(self):
+        self.decidir_com_alteracao_antes_do_bloqueio(
+            lambda: User.objects.filter(pk=self.aprovador.pk).update(is_active=False),
+        )
+        self.aprovacao.refresh_from_db()
+        self.assertEqual(self.aprovacao.status, 'pendente')
+        self.assertIsNone(self.aprovacao.aprovado_por)

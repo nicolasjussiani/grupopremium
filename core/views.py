@@ -262,27 +262,57 @@ def revisar_arquivo_importado(request, pk):
         if form.is_valid():
             data = form.cleaned_data
             identificador = metadados.get('identificador_transacao') or f'arquivo:{arquivo.sha256}'
-            pagamento = PagamentoColaborador.objects.filter(
+            pagamento = PagamentoColaborador.objects.select_for_update().filter(
                 identificador_transacao=identificador
             ).first() or PagamentoColaborador(identificador_transacao=identificador)
+            exigir_aprovacao_existente = pagamento.pk is not None and pagamento.status != 'pago'
+            aprovacao_quitado = None
+            dados_quitado = None
+            if pagamento.pk and pagamento.status == 'pago':
+                from core.payment_approvals import snapshot_pagamento
+                aprovacao_quitado = AprovacaoRegistro.objects.select_for_update().filter(
+                    content_type__app_label='admissional',
+                    content_type__model='pagamentocolaborador', object_id=pagamento.pk,
+                    finalidade='pagamento', status='aprovado',
+                ).order_by('-decidido_em', '-pk').first()
+                if aprovacao_quitado is not None:
+                    dados_quitado = snapshot_pagamento(pagamento)
             pagamento.colaborador = data['colaborador']
             pagamento.tipo = data['tipo']
             pagamento.competencia = data['competencia']
-            pagamento.competencia_fim = data['competencia'] + (
-                timedelta(days=6)
-                if data['tipo'] in {'vale_transporte', 'ajuda_custo'}
-                else timedelta(0)
-            )
+            if not pagamento.pk:
+                pagamento.competencia_fim = data['competencia'] + (
+                    timedelta(days=6)
+                    if data['tipo'] in {'vale_transporte', 'ajuda_custo'}
+                    else timedelta(0)
+                )
+                pagamento.data_vencimento = data['data_pagamento']
+                pagamento.recorrente = data['tipo'] in {'vale_transporte', 'ajuda_custo'}
             pagamento.valor = data['valor']
-            pagamento.data_vencimento = data['data_pagamento']
             pagamento.status = 'pago'
             pagamento.data_pagamento = data['data_pagamento']
-            pagamento.recorrente = data['tipo'] in {'vale_transporte', 'ajuda_custo'}
             pagamento.observacao = data['observacao']
             if not pagamento.criado_por_id:
                 pagamento.criado_por = request.user
-            pagamento.full_clean()
-            pagamento.save()
+            try:
+                pagamento.full_clean()
+                if aprovacao_quitado is not None and (
+                    snapshot_pagamento(pagamento) != dados_quitado
+                    or aprovacao_quitado.dados_aprovacao != dados_quitado
+                ):
+                    raise ValidationError(
+                        'Os dados financeiros deste pagamento já quitado foram autorizados '
+                        'e não podem ser alterados pela revisão do arquivo.'
+                    )
+                if exigir_aprovacao_existente:
+                    from core.payment_approvals import exigir_aprovacao_pagamento
+                    exigir_aprovacao_pagamento(pagamento)
+                pagamento.save()
+            except ValidationError as exc:
+                form.add_error(None, ValidationError(exc.messages))
+                return render(request, 'core/revisar_arquivo_importado.html', {
+                    'arquivo': arquivo, 'form': form,
+                })
             arquivo.content_object = pagamento
             arquivo.status = 'vinculado'
             arquivo.motivo_revisao = ''

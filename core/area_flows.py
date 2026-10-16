@@ -151,7 +151,7 @@ FLOWS = {
         'mod5',
         (
             ('Criar requisição', 'Agrupe os produtos da mesma unidade.'),
-            ('Aprovação direta', 'ceo_premium analisa a necessidade e decide a liberação.'),
+            ('Aprovação direta', 'Thiago analisa a necessidade e decide a liberação.'),
             ('Verificar estoque', 'Cada item é analisado separadamente.'),
             ('Comprar ou separar', 'Atendimento interno ou pedido externo.'),
             ('Entregar', 'Recebimento e conclusão do pedido.'),
@@ -171,7 +171,7 @@ FLOWS = {
             ('Extrair dados', 'OCR pode preencher os campos iniciais.'),
             ('Auditar', 'O checklist confere dados e itens.'),
             ('Lançar', 'Crie o registro contábil no ERP.'),
-            ('Validar', 'ceo_premium recebe o lançamento e decide a aprovação final.'),
+            ('Validar', 'Thiago recebe o lançamento e decide a aprovação final.'),
             ('Arquivar', 'O lançamento finalizado encerra o processo.'),
         ),
         (
@@ -186,6 +186,7 @@ FLOWS = {
         (
             ('Selecionar colaborador', 'Consulte contrato, categoria e faltas.'),
             ('Cadastrar pagamento', 'Informe tipo, período e vencimento.'),
+            ('Autorizar pagamento', 'Luiz confere os dados e aprova ou rejeita.'),
             ('Acompanhar pendência', 'O valor permanece no total em aberto.'),
             ('Confirmar pagamento', 'Registre data e comprovante.'),
             ('Consolidar', 'Totais e benefícios ficam disponíveis para consulta.'),
@@ -214,7 +215,7 @@ FLOWS = {
         (
             ('Selecionar ativo', 'Registre defeito, unidade e evidências.'),
             ('Solicitar aprovação', 'O ativo fica em manutenção.'),
-            ('Analisar', 'O CEO aprova ou rejeita o chamado.'),
+            ('Analisar', 'Thiago aprova ou rejeita o chamado.'),
             ('Executar reparo', 'Registre fornecedor, custo e laudo.'),
             ('Concluir', 'Defina a unidade de retorno.'),
             ('Liberar ativo', 'O patrimônio volta ao status ativo.'),
@@ -230,14 +231,14 @@ FLOWS = {
         'core',
         (
             ('Receber solicitação', 'O módulo cria uma aprovação pendente.'),
-            ('Notificar CEO', 'A solicitação vai diretamente para ceo_premium.'),
-            ('Analisar detalhes', 'ceo_premium consulta dados e anexos na web e no celular.'),
+            ('Encaminhar', 'Pagamentos vão para Luiz; demais aprovações, para Thiago.'),
+            ('Analisar detalhes', 'O responsável consulta dados e anexos na web e no celular.'),
             ('Decidir', 'Aprovar ou rejeitar com motivo.'),
             ('Atualizar processo', 'O módulo de origem recebe o resultado.'),
             ('Registrar histórico', 'A decisão permanece na auditoria.'),
         ),
         (
-            ('Todos os módulos', 'Aprovação direta de ceo_premium, inclusive pendências anteriores'),
+            ('Responsáveis', 'Luiz autoriza pagamentos; Thiago decide as aprovações operacionais'),
             ('Rejeição', 'Motivo obrigatório e retorno ao solicitante'),
         ),
     ),

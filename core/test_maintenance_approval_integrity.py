@@ -1,17 +1,18 @@
 from datetime import date
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from core.models import AprovacaoRegistro
 from manutencao.models import Ativo, RegistroManutencao
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='thiago_teste', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class MaintenanceApprovalIntegrityTests(TestCase):
     def setUp(self):
-        self.ceo = User.objects.create_user('ceo_premium')
-        self.client.force_login(self.ceo)
+        self.aprovador = User.objects.create_user('thiago_teste')
+        self.client.force_login(self.aprovador)
         self.ativo = Ativo.objects.create(
             numero_patrimonio='APPROVAL-01', nome='Lavadora',
             unidade_atual='Matriz', status='manutencao',

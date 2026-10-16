@@ -16,6 +16,7 @@
     </div>
     {% if aprovacao.descricao %}<div class="detail-description"><small>Detalhes do processo</small><p>{{ aprovacao.descricao }}</p></div>{% endif %}
 
+    {% include 'core/_dados_aprovacao_pagamento.html' %}
     {% if aprovacao.esta_pendente %}
       <form method="post" action="{% url 'aprovar_registro' aprovacao.pk %}" class="mobile-decision-form approve-form">
         {% csrf_token %}<input type="hidden" name="next" value="{% url 'painel_mobile' %}">

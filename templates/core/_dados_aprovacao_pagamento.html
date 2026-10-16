@@ -1,0 +1,22 @@
+{% if aprovacao.finalidade == 'pagamento' %}
+<section class="detail-description">
+  <h3>Dados do pagamento solicitado</h3>
+  <p>A aprovação autoriza estes dados. A confirmação do pagamento será registrada posteriormente.</p>
+  <dl>
+    <dt>Valor</dt><dd>R$ {{ aprovacao.dados_aprovacao.valor }}</dd>
+    <dt>Vencimento</dt><dd>{{ aprovacao.dados_aprovacao.data_vencimento|default:'Não informado' }}</dd>
+    {% if aprovacao.dados_aprovacao.modelo == 'admissional.pagamentocolaborador' %}
+      <dt>Favorecido</dt><dd>{{ aprovacao.dados_aprovacao.beneficiario_nome|default:'Não informado' }}</dd>
+      <dt>CPF / documento</dt><dd>{{ aprovacao.dados_aprovacao.beneficiario_documento|default:'Não informado' }}</dd>
+      <dt>Competência</dt><dd>{{ aprovacao.dados_aprovacao.competencia }}{% if aprovacao.dados_aprovacao.competencia_fim %} a {{ aprovacao.dados_aprovacao.competencia_fim }}{% endif %}</dd>
+      <dt>Chave PIX</dt><dd style="overflow-wrap:anywhere">{{ aprovacao.dados_aprovacao.chave_pix|default:'Não informada' }}</dd>
+    {% else %}
+      <dt>Fornecedor / favorecido</dt><dd>{{ aprovacao.dados_aprovacao.razao_social_emitente|default:'Não informado' }}</dd>
+      <dt>CNPJ</dt><dd>{{ aprovacao.dados_aprovacao.cnpj_emitente|default:'Não informado' }}</dd>
+      <dt>Documento</dt><dd>{{ aprovacao.dados_aprovacao.numero_documento }}</dd>
+      <dt>Descrição</dt><dd>{{ aprovacao.dados_aprovacao.descricao }}</dd>
+      <dt>Centro de custo / unidade</dt><dd>{{ aprovacao.dados_aprovacao.centro_custo|default:'—' }} / {{ aprovacao.dados_aprovacao.unidade|default:'—' }}</dd>
+    {% endif %}
+  </dl>
+</section>
+{% endif %}

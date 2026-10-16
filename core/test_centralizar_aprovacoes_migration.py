@@ -11,7 +11,7 @@ from django.utils import timezone
 
 
 class CentralizarAprovacoesMigrationTests(TestCase):
-    """Exercita os modelos históricos e a transferência em SQLite de testes."""
+    """Testa a lógica de transferência de 0022, sem executar alterações de schema."""
 
     @classmethod
     def setUpClass(cls):
@@ -20,10 +20,10 @@ class CentralizarAprovacoesMigrationTests(TestCase):
             'core.migrations.0022_centralizar_aprovacoes_ceo',
         )
         executor = MigrationExecutor(connection)
-        cls.apps = executor.loader.project_state([
-            ('core', '0021_desativar_bloqueio_ip'),
-            ('compras', '0012_pedido_com_itens'),
-        ]).apps
+        # O runner já aplicou todas as migrações. Usa modelos renderizados do
+        # mesmo schema, sem os métodos/sinais atuais, para chamar a função de
+        # dados histórica. Um estado de 0021 omite colunas obrigatórias novas.
+        cls.apps = executor.loader.project_state().apps
         cls.Usuario = cls.apps.get_model('auth', 'User')
         cls.Aprovacao = cls.apps.get_model('core', 'AprovacaoRegistro')
         cls.Notificacao = cls.apps.get_model('core', 'Notificacao')

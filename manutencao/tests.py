@@ -1,3 +1,5 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -8,8 +10,10 @@ from core.models import AprovacaoRegistro, PerfilUsuario
 from manutencao.models import Ativo, RegistroManutencao
 
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class AprovacaoManutencaoCEOTests(TestCase):
     def setUp(self):
+        configurar_aprovadores(self)
         self.ceo = User.objects.create_user('ceo_premium')
         self.operador = User.objects.create_user('operador-manutencao')
         PerfilUsuario.objects.create(usuario=self.operador, perfil='sesmet')

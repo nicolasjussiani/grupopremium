@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction, IntegrityError
 from django.db.models import Q
 from django.http import HttpResponseBadRequest
@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from core.access import access_required, user_has_access
+from core.payment_approvals import sincronizar_aprovacao_pagamento, situacao_aprovacao_pagamento
 from .forms import PagamentoColaboradorForm
 from .models import Colaborador, PagamentoColaborador, PresencaDiaria
 
@@ -63,10 +64,13 @@ def programacao_salarios(request):
                         salvo = form.save(commit=False)
                         salvo.criado_por = salvo.criado_por or request.user
                         salvo.save()
+                        sincronizar_aprovacao_pagamento(salvo, request.user)
                         return redirect(reverse('programacao_salarios') + '?mes=' + mes)
                     erro_form, erro_pessoa = form, pessoa.pk
         except IntegrityError:
             erro = 'Já existe um lançamento para esse período. Atualize a página e confira a folha.'
+        except ValidationError as exc:
+            erro = ' '.join(exc.messages)
     pagamentos = {p.colaborador_id: p for p in PagamentoColaborador.objects.filter(
         tipo='salario', competencia__range=(inicio, fim),
     ).exclude(status='cancelado')}
@@ -82,6 +86,8 @@ def programacao_salarios(request):
     linhas = []
     for pessoa in equipe.order_by('nome', 'pk'):
         pagamento = pagamentos.get(pessoa.pk)
+        if pagamento and pagamento.status == 'pendente':
+            pagamento.situacao_aprovacao = situacao_aprovacao_pagamento(pagamento)
         info = presencas.get(pessoa.pk, {'presentes': 0, 'faltas': []})
         sugestao = min(30, info['presentes'] + len(info['faltas'])) or None
         inicial = {

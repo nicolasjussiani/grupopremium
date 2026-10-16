@@ -2,18 +2,21 @@ from unittest.mock import patch
 from datetime import date
 
 from django.contrib.auth.models import Group, Permission, User
+from django.contrib.contenttypes.models import ContentType
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import SimpleTestCase, TestCase
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from core.models import PerfilUsuario
+from core.models import AprovacaoRegistro, PerfilUsuario
 from financeiro.models import AuditoriaItem, DocumentoFinanceiro, LancamentoERP
 from financeiro.services.ocr_service import extrair_dados_documento
 
 
+@override_settings(APROVADOR_PAGAMENTOS_USERNAME='luiz_teste', APROVADOR_OPERACIONAL_USERNAME='thiago_teste')
 class PagamentoDocumentoTests(TestCase):
     def setUp(self):
-        self.ceo = User.objects.create_user('ceo_premium')
+        self.ceo = User.objects.create_superuser('thiago_teste')
+        self.luiz = User.objects.create_user('luiz_teste')
         self.user = User.objects.create_user('operador-pagamento')
         PerfilUsuario.objects.create(usuario=self.user, perfil='financeiro')
         grupo, _ = Group.objects.get_or_create(name='Financeiro_Operador')
@@ -27,9 +30,25 @@ class PagamentoDocumentoTests(TestCase):
         dados = {**self.dados, **campos}
         return self.client.post(reverse('entrada_documento'), dados)
 
-    def test_pago_no_cadastro_nao_aparece_no_filtro_a_pagar(self):
-        self.assertEqual(self.criar(situacao_pagamento='pago', data_pagamento='2026-09-25').status_code, 302)
+    def aprovar_pagamento(self, doc):
+        aprovacao = AprovacaoRegistro.objects.get(
+            content_type=ContentType.objects.get_for_model(doc), object_id=doc.pk, status='pendente',
+        )
+        cliente = Client()
+        cliente.force_login(self.luiz)
+        self.assertEqual(cliente.post(reverse('aprovar_registro', args=[aprovacao.pk])).status_code, 302)
+
+    def test_pago_no_cadastro_e_bloqueado_e_baixa_autorizada_sai_de_a_pagar(self):
+        response = self.criar(situacao_pagamento='pago', data_pagamento='2026-09-25')
+        self.assertContains(response, 'Cadastre como A pagar')
+        self.assertFalse(DocumentoFinanceiro.objects.exists())
+        self.assertEqual(self.criar().status_code, 302)
         doc = DocumentoFinanceiro.objects.get()
+        self.aprovar_pagamento(doc)
+        self.assertEqual(self.client.post(reverse('atualizar_pagamento_documento', args=[doc.pk]), {
+            'situacao_pagamento': 'pago', 'data_pagamento': '2026-09-25',
+        }).status_code, 302)
+        doc.refresh_from_db()
         self.assertEqual(doc.data_pagamento, date(2026, 9, 25))
         self.assertEqual(doc.situacao_pagamento, 'pago')
         self.assertEqual(doc.status, 'em_auditoria')
@@ -46,21 +65,22 @@ class PagamentoDocumentoTests(TestCase):
                 self.assertEqual(self.criar(**campos).status_code, 200)
                 self.assertFalse(DocumentoFinanceiro.objects.exists())
 
-    def test_baixa_e_correcao_preservam_vencimento_e_auditoria(self):
+    def test_baixa_preserva_vencimento_e_auditoria_e_reabertura_e_bloqueada(self):
         self.criar()
         doc = DocumentoFinanceiro.objects.get()
         url = reverse('atualizar_pagamento_documento', args=[doc.pk])
         self.assertEqual(self.client.get(url).status_code, 405)
         self.assertEqual(self.client.post(url, {'situacao_pagamento': 'pago'}).status_code, 400)
+        self.aprovar_pagamento(doc)
         self.assertEqual(self.client.post(url, {'situacao_pagamento': 'pago', 'data_pagamento': '2026-09-25'}).status_code, 302)
         doc.refresh_from_db()
         self.assertEqual(doc.situacao_pagamento, 'pago')
         self.assertEqual(doc.data_vencimento, date(2026, 10, 1))
         self.assertEqual(doc.status, 'em_auditoria')
-        self.client.post(url, {'situacao_pagamento': 'a_pagar', 'data_pagamento': '2026-09-25'})
+        self.assertEqual(self.client.post(url, {'situacao_pagamento': 'a_pagar', 'data_pagamento': '2026-09-25'}).status_code, 400)
         doc.refresh_from_db()
-        self.assertEqual(doc.situacao_pagamento, 'a_pagar')
-        self.assertIsNone(doc.data_pagamento)
+        self.assertEqual(doc.situacao_pagamento, 'pago')
+        self.assertEqual(doc.data_pagamento, date(2026, 9, 25))
 
     def test_usuario_sem_permissao_nao_altera_pagamento(self):
         self.criar()
@@ -90,6 +110,7 @@ class PagamentoDocumentoTests(TestCase):
         url = reverse('lancar_erp', args=[doc.pk])
         self.assertEqual(self.client.post(url, dados).status_code, 200)
         self.assertFalse(LancamentoERP.objects.exists())
+        self.aprovar_pagamento(doc)
         dados['data_pagamento'] = '2026-09-25'
         self.assertEqual(self.client.post(url, dados).status_code, 302)
         doc.refresh_from_db()
@@ -131,6 +152,7 @@ class PagamentoDocumentoTests(TestCase):
         self.assertEqual(doc.status, 'arquivado')
         self.assertEqual(doc.situacao_pagamento, 'a_pagar')
         self.assertContains(self.client.get(reverse('painel_financeiro'), {'pagamento': 'a_pagar'}), 'Compra de material')
+        self.aprovar_pagamento(doc)
         self.client.post(reverse('atualizar_pagamento_documento', args=[doc.pk]), {
             'situacao_pagamento': 'pago', 'data_pagamento': '2026-09-25',
         })
@@ -160,9 +182,11 @@ class LeituraProvisoriaDocumentoTests(SimpleTestCase):
         self.assertEqual(dados['produtos'], [])
 
 
+@override_settings(APROVADOR_PAGAMENTOS_USERNAME='luiz_teste', APROVADOR_OPERACIONAL_USERNAME='thiago_teste')
 class EntradaDocumentoOpcionalTests(TestCase):
     def setUp(self):
-        User.objects.create_user('ceo_premium')
+        User.objects.create_user('thiago_teste')
+        User.objects.create_user('luiz_teste')
         self.user = User.objects.create_user('financeiro-opcional', password='senha-forte-123')
         PerfilUsuario.objects.create(usuario=self.user, perfil='financeiro')
         grupo, _ = Group.objects.get_or_create(name='Financeiro_Operador')

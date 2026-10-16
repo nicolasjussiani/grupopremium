@@ -1,12 +1,16 @@
+from django.test import override_settings
+from core.approval_test_utils import configurar_aprovadores
 from django.test import TestCase, Client
 from django.contrib.auth.models import User, Group
 from django.urls import reverse
 from core.models import AprovacaoRegistro
 from administrativo.models import DemandaAdministrativa
 
+@override_settings(APROVADOR_OPERACIONAL_USERNAME='ceo_premium', APROVADOR_PAGAMENTOS_USERNAME='luiz_teste')
 class AprovacaoProcessoTest(TestCase):
     def setUp(self):
         # Cria usuários
+        configurar_aprovadores(self)
         self.solicitante = User.objects.create_user(username='solicitante', password='123')
         self.aprovador = User.objects.create_user(username='ceo_premium', password='123')
         

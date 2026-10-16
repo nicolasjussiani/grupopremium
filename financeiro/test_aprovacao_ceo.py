@@ -9,11 +9,13 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core.models import AprovacaoRegistro, Notificacao, PerfilUsuario
+from core.approval_test_utils import configurar_aprovadores
 from financeiro.models import AuditoriaItem, DocumentoFinanceiro, LancamentoERP
 
 
 class AprovacaoFinanceiraCEOTests(TestCase):
     def setUp(self):
+        configurar_aprovadores(self)
         self.ceo = User.objects.create_user('ceo_premium')
         self.operador = User.objects.create_user('financeiro-operador')
         PerfilUsuario.objects.create(usuario=self.operador, perfil='financeiro')
@@ -43,7 +45,8 @@ class AprovacaoFinanceiraCEOTests(TestCase):
         url = reverse('validar_lancamento', args=[lancamento.pk])
         self.assertNotContains(self.client.get(url), 'value="validar"')
         for acao in ('validar', 'rejeitar'):
-            self.assertEqual(self.client.post(url, {'acao': acao, 'motivo_rejeicao': 'Teste'}).status_code, 403)
+            # A decisão só encontra registros atribuídos ao usuário conectado.
+            self.assertEqual(self.client.post(url, {'acao': acao, 'motivo_rejeicao': 'Teste'}).status_code, 404)
         lancamento.refresh_from_db()
         self.assertEqual(lancamento.status, 'em_validacao')
         self.client.force_login(self.ceo)
@@ -99,7 +102,10 @@ class AprovacaoFinanceiraCEOTests(TestCase):
 
 
 class MigracaoFinanceiraCEOTests(TestCase):
+    """Testa a lógica do backfill histórico contra o schema completo do runner."""
+
     def setUp(self):
+        configurar_aprovadores(self)
         self.ceo = User.objects.create_user('ceo_premium')
         self.doc = DocumentoFinanceiro.objects.create(
             tipo='boleto', numero_documento='LEGADO-CEO', descricao='Legado', valor=10, status='lancado',
@@ -109,9 +115,9 @@ class MigracaoFinanceiraCEOTests(TestCase):
             centro_custo='ADM', competencia=date.today(), status='em_validacao',
         )
         self.migracao = import_module('financeiro.migrations.0012_lancamentos_pendentes_ceo')
-        self.apps = MigrationLoader(connection).project_state([
-            ('financeiro', '0012_lancamentos_pendentes_ceo'),
-        ]).apps
+        # A função histórica recebe modelos sem os métodos atuais, mas com as
+        # colunas obrigatórias que já existem no banco de testes migrado.
+        self.apps = MigrationLoader(connection).project_state().apps
 
     def migrar(self):
         self.migracao.encaminhar_lancamentos_pendentes(self.apps, SimpleNamespace(connection=connection))
